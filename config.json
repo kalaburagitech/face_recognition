@@ -1,0 +1,42 @@
+{
+  "database": {
+    "path": "data/database/face_recognition.db"
+  },
+  "face_recognition": {
+    "tolerance": 0.4,
+    "model": "buffalo_l",
+    "deepface_model": "ArcFace",
+    "threshold": 0.4,
+    "det_size": [
+      640,
+      640
+    ],
+    "providers": [
+      "CPUExecutionProvider"
+    ]
+  },
+  "api": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "debug": false
+  },
+  "upload": {
+    "max_file_size": 16777216,
+    "allowed_extensions": [
+      "jpg",
+      "jpeg",
+      "png",
+      "bmp",
+      "tiff"
+    ],
+    "upload_folder": "data/uploads"
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  },
+  "models": {
+    "insightface_root": "models/insightface",
+    "cache_dir": "models/cache"
+  }
+}

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人脸识别系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+
+    <style>
+        .upload-area {
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            padding: 50px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            border-color: #0d6efd;
+            background-color: #f8f9fa;
+        }
+        .upload-area.dragover {
+            border-color: #0d6efd;
+            background-color: #e7f1ff;
+        }
+        .preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .result-card {
+            transition: all 0.3s ease;
+        }
+        .result-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        .face-box {
+            position: relative;
+            display: inline-block;
+        }
+        .face-label {
+            position: absolute;
+            top: -25px;
+            left: 0;
+            background: rgba(0,123,255,0.8);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .loading-spinner {
+            display: none;
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .nav-pills .nav-link.active {
+            background-color: #0d6efd;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-camera-fill me-2"></i>
+                人脸识别系统
+            </a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- 导航标签 -->
+        <ul class="nav nav-pills mb-4" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="recognition-tab" data-bs-toggle="pill" data-bs-target="#recognition" type="button" role="tab">
+                    <i class="bi bi-search me-2"></i>人脸识别
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="enrollment-tab" data-bs-toggle="pill" data-bs-target="#enrollment" type="button" role="tab">
+                    <i class="bi bi-person-plus me-2"></i>人脸入库
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="management-tab" data-bs-toggle="pill" data-bs-target="#management" type="button" role="tab">
+                    <i class="bi bi-people me-2"></i>人员管理
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="statistics-tab" data-bs-toggle="pill" data-bs-target="#statistics" type="button" role="tab">
+                    <i class="bi bi-graph-up me-2"></i>统计信息
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="mainTabContent">
+            <!-- 人脸识别页面 -->
+            <div class="tab-pane fade show active" id="recognition" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-upload me-2"></i>上传图片
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="upload-area" id="recognitionUploadArea">
+                                    <i class="bi bi-cloud-upload fs-1 text-muted"></i>
+                                    <p class="mt-3 mb-2">点击选择图片或拖拽图片到此处</p>
+                                    <p class="text-muted small">支持 JPG, PNG, BMP 格式</p>
+                                    <input type="file" id="recognitionFileInput" accept="image/*" class="d-none">
+                                </div>
+                                <div id="recognitionPreview" class="mt-3" style="display: none;">
+                                    <img id="recognitionPreviewImg" class="preview-image">
+                                </div>
+                                <div class="mt-3 d-grid gap-2">
+                                    <button id="recognitionBtn" class="btn btn-primary" disabled>
+                                        <span class="loading-spinner spinner-border spinner-border-sm me-2"></span>
+                                        <i class="bi bi-search me-2"></i>开始识别
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-list-check me-2"></i>识别结果
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <!-- 错误信息显示区域 -->
+                                <div id="recognitionError" style="display: none;"></div>
+                                
+                                <div id="recognitionResults">
+                                    <div class="text-center text-muted">
+                                        <i class="bi bi-image fs-1"></i>
+                                        <p class="mt-3">上传图片开始识别</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 人脸入库页面 -->
+            <div class="tab-pane fade" id="enrollment" role="tabpanel">
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-person-plus me-2"></i>人脸入库
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="enrollmentForm">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="personName" class="form-label">人员姓名 *</label>
+                                                <input type="text" class="form-control" id="personName" required>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="personDescription" class="form-label">描述</label>
+                                                <input type="text" class="form-control" id="personDescription" placeholder="可选">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">上传方式</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="uploadType" id="singleUpload" value="single" checked>
+                                            <label class="form-check-label" for="singleUpload">
+                                                单张图片
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="uploadType" id="batchUpload" value="batch">
+                                            <label class="form-check-label" for="batchUpload">
+                                                批量上传
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="upload-area" id="enrollmentUploadArea">
+                                        <i class="bi bi-cloud-upload fs-1 text-muted"></i>
+                                        <p class="mt-3 mb-2" id="uploadText">点击选择图片或拖拽图片到此处</p>
+                                        <p class="text-muted small">支持 JPG, PNG, BMP 格式</p>
+                                        <input type="file" id="enrollmentFileInput" accept="image/*" class="d-none">
+                                    </div>
+
+                                    <div id="enrollmentPreview" class="mt-3" style="display: none;">
+                                        <div id="enrollmentPreviewImages" class="row"></div>
+                                    </div>
+
+                                    <div class="mt-3 d-grid gap-2">
+                                        <button type="submit" id="enrollmentBtn" class="btn btn-success" disabled>
+                                            <span class="loading-spinner spinner-border spinner-border-sm me-2"></span>
+                                            <i class="bi bi-person-plus me-2"></i>开始入库
+                                        </button>
+                                    </div>
+                                </form>
+                                
+                                <!-- 入库结果显示区域 -->
+                                <div id="enrollmentError" style="display: none;" class="mt-3"></div>
+                                <div id="enrollmentResults" style="display: none;" class="mt-3"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-info-circle me-2"></i>使用说明
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-unstyled">
+                                    <li class="mb-2">
+                                        <i class="bi bi-check-circle text-success me-2"></i>
+                                        确保人脸清晰可见
+                                    </li>
+                                    <li class="mb-2">
+                                        <i class="bi bi-check-circle text-success me-2"></i>
+                                        避免强光或阴影
+                                    </li>
+                                    <li class="mb-2">
+                                        <i class="bi bi-check-circle text-success me-2"></i>
+                                        人脸占图片30%以上
+                                    </li>
+                                    <li class="mb-2">
+                                        <i class="bi bi-check-circle text-success me-2"></i>
+                                        支持多角度图片入库
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 人员管理页面 -->
+            <div class="tab-pane fade" id="management" role="tabpanel">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-people me-2"></i>人员列表
+                        </h5>
+                        <button class="btn btn-primary btn-sm" onclick="loadPersons()">
+                            <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>姓名</th>
+                                        <th>描述</th>
+                                        <th>人脸数量</th>
+                                        <th>创建时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="personsTableBody">
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted">加载中...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 统计信息页面 -->
+            <div class="tab-pane fade" id="statistics" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-3 mb-4">
+                        <div class="card stats-card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-people fs-1"></i>
+                                <h3 class="mt-2" id="totalPersons">-</h3>
+                                <p class="mb-0">总人数</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-4">
+                        <div class="card stats-card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-camera-fill fs-1"></i>
+                                <h3 class="mt-2" id="totalEncodings">-</h3>
+                                <p class="mb-0">人脸特征数</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-4">
+                        <div class="card stats-card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-speedometer2 fs-1"></i>
+                                <h3 class="mt-2" id="tolerance">-</h3>
+                                <p class="mb-0">识别容忍度</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-4">
+                        <div class="card stats-card">
+                            <div class="card-body text-center">
+                                <i class="bi bi-memory fs-1"></i>
+                                <h3 class="mt-2" id="loadedEncodings">-</h3>
+                                <p class="mb-0">已加载特征数</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-gear me-2"></i>系统配置
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="systemConfigContainer">
+                            <div class="text-center text-muted">
+                                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                加载系统配置中...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 消息显示区域 -->
+                <div id="messagesContainer" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 人员详情模态框 -->
+    <div class="modal fade" id="personDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="personDetailModalTitle">人员详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="personDetailModalBody">
+                    <!-- 动态内容 -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全局加载指示器 -->
+    <div id="globalSpinner" class="position-fixed top-50 start-50 translate-middle" style="z-index: 9999; display: none;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+        <div class="mt-2 text-center">
+            <small class="text-muted" id="spinnerText">处理中...</small>
+        </div>
+    </div>
+
+    <!-- 页面加载指示条 -->
+    <div id="loadingBar" class="position-fixed top-0 start-0 w-100" style="height: 3px; background: linear-gradient(90deg, #007bff 0%, #28a745 100%); z-index: 9998; transform: scaleX(0); transform-origin: left; transition: transform 0.3s ease; display: none;"></div>
+
+    <!-- Toast 通知 -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+        <div id="toast" class="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto" id="toastTitle">通知</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toastBody">
+                消息内容
+            </div>
+        </div>
+    </div>
+
+    <!-- 系统状态指示器 -->
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 10">
+        <div id="systemStatus" class="badge bg-success">
+            <i class="bi bi-wifi me-1"></i>在线
+        </div>
+    </div>
+
+    <!-- 快捷键帮助 -->
+    <div class="position-fixed bottom-0 start-0 p-3" style="z-index: 9">
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown">
+                <i class="bi bi-question-circle"></i>
+            </button>
+            <ul class="dropdown-menu">
+                <li><span class="dropdown-item-text"><strong>快捷键</strong></span></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><span class="dropdown-item-text">Ctrl+R: 刷新数据</span></li>
+                <li><span class="dropdown-item-text">Ctrl+U: 快速上传</span></li>
+                <li><span class="dropdown-item-text">Esc: 关闭弹窗</span></li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
