@@ -570,6 +570,7 @@ def create_app() -> FastAPI:
                         "name": person.name,
                         "description": person.description,
                         "created_at": person.created_at.isoformat() if person.created_at else None,
+                        "updated_at": person.updated_at.isoformat() if person.updated_at else None,
                         "encoding_count": encoding_count
                     }
                 })

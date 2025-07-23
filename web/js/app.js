@@ -1219,7 +1219,7 @@ function displayEnrollmentResults(result) {
                     <div class="mt-3 p-2 bg-light rounded">
                         <small class="text-muted">
                             <i class="bi bi-cpu me-1"></i>
-                            已提取特征向量 ${result.embeddings_count} 个，特征维度: ${result.embedding_dim || 'N/A'}
+                            已提取特征向量 ${result.embeddings_count} 个，特征维度: ${result.feature_dim || 'N/A'}
                         </small>
                     </div>
                 ` : ''}
