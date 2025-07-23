@@ -19,9 +19,14 @@ import tempfile
 import shutil
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
+import sys
+
+# 添加项目根目录到Python路径
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from ..services.advanced_face_service import get_advanced_face_service
 from ..utils.config import config, get_upload_config
+from src.utils.enhanced_visualization import EnhancedFaceVisualizer
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +111,9 @@ def create_app() -> FastAPI:
     # 获取服务实例
     def get_face_service():
         return get_advanced_face_service()
+    
+    # 创建全局可视化器实例
+    visualizer = EnhancedFaceVisualizer()
 
     @app.get("/", response_class=HTMLResponse)
     async def root():
@@ -337,48 +345,30 @@ def create_app() -> FastAPI:
             result = service.recognize_face_with_threshold(image, threshold)
             
             if result['success']:
-                # 在图像上绘制检测框和标签
-                annotated_image = image.copy()
+                # 使用增强可视化器生成可视化图像
+                visual_result = visualizer.visualize_recognition_results(
+                    image, result['matches'], threshold
+                )
                 
-                for match in result['matches']:
-                    bbox = match['bbox']
-                    x1, y1, x2, y2 = bbox
+                if visual_result['success']:
+                    # 将base64图像转换为临时文件
+                    import base64
+                    image_data = base64.b64decode(visual_result['image_base64'])
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+                    temp_file.write(image_data)
+                    temp_file.close()
                     
-                    # 绘制检测框
-                    # 使用匹配度而不是置信度判断颜色
-                    color = (0, 255, 0) if match.get('match_score', 0) > (threshold * 100) else (0, 165, 255)
-                    cv2.rectangle(annotated_image, (x1, y1), (x2, y2), color, 3)  # 加粗边框
-                    
-                    # 准备标签文字 - 只显示匹配度，去掉重复信息
-                    label = f"{match['name']}"
-                    match_text = f"匹配度: {match.get('match_score', 0):.1f}%"
-                    distance_text = f"距离: {match.get('distance', 0):.3f}"
-                    
-                    # 绘制更大的标签背景以改善可读性
-                    bg_height = 80
-                    bg_width = max(250, len(label) * 12)
-                    cv2.rectangle(annotated_image, (x1, y1-bg_height), (x1+bg_width, y1), color, -1)
-                    cv2.rectangle(annotated_image, (x1, y1-bg_height), (x1+bg_width, y1), (0, 0, 0), 2)
-                    
-                    # 使用更大字体的中文绘制函数
-                    annotated_image = draw_chinese_text(annotated_image, label, (x1+8, y1-65), 20, (255, 255, 255))
-                    annotated_image = draw_chinese_text(annotated_image, match_text, (x1+8, y1-40), 16, (255, 255, 255))
-                    annotated_image = draw_chinese_text(annotated_image, distance_text, (x1+8, y1-18), 14, (200, 200, 200))
-                
-                # 保存标注图像到临时文件
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
-                cv2.imwrite(temp_file.name, annotated_image)
-                temp_file.close()
-                
-                try:
-                    return FileResponse(
-                        temp_file.name, 
-                        media_type="image/jpeg",
-                        filename=f"recognition_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-                    )
-                finally:
-                    # 清理临时文件（延迟删除）
-                    asyncio.create_task(cleanup_temp_file(temp_file.name))
+                    try:
+                        return FileResponse(
+                            temp_file.name, 
+                            media_type="image/jpeg",
+                            filename=f"recognition_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                        )
+                    finally:
+                        # 清理临时文件（延迟删除）
+                        asyncio.create_task(cleanup_temp_file(temp_file.name))
+                else:
+                    raise HTTPException(status_code=500, detail="可视化生成失败")
             else:
                 raise HTTPException(status_code=400, detail=result.get('error', '识别失败'))
 

@@ -8,6 +8,13 @@ import numpy as np
 import logging
 from typing import List, Tuple, Dict, Any, Optional, Union
 from datetime import datetime
+import sys
+import base64
+
+# 添加项目根目录到Python路径
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+from src.utils.enhanced_visualization import EnhancedFaceVisualizer
 import pickle
 import base64
 from pathlib import Path
@@ -48,6 +55,9 @@ class AdvancedFaceRecognitionService:
         """
         self.db_manager = DatabaseManager()
         self.model_name = model_name
+        
+        # 初始化增强可视化器
+        self.visualizer = EnhancedFaceVisualizer()
         
         # 初始化 InsightFace
         self._init_insightface()
@@ -136,15 +146,22 @@ class AdvancedFaceRecognitionService:
     
     def _detect_faces_opencv(self, image: np.ndarray) -> List[Dict[str, Any]]:
         """使用 OpenCV 进行人脸检测（备选方案）"""
-        # 加载 Haar 级联分类器
-        face_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-        )
-        
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        faces_cv = face_cascade.detectMultiScale(
-            gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
-        )
+        try:
+            # 加载 Haar 级联分类器
+            cascade_path = os.path.join(cv2.__path__[0], 'data', 'haarcascade_frontalface_default.xml')
+            if not os.path.exists(cascade_path):
+                # 使用默认路径
+                cascade_path = 'haarcascade_frontalface_default.xml'
+            
+            face_cascade = cv2.CascadeClassifier(cascade_path)
+            
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            faces_cv = face_cascade.detectMultiScale(
+                gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
+            )
+        except Exception as e:
+            logger.warning(f"OpenCV人脸检测失败: {e}")
+            return []
         
         faces = []
         for (x, y, w, h) in faces_cv:
@@ -219,7 +236,7 @@ class AdvancedFaceRecognitionService:
             logger.error(f"特征提取失败: {str(e)}")
             return None
     
-    def enroll_person(self, name: str, image_path: str, description: str = None) -> Dict[str, Any]:
+    def enroll_person(self, name: str, image_path: str, description: Optional[str] = None) -> Dict[str, Any]:
         """
         高精度人员入库
         
@@ -653,7 +670,7 @@ class AdvancedFaceRecognitionService:
     
     def visualize_face_detection(self, image_path: str) -> Dict[str, Any]:
         """
-        生成人脸检测可视化图像
+        生成人脸检测可视化图像（使用增强可视化器）
         
         Args:
             image_path: 图像文件路径
@@ -671,59 +688,32 @@ class AdvancedFaceRecognitionService:
                 }
             
             # 检测人脸
-            faces = self.app.get(image) if self.app else []
+            faces_data = []
+            if self.app:
+                faces = self.app.get(image)
+                for i, face in enumerate(faces):
+                    bbox = face.bbox.astype(int)
+                    face_info = {
+                        'bbox': bbox.tolist(),
+                        'quality': float(face.det_score),
+                        'det_score': float(face.det_score),
+                        'name': f'人脸 {i+1}'
+                    }
+                    faces_data.append(face_info)
             
-            # 复制图像用于绘制
-            result_image = image.copy()
-            face_details = []
+            # 使用增强可视化器生成图像
+            result = self.visualizer.visualize_face_detection(image, faces_data)
             
-            for i, face in enumerate(faces):
-                # 获取边界框
-                bbox = face.bbox.astype(int)
-                x1, y1, x2, y2 = bbox
-                
-                # 获取人脸质量分数
-                quality = face.det_score
-                
-                # 绘制边界框 - 使用绿色表示检测到的人脸
-                color = (0, 255, 0)  # 绿色
-                thickness = 2
-                cv2.rectangle(result_image, (x1, y1), (x2, y2), color, thickness)
-                
-                # 添加标签文本 - 使用英文避免中文乱码
-                label = f"Face {i+1}"
-                quality_text = f"Q: {quality:.2f}"
-                
-                # 计算文本位置
-                label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
-                quality_size = cv2.getTextSize(quality_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0]
-                
-                # 绘制标签背景
-                cv2.rectangle(result_image, (x1, y1 - 45), (x1 + max(label_size[0], quality_size[0]) + 10, y1), color, -1)
-                
-                # 绘制文本 - 使用英文标签避免乱码
-                cv2.putText(result_image, label, (x1 + 5, y1 - 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-                cv2.putText(result_image, quality_text, (x1 + 5, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-                
-                # 收集人脸详情 - 确保所有数值都是 Python 原生类型
-                face_details.append({
-                    'index': int(i + 1),
-                    'bbox': [int(x1), int(y1), int(x2), int(y2)],
-                    'quality': float(quality),
-                    'size': [int(x2 - x1), int(y2 - y1)]
-                })
-            
-            # 将图像编码为 base64
-            _, buffer = cv2.imencode('.jpg', result_image, [cv2.IMWRITE_JPEG_QUALITY, 85])
-            image_base64 = base64.b64encode(buffer).decode('utf-8')
-            
-            return {
-                'success': True,
-                'image_base64': image_base64,
-                'faces': face_details,
-                'total_faces': len(faces),
-                'message': f'检测到 {len(faces)} 个人脸'
-            }
+            if result['success']:
+                return {
+                    'success': True,
+                    'image_base64': result['image_base64'],
+                    'faces': result['face_details'],
+                    'total_faces': result['total_faces'],
+                    'message': f'检测到 {result["total_faces"]} 个人脸'
+                }
+            else:
+                return result
             
         except Exception as e:
             logger.error(f"人脸检测可视化失败: {str(e)}")

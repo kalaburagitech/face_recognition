@@ -254,33 +254,130 @@
             <!-- 人员管理页面 -->
             <div class="tab-pane fade" id="management" role="tabpanel">
                 <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-people me-2"></i>人员列表
-                        </h5>
-                        <button class="btn btn-primary btn-sm" onclick="loadPersons()">
-                            <i class="bi bi-arrow-clockwise me-1"></i>刷新
-                        </button>
+                    <div class="card-header">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-people me-2"></i>人员列表
+                                </h5>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="d-flex justify-content-end gap-2">
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="exportPersonsData()">
+                                        <i class="bi bi-download me-1"></i>导出
+                                    </button>
+                                    <button class="btn btn-primary btn-sm" onclick="loadPersons()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>姓名</th>
-                                        <th>描述</th>
-                                        <th>人脸数量</th>
-                                        <th>创建时间</th>
-                                        <th>操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="personsTableBody">
-                                    <tr>
-                                        <td colspan="6" class="text-center text-muted">加载中...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <!-- 搜索和筛选区域 -->
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="text" class="form-control" id="searchPersons" 
+                                           placeholder="搜索人员姓名..." onkeyup="searchPersons()">
+                                    <button class="btn btn-outline-secondary" onclick="clearSearch()" title="清除搜索">
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="sortPersons" onchange="sortPersons()">
+                                    <option value="name_asc">姓名 A-Z</option>
+                                    <option value="name_desc">姓名 Z-A</option>
+                                    <option value="date_desc">最新创建</option>
+                                    <option value="date_asc">最早创建</option>
+                                    <option value="faces_desc">人脸数量(多-少)</option>
+                                    <option value="faces_asc">人脸数量(少-多)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="filterPersons" onchange="filterPersons()">
+                                    <option value="all">所有人员</option>
+                                    <option value="with_faces">有人脸特征</option>
+                                    <option value="no_faces">无人脸特征</option>
+                                    <option value="recent">近期添加</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="btn-group" role="group">
+                                    <button class="btn btn-outline-primary btn-sm" id="listViewBtn" onclick="switchView('list')" title="列表视图">
+                                        <i class="bi bi-list"></i>
+                                    </button>
+                                    <button class="btn btn-outline-primary btn-sm" id="cardViewBtn" onclick="switchView('card')" title="卡片视图">
+                                        <i class="bi bi-grid"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 批量操作区域 -->
+                        <div class="row mb-3" id="batchOperations" style="display: none;">
+                            <div class="col-12">
+                                <div class="alert alert-info d-flex justify-content-between align-items-center">
+                                    <span>
+                                        已选择 <span id="selectedCount">0</span> 个人员
+                                    </span>
+                                    <div>
+                                        <button class="btn btn-danger btn-sm me-2" onclick="batchDeletePersons()">
+                                            <i class="bi bi-trash me-1"></i>批量删除
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm" onclick="clearSelection()">
+                                            <i class="bi bi-x me-1"></i>取消选择
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 列表视图 -->
+                        <div id="listView">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>
+                                                <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                                            </th>
+                                            <th>ID</th>
+                                            <th>姓名</th>
+                                            <th>描述</th>
+                                            <th>人脸数量</th>
+                                            <th>创建时间</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="personsTableBody">
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted">加载中...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- 卡片视图 -->
+                        <div id="cardView" style="display: none;">
+                            <div class="row" id="personsCardContainer">
+                                <div class="col-12 text-center text-muted">加载中...</div>
+                            </div>
+                        </div>
+                        
+                        <!-- 分页 -->
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <div class="text-muted">
+                                共 <span id="totalPersonsCount">0</span> 个人员，当前显示 <span id="currentPageInfo">0</span>
+                            </div>
+                            <nav>
+                                <ul class="pagination pagination-sm mb-0" id="pagination">
+                                    <!-- 分页按钮将通过JS生成 -->
+                                </ul>
+                            </nav>
                         </div>
                     </div>
                 </div>

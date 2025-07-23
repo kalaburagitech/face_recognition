@@ -8,6 +8,12 @@ const API_BASE_URL = '/api';
 // 全局变量
 let currentFiles = [];
 let currentUploadType = 'single';
+let allPersons = []; // 存储所有人员数据
+let filteredPersons = []; // 存储过滤后的人员数据
+let selectedPersons = new Set(); // 存储选中的人员ID
+let currentView = 'list'; // 当前视图模式
+let currentPage = 1; // 当前页码
+let itemsPerPage = 10; // 每页显示数量
 
 // 全局加载指示器管理
 let loadingCount = 0;
@@ -1448,68 +1454,256 @@ async function updateDuplicateThreshold() {
  * 加载人员列表
  */
 async function loadPersons() {
-    const tableBody = document.getElementById('personsTableBody');
-    
     try {
-        tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">加载中...</td></tr>';
+        showGlobalSpinner('加载人员数据...');
         
         const response = await fetch(`${API_BASE_URL}/persons`);
         const result = await response.json();
         
         if (result.success && result.persons.length > 0) {
-            const html = result.persons.map(person => {
-                const createdAt = new Date(person.created_at).toLocaleString('zh-CN');
-                return `
-                    <tr>
-                        <td>${person.id}</td>
-                        <td>${person.name}</td>
-                        <td>${person.description || '-'}</td>
-                        <td>
-                            <span class="badge bg-info" id="face-count-${person.id}">-</span>
-                        </td>
-                        <td>${createdAt}</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-info me-1" onclick="viewPerson(${person.id})">
-                                <i class="bi bi-eye"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deletePerson(${person.id}, '${person.name}')">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-            
-            tableBody.innerHTML = html;
+            allPersons = result.persons;
             
             // 异步加载每个人的人脸数量
-            result.persons.forEach(async person => {
+            await Promise.all(allPersons.map(async person => {
                 try {
                     const personResponse = await fetch(`${API_BASE_URL}/person/${person.id}`);
                     const personResult = await personResponse.json();
                     if (personResult.success) {
-                        const faceCount = personResult.person.encoding_count || 0;
-                        const badge = document.getElementById(`face-count-${person.id}`);
-                        if (badge) {
-                            badge.textContent = faceCount;
-                        }
+                        person.encoding_count = personResult.person.encoding_count || 0;
                     }
                 } catch (error) {
                     console.error(`加载人员${person.id}详情错误:`, error);
-                    const badge = document.getElementById(`face-count-${person.id}`);
-                    if (badge) {
-                        badge.textContent = '0';
-                    }
+                    person.encoding_count = 0;
                 }
-            });
+            }));
+            
+            // 应用当前筛选和排序
+            applyFiltersAndSort();
             
         } else {
-            tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">暂无数据</td></tr>';
+            allPersons = [];
+            filteredPersons = [];
+            renderPersonsList();
         }
     } catch (error) {
         console.error('加载人员列表错误:', error);
-        tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">加载失败</td></tr>';
+        allPersons = [];
+        filteredPersons = [];
+        renderPersonsList();
+        showToast('错误', '加载人员列表失败', 'error');
+    } finally {
+        hideGlobalSpinner();
     }
+}
+
+/**
+ * 应用筛选和排序
+ */
+function applyFiltersAndSort() {
+    filteredPersons = [...allPersons];
+    
+    // 应用搜索筛选
+    const searchTerm = document.getElementById('searchPersons')?.value?.toLowerCase() || '';
+    if (searchTerm) {
+        filteredPersons = filteredPersons.filter(person => 
+            person.name.toLowerCase().includes(searchTerm) ||
+            (person.description && person.description.toLowerCase().includes(searchTerm))
+        );
+    }
+    
+    // 应用类型筛选
+    const filter = document.getElementById('filterPersons')?.value || 'all';
+    switch (filter) {
+        case 'with_faces':
+            filteredPersons = filteredPersons.filter(person => (person.encoding_count || 0) > 0);
+            break;
+        case 'no_faces':
+            filteredPersons = filteredPersons.filter(person => (person.encoding_count || 0) === 0);
+            break;
+        case 'recent':
+            const oneWeekAgo = new Date();
+            oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+            filteredPersons = filteredPersons.filter(person => 
+                new Date(person.created_at) > oneWeekAgo
+            );
+            break;
+    }
+    
+    // 应用排序
+    const sort = document.getElementById('sortPersons')?.value || 'name_asc';
+    switch (sort) {
+        case 'name_asc':
+            filteredPersons.sort((a, b) => a.name.localeCompare(b.name));
+            break;
+        case 'name_desc':
+            filteredPersons.sort((a, b) => b.name.localeCompare(a.name));
+            break;
+        case 'date_desc':
+            filteredPersons.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            break;
+        case 'date_asc':
+            filteredPersons.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            break;
+        case 'faces_desc':
+            filteredPersons.sort((a, b) => (b.encoding_count || 0) - (a.encoding_count || 0));
+            break;
+        case 'faces_asc':
+            filteredPersons.sort((a, b) => (a.encoding_count || 0) - (b.encoding_count || 0));
+            break;
+    }
+    
+    // 重置到第一页
+    currentPage = 1;
+    
+    // 渲染列表
+    renderPersonsList();
+    updatePagination();
+}
+
+/**
+ * 渲染人员列表
+ */
+function renderPersonsList() {
+    if (currentView === 'list') {
+        renderListView();
+    } else {
+        renderCardView();
+    }
+    
+    updateSelectionUI();
+}
+
+/**
+ * 渲染列表视图
+ */
+function renderListView() {
+    const tableBody = document.getElementById('personsTableBody');
+    
+    if (filteredPersons.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">暂无数据</td></tr>';
+        return;
+    }
+    
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = Math.min(startIndex + itemsPerPage, filteredPersons.length);
+    const currentPersons = filteredPersons.slice(startIndex, endIndex);
+    
+    const html = currentPersons.map(person => {
+        const createdAt = new Date(person.created_at).toLocaleString('zh-CN');
+        const isSelected = selectedPersons.has(person.id);
+        
+        return `
+            <tr class="${isSelected ? 'table-active' : ''}">
+                <td>
+                    <input type="checkbox" class="person-checkbox" 
+                           value="${person.id}" ${isSelected ? 'checked' : ''}
+                           onchange="togglePersonSelection(${person.id})">
+                </td>
+                <td>${person.id}</td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="me-2">
+                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" 
+                                 style="width: 32px; height: 32px; font-size: 14px;">
+                                ${person.name.charAt(0).toUpperCase()}
+                            </div>
+                        </div>
+                        <div>
+                            <strong>${person.name}</strong>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span class="text-muted">${person.description || '-'}</span>
+                </td>
+                <td>
+                    <span class="badge ${(person.encoding_count || 0) > 0 ? 'bg-success' : 'bg-secondary'}">
+                        ${person.encoding_count || 0}
+                    </span>
+                </td>
+                <td>
+                    <small class="text-muted">${createdAt}</small>
+                </td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-info" onclick="viewPerson(${person.id})" title="查看详情">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editPerson(${person.id})" title="编辑">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deletePerson(${person.id}, '${person.name}')" title="删除">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+    
+    tableBody.innerHTML = html;
+}
+
+/**
+ * 渲染卡片视图
+ */
+function renderCardView() {
+    const container = document.getElementById('personsCardContainer');
+    
+    if (filteredPersons.length === 0) {
+        container.innerHTML = '<div class="col-12 text-center text-muted">暂无数据</div>';
+        return;
+    }
+    
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = Math.min(startIndex + itemsPerPage, filteredPersons.length);
+    const currentPersons = filteredPersons.slice(startIndex, endIndex);
+    
+    const html = currentPersons.map(person => {
+        const createdAt = new Date(person.created_at).toLocaleDateString('zh-CN');
+        const isSelected = selectedPersons.has(person.id);
+        
+        return `
+            <div class="col-md-4 col-lg-3 mb-3">
+                <div class="card h-100 ${isSelected ? 'border-primary bg-light' : ''}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <input type="checkbox" class="person-checkbox" 
+                               value="${person.id}" ${isSelected ? 'checked' : ''}
+                               onchange="togglePersonSelection(${person.id})">
+                        <span class="badge ${(person.encoding_count || 0) > 0 ? 'bg-success' : 'bg-secondary'}">
+                            ${person.encoding_count || 0} 张人脸
+                        </span>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="mb-3">
+                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center mx-auto" 
+                                 style="width: 64px; height: 64px; font-size: 24px;">
+                                ${person.name.charAt(0).toUpperCase()}
+                            </div>
+                        </div>
+                        <h6 class="card-title">${person.name}</h6>
+                        <p class="card-text text-muted small">${person.description || '无描述'}</p>
+                        <small class="text-muted">${createdAt}</small>
+                    </div>
+                    <div class="card-footer">
+                        <div class="btn-group w-100" role="group">
+                            <button class="btn btn-sm btn-outline-info" onclick="viewPerson(${person.id})" title="查看详情">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="editPerson(${person.id})" title="编辑">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deletePerson(${person.id}, '${person.name}')" title="删除">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = html;
 }
 
 /**
@@ -1909,4 +2103,331 @@ async function downloadImage() {
         console.error('下载图片错误:', error);
         showToast('错误', '图片下载失败: ' + error.message, 'error');
     }
+}
+
+// ==================== 人员管理增强功能 ====================
+
+/**
+ * 搜索人员
+ */
+function searchPersons() {
+    applyFiltersAndSort();
+}
+
+/**
+ * 清除搜索
+ */
+function clearSearch() {
+    document.getElementById('searchPersons').value = '';
+    applyFiltersAndSort();
+}
+
+/**
+ * 排序人员
+ */
+function sortPersons() {
+    applyFiltersAndSort();
+}
+
+/**
+ * 筛选人员
+ */
+function filterPersons() {
+    applyFiltersAndSort();
+}
+
+/**
+ * 切换视图模式
+ */
+function switchView(view) {
+    currentView = view;
+    
+    // 更新按钮状态
+    document.getElementById('listViewBtn').classList.toggle('active', view === 'list');
+    document.getElementById('cardViewBtn').classList.toggle('active', view === 'card');
+    
+    // 切换视图显示
+    document.getElementById('listView').style.display = view === 'list' ? 'block' : 'none';
+    document.getElementById('cardView').style.display = view === 'card' ? 'block' : 'none';
+    
+    // 重新渲染
+    renderPersonsList();
+}
+
+/**
+ * 切换人员选择状态
+ */
+function togglePersonSelection(personId) {
+    if (selectedPersons.has(personId)) {
+        selectedPersons.delete(personId);
+    } else {
+        selectedPersons.add(personId);
+    }
+    updateSelectionUI();
+}
+
+/**
+ * 全选/取消全选
+ */
+function toggleSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.person-checkbox');
+    
+    if (selectAllCheckbox.checked) {
+        // 全选当前页
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = Math.min(startIndex + itemsPerPage, filteredPersons.length);
+        const currentPersons = filteredPersons.slice(startIndex, endIndex);
+        
+        currentPersons.forEach(person => selectedPersons.add(person.id));
+    } else {
+        // 取消全选
+        selectedPersons.clear();
+    }
+    
+    // 更新所有复选框状态
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectedPersons.has(parseInt(checkbox.value));
+    });
+    
+    updateSelectionUI();
+}
+
+/**
+ * 清除选择
+ */
+function clearSelection() {
+    selectedPersons.clear();
+    updateSelectionUI();
+    renderPersonsList();
+}
+
+/**
+ * 更新选择相关UI
+ */
+function updateSelectionUI() {
+    const selectedCount = selectedPersons.size;
+    const batchOperations = document.getElementById('batchOperations');
+    const selectedCountElement = document.getElementById('selectedCount');
+    const selectAllCheckbox = document.getElementById('selectAll');
+    
+    // 显示/隐藏批量操作区域
+    if (selectedCount > 0) {
+        batchOperations.style.display = 'block';
+        selectedCountElement.textContent = selectedCount;
+    } else {
+        batchOperations.style.display = 'none';
+    }
+    
+    // 更新全选复选框状态
+    if (selectAllCheckbox) {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = Math.min(startIndex + itemsPerPage, filteredPersons.length);
+        const currentPersons = filteredPersons.slice(startIndex, endIndex);
+        const currentPageIds = currentPersons.map(p => p.id);
+        
+        const allCurrentSelected = currentPageIds.length > 0 && 
+                                 currentPageIds.every(id => selectedPersons.has(id));
+        const someCurrentSelected = currentPageIds.some(id => selectedPersons.has(id));
+        
+        selectAllCheckbox.checked = allCurrentSelected;
+        selectAllCheckbox.indeterminate = someCurrentSelected && !allCurrentSelected;
+    }
+}
+
+/**
+ * 批量删除人员
+ */
+async function batchDeletePersons() {
+    if (selectedPersons.size === 0) {
+        showToast('提示', '请先选择要删除的人员', 'warning');
+        return;
+    }
+    
+    if (!confirm(`确定要删除选中的 ${selectedPersons.size} 个人员吗？此操作将删除所有相关的人脸特征数据，且不可恢复。`)) {
+        return;
+    }
+    
+    showGlobalSpinner('正在批量删除...');
+    
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+    
+    for (const personId of selectedPersons) {
+        try {
+            const response = await fetch(`${API_BASE_URL}/person/${personId}`, {
+                method: 'DELETE'
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                successCount++;
+            } else {
+                errorCount++;
+                errors.push(`ID ${personId}: ${result.message}`);
+            }
+        } catch (error) {
+            errorCount++;
+            errors.push(`ID ${personId}: ${error.message}`);
+        }
+    }
+    
+    hideGlobalSpinner();
+    
+    // 显示结果
+    if (errorCount === 0) {
+        showToast('成功', `成功删除 ${successCount} 个人员`, 'success');
+    } else {
+        showToast('警告', `成功删除 ${successCount} 个，失败 ${errorCount} 个`, 'warning');
+        if (errors.length > 0) {
+            console.error('批量删除错误:', errors);
+        }
+    }
+    
+    // 清除选择并重新加载
+    clearSelection();
+    loadPersons();
+    loadStatistics();
+}
+
+/**
+ * 编辑人员信息
+ */
+function editPerson(personId) {
+    // 这里可以实现编辑人员信息的功能
+    showToast('提示', '编辑功能即将推出', 'info');
+}
+
+/**
+ * 导出人员数据
+ */
+function exportPersonsData() {
+    try {
+        // 准备导出数据
+        const exportData = filteredPersons.map(person => ({
+            'ID': person.id,
+            '姓名': person.name,
+            '描述': person.description || '',
+            '人脸数量': person.encoding_count || 0,
+            '创建时间': new Date(person.created_at).toLocaleString('zh-CN'),
+            '更新时间': new Date(person.updated_at).toLocaleString('zh-CN')
+        }));
+        
+        // 转换为CSV格式
+        const headers = Object.keys(exportData[0]);
+        const csvContent = [
+            headers.join(','),
+            ...exportData.map(row => 
+                headers.map(header => `"${row[header]}"`).join(',')
+            )
+        ].join('\n');
+        
+        // 创建下载
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `人员数据_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        
+        window.URL.revokeObjectURL(url);
+        showToast('成功', '人员数据导出完成', 'success');
+    } catch (error) {
+        console.error('导出数据错误:', error);
+        showToast('错误', '导出数据失败', 'error');
+    }
+}
+
+/**
+ * 更新分页
+ */
+function updatePagination() {
+    const totalItems = filteredPersons.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    
+    // 更新信息显示
+    const startIndex = (currentPage - 1) * itemsPerPage + 1;
+    const endIndex = Math.min(currentPage * itemsPerPage, totalItems);
+    
+    document.getElementById('totalPersonsCount').textContent = totalItems;
+    document.getElementById('currentPageInfo').textContent = 
+        totalItems > 0 ? `${startIndex}-${endIndex}` : '0';
+    
+    // 生成分页按钮
+    const pagination = document.getElementById('pagination');
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let paginationHTML = '';
+    
+    // 上一页
+    paginationHTML += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">上一页</a>
+        </li>
+    `;
+    
+    // 页码
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    if (startPage > 1) {
+        paginationHTML += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(1)">1</a></li>`;
+        if (startPage > 2) {
+            paginationHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        paginationHTML += `
+            <li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+            </li>
+        `;
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            paginationHTML += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        paginationHTML += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${totalPages})">${totalPages}</a></li>`;
+    }
+    
+    // 下一页
+    paginationHTML += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">下一页</a>
+        </li>
+    `;
+    
+    pagination.innerHTML = paginationHTML;
+}
+
+/**
+ * 切换页面
+ */
+function changePage(page) {
+    const totalPages = Math.ceil(filteredPersons.length / itemsPerPage);
+    if (page < 1 || page > totalPages) return;
+    
+    currentPage = page;
+    renderPersonsList();
+    updatePagination();
+    
+    // 清除当前页的选择状态
+    const selectAllCheckbox = document.getElementById('selectAll');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+    }
+    
+    updateSelectionUI();
 }
