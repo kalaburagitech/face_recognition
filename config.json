@@ -7,14 +7,14 @@
     "model": "buffalo_l",
     "deepface_model": "ArcFace",
     "threshold": 0.4,
-    "duplicate_threshold": 0.95,
     "det_size": [
       640,
       640
     ],
     "providers": [
       "CPUExecutionProvider"
-    ]
+    ],
+    "duplicate_threshold": 0.95
   },
   "api": {
     "host": "0.0.0.0",

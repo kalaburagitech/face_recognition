@@ -367,6 +367,25 @@
         </div>
     </div>
 
+    <!-- 图片放大模态框 -->
+    <div class="modal fade" id="imageModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="imageModalTitle">图片查看</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center p-0">
+                    <img id="imageModalImg" src="" class="img-fluid" style="max-height: 70vh; width: auto;" alt="放大图片">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-primary" onclick="downloadImage()">下载图片</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 全局加载指示器 -->
     <div id="globalSpinner" class="position-fixed top-50 start-50 translate-middle" style="z-index: 9999; display: none;">
         <div class="spinner-border text-primary" role="status">

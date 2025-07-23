@@ -1609,8 +1609,9 @@ async function loadPersonDetails(personId, modalTitle, modalBody) {
                         <div class="card border-light">
                             <img src="${API_BASE_URL}/face_image/${face.id}" 
                                  class="card-img-top" 
-                                 style="height: 120px; object-fit: cover;"
+                                 style="height: 120px; object-fit: cover; cursor: pointer;"
                                  alt="人脸 ${index + 1}"
+                                 onclick="showImageModal('${API_BASE_URL}/face_image/${face.id}', '${person.name} - 人脸 ${index + 1}')"
                                  onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI2YwZjBmMCIvPjx0ZXh0IHg9IjUwIiB5PSI1NSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSIjNjY2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7ml6Dlm77niYc8L3RleHQ+PC9zdmc+'">
                             <div class="card-body p-2">
                                 <small class="text-muted">
@@ -1618,6 +1619,11 @@ async function loadPersonDetails(personId, modalTitle, modalBody) {
                                     置信度: ${face.confidence ? (face.confidence * 100).toFixed(1) + '%' : 'N/A'}
                                 </small>
                                 <div class="mt-1">
+                                    <button class="btn btn-outline-primary btn-sm me-1" 
+                                            onclick="showImageModal('${API_BASE_URL}/face_image/${face.id}', '${person.name} - 人脸 ${index + 1}')"
+                                            title="查看大图">
+                                        <i class="bi bi-zoom-in"></i>
+                                    </button>
                                     <button class="btn btn-outline-danger btn-sm" 
                                             onclick="deleteFaceEncoding(${face.id}, ${personId})"
                                             title="删除此人脸">
@@ -1835,3 +1841,72 @@ document.addEventListener('DOMContentLoaded', function() {
     initApp();
     initSystemStatus();
 });
+
+/**
+ * 显示图片放大模态框
+ */
+function showImageModal(imageSrc, title) {
+    const modal = document.getElementById('imageModal');
+    const modalTitle = document.getElementById('imageModalTitle');
+    const modalImg = document.getElementById('imageModalImg');
+    
+    modalTitle.textContent = title || '图片查看';
+    modalImg.src = imageSrc;
+    modalImg.alt = title || '放大图片';
+    
+    // 存储当前图片信息，用于下载功能
+    modal.setAttribute('data-image-src', imageSrc);
+    modal.setAttribute('data-image-title', title || 'image');
+    
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+}
+
+/**
+ * 下载图片功能
+ */
+async function downloadImage() {
+    const modal = document.getElementById('imageModal');
+    const imageSrc = modal.getAttribute('data-image-src');
+    const imageTitle = modal.getAttribute('data-image-title');
+    
+    if (!imageSrc) {
+        showToast('错误', '无法获取图片信息', 'error');
+        return;
+    }
+    
+    try {
+        showToast('提示', '正在下载图片...', 'info');
+        
+        // 获取图片数据
+        const response = await fetch(imageSrc);
+        if (!response.ok) {
+            throw new Error('图片下载失败');
+        }
+        
+        const blob = await response.blob();
+        
+        // 创建下载链接
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        
+        // 生成文件名
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const extension = blob.type.split('/')[1] || 'jpg';
+        a.download = `${imageTitle.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}_${timestamp}.${extension}`;
+        
+        document.body.appendChild(a);
+        a.click();
+        
+        // 清理
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showToast('成功', '图片下载完成', 'success');
+    } catch (error) {
+        console.error('下载图片错误:', error);
+        showToast('错误', '图片下载失败: ' + error.message, 'error');
+    }
+}
