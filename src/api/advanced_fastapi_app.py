@@ -473,6 +473,13 @@ def create_app() -> FastAPI:
                     'step': 0.05,
                     'description': '识别阈值：控制人脸识别的严格程度，值越高识别越严格'
                 },
+                'duplicate_threshold': {
+                    'current': config.get('face_recognition.duplicate_threshold', 0.95),
+                    'min': 0.8,
+                    'max': 0.99,
+                    'step': 0.01,
+                    'description': '重复入库阈值：相似度超过此值的人脸将被拒绝入库，防止重复'
+                },
                 'model_info': {
                     'primary': 'InsightFace Buffalo-L',
                     'accuracy': '99.83% (LFW)',
@@ -514,6 +521,31 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.error(f"更新阈值失败: {str(e)}")
             raise HTTPException(status_code=500, detail="更新阈值失败")
+
+    @app.post("/api/config/duplicate_threshold")
+    async def update_duplicate_threshold(threshold: float = Form(...)):
+        """
+        🔧 更新重复入库阈值配置
+        
+        Args:
+            threshold: 新的重复入库阈值 (0.8-0.99)
+        """
+        try:
+            if not 0.8 <= threshold <= 0.99:
+                raise HTTPException(status_code=400, detail="重复入库阈值必须在0.8-0.99之间")
+            
+            # 更新配置
+            from ..utils.config import config
+            config.set('face_recognition.duplicate_threshold', threshold)
+            
+            return JSONResponse(content={
+                "success": True,
+                "message": f"重复入库阈值已更新为 {threshold:.2f}",
+                "new_threshold": threshold
+            })
+        except Exception as e:
+            logger.error(f"更新重复入库阈值失败: {str(e)}")
+            raise HTTPException(status_code=500, detail="更新重复入库阈值失败")
 
     @app.get("/api/persons")
     async def get_persons(service = Depends(get_face_service)):

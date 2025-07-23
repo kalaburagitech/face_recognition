@@ -258,13 +258,21 @@ class AdvancedFaceRecognitionService:
                 return {'success': False, 'error': '特征提取失败'}
             
             # 检查是否已存在相似人脸
+            duplicate_threshold_value = config.get('face_recognition.duplicate_threshold', 0.95)
+            if isinstance(duplicate_threshold_value, (int, float)):
+                duplicate_threshold = float(duplicate_threshold_value)
+            else:
+                duplicate_threshold = 0.95  # 默认值
+                
             existing_match = self.recognize_face(image)
             if existing_match['matches']:
                 best_match = existing_match['matches'][0]
-                if best_match['match_score'] > 80:  # 改为匹配度百分比
+                # 将相似度阈值转换为百分比进行比较
+                similarity_threshold_percent = duplicate_threshold * 100
+                if best_match['match_score'] > similarity_threshold_percent:
                     return {
                         'success': False, 
-                        'error': f'相似人脸已存在：{best_match["name"]} (匹配度: {best_match["match_score"]:.1f}%)'
+                        'error': f'相似人脸已存在：{best_match["name"]} (匹配度: {best_match["match_score"]:.1f}%，阈值: {similarity_threshold_percent:.1f}%)'
                     }
             
             # 保存到数据库

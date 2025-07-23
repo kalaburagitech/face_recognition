@@ -1275,6 +1275,7 @@ function updateSystemConfig(config) {
     if (!configContainer) return;
     
     const threshold = config.recognition_threshold;
+    const duplicateThreshold = config.duplicate_threshold || { current: 0.95, min: 0.8, max: 0.99, step: 0.01 };
     const modelInfo = config.model_info;
     const performance = config.performance;
     
@@ -1305,6 +1306,25 @@ function updateSystemConfig(config) {
                     </div>
                 </div>
                 
+                <!-- 重复入库阈值设置 -->
+                <div class="row mb-3">
+                    <label class="col-sm-3 col-form-label">重复阈值:</label>
+                    <div class="col-sm-6">
+                        <input type="range" class="form-range" id="duplicateThresholdSlider" 
+                               min="${duplicateThreshold.min}" max="${duplicateThreshold.max}" step="${duplicateThreshold.step}" 
+                               value="${duplicateThreshold.current}">
+                    </div>
+                    <div class="col-sm-3">
+                        <span class="badge bg-warning" id="duplicateThresholdDisplay">${(duplicateThreshold.current * 100).toFixed(0)}%</span>
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-sm-3"></div>
+                    <div class="col-sm-9">
+                        <small class="text-muted">${duplicateThreshold.description || '防止重复入库：相似度超过此值的人脸将被拒绝入库'}</small>
+                    </div>
+                </div>
+                
                 <!-- 模型信息 -->
                 <div class="row mb-3">
                     <label class="col-sm-3 col-form-label">识别模型:</label>
@@ -1329,8 +1349,11 @@ function updateSystemConfig(config) {
                 <div class="row">
                     <div class="col-sm-3"></div>
                     <div class="col-sm-9">
-                        <button class="btn btn-primary btn-sm" onclick="updateThreshold()">
-                            <i class="bi bi-check-lg me-1"></i>保存设置
+                        <button class="btn btn-primary btn-sm me-2" onclick="updateThreshold()">
+                            <i class="bi bi-check-lg me-1"></i>保存识别阈值
+                        </button>
+                        <button class="btn btn-warning btn-sm" onclick="updateDuplicateThreshold()">
+                            <i class="bi bi-check-lg me-1"></i>保存重复阈值
                         </button>
                     </div>
                 </div>
@@ -1344,6 +1367,15 @@ function updateSystemConfig(config) {
     if (slider && display) {
         slider.addEventListener('input', function() {
             display.textContent = (this.value * 100).toFixed(0) + '%';
+        });
+    }
+    
+    // 设置重复阈值滑块事件
+    const duplicateSlider = document.getElementById('duplicateThresholdSlider');
+    const duplicateDisplay = document.getElementById('duplicateThresholdDisplay');
+    if (duplicateSlider && duplicateDisplay) {
+        duplicateSlider.addEventListener('input', function() {
+            duplicateDisplay.textContent = (this.value * 100).toFixed(0) + '%';
         });
     }
 }
@@ -1377,6 +1409,38 @@ async function updateThreshold() {
     } catch (error) {
         console.error('更新阈值错误:', error);
         showError('messagesContainer', '更新阈值失败: ' + error.message);
+    }
+}
+
+/**
+ * 更新重复入库阈值
+ */
+async function updateDuplicateThreshold() {
+    const slider = document.getElementById('duplicateThresholdSlider');
+    if (!slider) return;
+    
+    const newThreshold = parseFloat(slider.value);
+    
+    try {
+        const formData = new FormData();
+        formData.append('threshold', newThreshold);
+        
+        const response = await fetch(`${API_BASE_URL}/config/duplicate_threshold`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess('messagesContainer', `重复入库阈值已更新为 ${(newThreshold * 100).toFixed(0)}%`);
+            loadStatistics(); // 重新加载统计信息
+        } else {
+            showError('messagesContainer', result.message || '更新重复阈值失败');
+        }
+    } catch (error) {
+        console.error('更新重复阈值错误:', error);
+        showError('messagesContainer', '更新重复阈值失败: ' + error.message);
     }
 }
 
