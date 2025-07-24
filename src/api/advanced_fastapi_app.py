@@ -35,6 +35,10 @@ class PersonCreate(BaseModel):
     name: str = Field(..., description="人员姓名", min_length=1, max_length=100)
     description: Optional[str] = Field(None, description="人员描述", max_length=500)
 
+class PersonUpdate(BaseModel):
+    name: Optional[str] = Field(None, description="人员姓名", min_length=1, max_length=100)
+    description: Optional[str] = Field(None, description="人员描述", max_length=500)
+
 class FaceMatch(BaseModel):
     person_id: int
     name: str
@@ -184,8 +188,14 @@ def create_app() -> FastAPI:
             if upload_config and isinstance(upload_config, dict):
                 max_size = upload_config.get('MAX_FILE_SIZE', max_size)
             
-            if file_size > max_size:
-                raise HTTPException(status_code=400, detail="文件太大")
+            # 确保 max_size 是整数
+            if isinstance(max_size, (int, float)):
+                if file_size > max_size:
+                    raise HTTPException(status_code=400, detail="文件太大")
+            else:
+                # 如果配置有问题，使用默认值
+                if file_size > 10 * 1024 * 1024:
+                    raise HTTPException(status_code=400, detail="文件太大")
 
             # 保存临时文件
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
@@ -627,6 +637,49 @@ def create_app() -> FastAPI:
             logger.error(f"获取人员人脸列表失败: {str(e)}")
             raise HTTPException(status_code=500, detail="获取人员人脸列表失败")
 
+    @app.put("/api/person/{person_id}")
+    async def update_person(person_id: int, person_data: PersonUpdate, service = Depends(get_face_service)):
+        """
+        ✏️ 更新指定人员信息
+        
+        更新人员的基本信息（姓名、部门、职位、备注等）
+        """
+        try:
+            with service.db_manager.get_session() as session:
+                from ..models import Person
+                
+                # 查找人员
+                person = session.query(Person).filter(Person.id == person_id).first()
+                if not person:
+                    raise HTTPException(status_code=404, detail="未找到指定人员")
+                
+                # 更新字段（只更新非None的字段）
+                update_data = person_data.dict(exclude_unset=True)
+                for field, value in update_data.items():
+                    if hasattr(person, field):
+                        setattr(person, field, value)
+                
+                person.updated_at = datetime.utcnow()
+                session.commit()
+                
+                # 返回更新后的人员信息
+                return JSONResponse(content={
+                    "success": True,
+                    "message": "人员信息更新成功",
+                    "person": {
+                        "id": person.id,
+                        "name": person.name,
+                        "description": person.description,
+                        "created_at": person.created_at.isoformat() if person.created_at else None,
+                        "updated_at": person.updated_at.isoformat() if person.updated_at else None
+                    }
+                })
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"更新人员信息失败: {str(e)}")
+            raise HTTPException(status_code=500, detail="更新人员信息失败")
+
     @app.delete("/api/person/{person_id}")
     async def delete_person(person_id: int, service = Depends(get_face_service)):
         """
@@ -763,6 +816,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=500, detail="删除人脸编码失败")
 
     @app.get("/api/health")
+    @app.head("/api/health")
     async def health_check():
         """
         ❤️ 健康检查接口

@@ -630,8 +630,13 @@ function displayRecognitionResults(result, visualImageSrc = null) {
                                 <i class="bi bi-image me-2"></i>检测结果可视化
                             </h6>
                         </div>
-                        <div class="card-body text-center">
-                            <img src="${visualImageSrc}" class="img-fluid rounded" style="max-height: 400px;">
+                        <div class="card-body text-center img-zoom-hint">
+                            <img src="${visualImageSrc}" class="img-fluid rounded preview-image" style="max-height: 400px;" onclick="showImageModal(this.src)">
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="bi bi-zoom-in me-1"></i>点击图片可放大查看
+                                </small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -651,8 +656,45 @@ function displayRecognitionResults(result, visualImageSrc = null) {
         return;
     }
 
+    // 添加ID说明卡片
+    const idExplanationCard = `
+        <div class="card border-info mb-3">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-info-circle me-2"></i>ID标识说明
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge bg-primary me-2" style="width: 35px;">P1</span>
+                            <small>人员库ID=1的已知人员</small>
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge bg-primary me-2" style="width: 35px;">P1B</span>
+                            <small>同一人员的第2张脸</small>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-warning me-2" style="width: 35px;">U1</span>
+                            <small>第1个未知人员</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            • <strong>相同颜色</strong>表示同一人员<br>
+                            • <strong>P开头</strong>表示已知人员<br>
+                            • <strong>U开头</strong>表示未知人员<br>
+                            • <strong>字母后缀</strong>区分同一人的多张脸
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
     // 创建结果布局：左侧图片，右侧文字结果
-    let html = `
+    let html = idExplanationCard + `
         <div class="row">
             ${visualImageSrc ? `
             <div class="col-md-6 mb-3">
@@ -662,8 +704,13 @@ function displayRecognitionResults(result, visualImageSrc = null) {
                             <i class="bi bi-image me-2"></i>检测结果可视化
                         </h6>
                     </div>
-                    <div class="card-body text-center">
-                        <img src="${visualImageSrc}" class="img-fluid rounded" style="max-height: 400px;">
+                    <div class="card-body text-center img-zoom-hint">
+                        <img src="${visualImageSrc}" class="img-fluid rounded preview-image" style="max-height: 400px;" onclick="showImageModal(this.src)">
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="bi bi-zoom-in me-1"></i>点击图片可放大查看
+                            </small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1156,15 +1203,14 @@ function displayEnrollmentResults(result) {
                         <i class="bi bi-eye me-2"></i>人脸检测结果
                     </h6>
                 </div>
-                <div class="card-body text-center">
+                <div class="card-body text-center img-zoom-hint">
                     <img src="data:image/jpeg;base64,${result.visualized_image}" 
-                         class="img-fluid rounded border" 
+                         class="img-fluid rounded border preview-image" 
                          alt="人脸检测结果" 
                          style="max-width: 100%; max-height: 400px;">
                     <div class="mt-2">
                         <small class="text-muted">
-                            <i class="bi bi-info-circle me-1"></i>
-                            绿色框标记检测到的人脸区域及质量评分
+                            <i class="bi bi-zoom-in me-1"></i>点击图片可放大查看
                         </small>
                     </div>
                 </div>
@@ -2032,17 +2078,25 @@ function initSystemStatus() {
 
 // 初始化系统增强功能
 document.addEventListener('DOMContentLoaded', function() {
-    initApp();
     initSystemStatus();
+    initImageZoom();
+    loadStatistics();
 });
 
 /**
  * 显示图片放大模态框
  */
 function showImageModal(imageSrc, title) {
+    console.log('显示图片模态框:', imageSrc, title);
+    
     const modal = document.getElementById('imageModal');
     const modalTitle = document.getElementById('imageModalTitle');
     const modalImg = document.getElementById('imageModalImg');
+    
+    if (!modal || !modalTitle || !modalImg) {
+        console.error('模态框元素未找到');
+        return;
+    }
     
     modalTitle.textContent = title || '图片查看';
     modalImg.src = imageSrc;
@@ -2294,9 +2348,151 @@ async function batchDeletePersons() {
 /**
  * 编辑人员信息
  */
-function editPerson(personId) {
-    // 这里可以实现编辑人员信息的功能
-    showToast('提示', '编辑功能即将推出', 'info');
+async function editPerson(personId) {
+    try {
+        console.log('编辑人员ID:', personId);
+        showGlobalSpinner('获取人员信息中...');
+        
+        // 获取人员详细信息
+        const response = await fetch(`${API_BASE_URL}/person/${personId}`);
+        if (!response.ok) {
+            throw new Error(`获取人员信息失败: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('获取到人员数据:', result);
+        
+        if (!result.success || !result.person) {
+            throw new Error('获取人员信息失败');
+        }
+        
+        hideGlobalSpinner();
+        showEditPersonModal(result.person);
+        
+    } catch (error) {
+        console.error('获取人员信息失败:', error);
+        hideGlobalSpinner();
+        showToast('错误', '获取人员信息失败', 'error');
+    }
+}
+
+/**
+ * 显示编辑人员模态框
+ */
+function showEditPersonModal(person) {
+    console.log('显示编辑模态框，人员数据:', person);
+    
+    // 安全地获取人员数据
+    const personName = person.name || '';
+    const personDescription = person.description || '';
+    
+    // 创建编辑模态框HTML
+    const modalHtml = `
+        <div class="modal fade" id="editPersonModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-person-gear me-2"></i>编辑人员信息
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editPersonForm">
+                            <div class="mb-3">
+                                <label for="editPersonName" class="form-label">姓名 *</label>
+                                <input type="text" class="form-control" id="editPersonName" 
+                                       value="${personName}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="editPersonDescription" class="form-label">描述</label>
+                                <textarea class="form-control" id="editPersonDescription" rows="3" 
+                                          placeholder="请输入描述信息">${personDescription}</textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-primary" onclick="updatePersonInfo(${person.id})">
+                            <i class="bi bi-check2 me-1"></i>保存更改
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 移除旧的模态框
+    const existingModal = document.getElementById('editPersonModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // 添加新的模态框
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('editPersonModal'));
+    modal.show();
+    
+    // 模态框显示后设置焦点
+    document.getElementById('editPersonModal').addEventListener('shown.bs.modal', function() {
+        document.getElementById('editPersonName').focus();
+    });
+    
+    // 模态框关闭时清理
+    document.getElementById('editPersonModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+}
+
+/**
+ * 更新人员信息
+ */
+async function updatePersonInfo(personId) {
+    try {
+        const name = document.getElementById('editPersonName').value.trim();
+        const description = document.getElementById('editPersonDescription').value.trim();
+        
+        if (!name) {
+            showToast('错误', '姓名不能为空', 'error');
+            return;
+        }
+        
+        showGlobalSpinner('更新人员信息中...');
+        
+        const updateData = {
+            name: name,
+            description: description || null
+        };
+        
+        const response = await fetch(`${API_BASE_URL}/person/${personId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updateData)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`更新失败: ${response.status}`);
+        }
+        
+        // 关闭模态框
+        const modal = bootstrap.Modal.getInstance(document.getElementById('editPersonModal'));
+        modal.hide();
+        
+        // 刷新人员列表
+        await loadPersons();
+        
+        showToast('成功', '人员信息更新成功', 'success');
+        
+    } catch (error) {
+        console.error('更新人员信息失败:', error);
+        showToast('错误', '更新人员信息失败', 'error');
+    } finally {
+        hideGlobalSpinner();
+    }
 }
 
 /**
@@ -2431,3 +2627,175 @@ function changePage(page) {
     
     updateSelectionUI();
 }
+
+// =========================== 图片放大功能 ===========================
+
+// 防止重复初始化的标志
+let imageZoomInitialized = false;
+
+/**
+ * 初始化图片放大功能
+ */
+function initImageZoom() {
+    if (imageZoomInitialized) {
+        console.log('图片放大功能已经初始化，跳过重复初始化');
+        return;
+    }
+    
+    console.log('初始化图片放大功能...');
+    
+    // 为document添加点击事件监听
+    document.addEventListener('click', function(e) {
+        if (e.target.tagName === 'IMG') {
+            console.log('点击了图片:', e.target.src);
+            
+            // 检查是否是可放大的图片
+            const isClickable = (
+                // 明确标记为可预览的图片
+                e.target.classList.contains('preview-image') ||
+                e.target.classList.contains('card-img-top') ||
+                // 在特定容器中的图片
+                e.target.closest('.result-card') ||
+                e.target.closest('#recognitionResult') ||
+                e.target.closest('#enrollmentResult') ||
+                e.target.closest('.person-card') ||
+                e.target.closest('.person-list-item') ||
+                e.target.closest('#faceImagesContainer') ||
+                e.target.closest('.card-body') ||
+                // 基于图片源的判断
+                (e.target.src && (
+                    e.target.src.includes('data:image/') ||
+                    e.target.src.includes('api/face_image/') ||
+                    e.target.src.includes('blob:')
+                ))
+            );
+            
+            // 排除的条件
+            const shouldExclude = (
+                // 已经有onclick事件的图片
+                e.target.hasAttribute('onclick') ||
+                // 小尺寸的装饰性图片
+                (e.target.width < 50 && e.target.height < 50) ||
+                // 在导航栏或工具栏中的图片
+                e.target.closest('.navbar') ||
+                e.target.closest('.toolbar') ||
+                // 图标类图片
+                e.target.classList.contains('icon') ||
+                e.target.classList.contains('logo')
+            );
+            
+            if (isClickable && !shouldExclude) {
+                console.log('执行图片放大，参数:', e.target.src, e.target.alt);
+                e.preventDefault();
+                e.stopPropagation();
+                showImageModal(e.target.src, e.target.alt || '图片查看');
+            } else {
+                console.log('图片点击被跳过，原因:', {
+                    isClickable,
+                    shouldExclude,
+                    hasOnclick: e.target.hasAttribute('onclick'),
+                    size: { width: e.target.width, height: e.target.height }
+                });
+            }
+        }
+    });
+    
+    // ESC键关闭模态框
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('imageModal'));
+            if (modal) {
+                modal.hide();
+            }
+        }
+    });
+    
+    imageZoomInitialized = true;
+    console.log('图片放大功能初始化完成');
+}
+
+// =========================== 页面初始化 ===========================
+
+// 页面加载完成后的初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM加载完成，初始化功能...');
+    initSystemStatus();
+    initImageZoom();
+    loadStatistics();
+});
+
+// 如果DOM已经加载完成，立即初始化
+if (document.readyState !== 'loading') {
+    console.log('DOM已加载，立即初始化...');
+    setTimeout(function() {
+        initImageZoom();
+        loadStatistics();
+    }, 100);
+}
+
+// =========================== 调试功能 ===========================
+
+/**
+ * 手动测试图片放大功能
+ * 在浏览器控制台调用: testImageZoom()
+ */
+function testImageZoom() {
+    console.log('=== 手动测试图片放大功能 ===');
+    
+    // 检查模态框元素
+    const modal = document.getElementById('imageModal');
+    const modalTitle = document.getElementById('imageModalTitle');
+    const modalImg = document.getElementById('imageModalImg');
+    
+    console.log('模态框元素检查:');
+    console.log('  modal:', modal ? '✓ 找到' : '✗ 未找到');
+    console.log('  modalTitle:', modalTitle ? '✓ 找到' : '✗ 未找到');
+    console.log('  modalImg:', modalImg ? '✓ 找到' : '✗ 未找到');
+    
+    // 检查所有图片元素
+    const allImages = document.querySelectorAll('img');
+    console.log(`页面中共有 ${allImages.length} 个图片元素`);
+    
+    let clickableCount = 0;
+    allImages.forEach((img, index) => {
+        const isClickable = (
+            img.classList.contains('preview-image') ||
+            img.classList.contains('card-img-top') ||
+            img.closest('.result-card') ||
+            img.closest('#recognitionResult') ||
+            img.closest('#enrollmentResult') ||
+            img.closest('.person-card') ||
+            img.closest('.person-list-item') ||
+            img.closest('#faceImagesContainer') ||
+            img.closest('.card-body') ||
+            (img.src && (
+                img.src.includes('data:image/') ||
+                img.src.includes('api/face_image/') ||
+                img.src.includes('blob:')
+            ))
+        );
+        
+        if (isClickable) {
+            clickableCount++;
+            console.log(`可点击图片 ${clickableCount}: ${img.src.substring(0, 50)}...`);
+        }
+    });
+    
+    console.log(`其中 ${clickableCount} 个图片可以点击放大`);
+    
+    // 测试模态框显示
+    const testImageSrc = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iIzAwN2FmZiIvPjx0ZXh0IHg9IjE1MCIgeT0iMTA1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTgiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj7mtYvovpXmtYvor5XmiJDlip88L3RleHQ+PC9zdmc+';
+    
+    console.log('尝试显示测试模态框...');
+    try {
+        showImageModal(testImageSrc, '测试图片');
+        console.log('✓ 模态框显示成功');
+    } catch (error) {
+        console.error('✗ 模态框显示失败:', error);
+    }
+    
+    console.log('=== 测试完成 ===');
+}
+
+// 将测试函数暴露到全局作用域
+window.testImageZoom = testImageZoom;

@@ -226,8 +226,10 @@ class EnhancedFaceVisualizer:
         result_image = image.copy()
         face_details = []
         
-        # 为不同的人分配颜色映射
+        # 为不同的人分配颜色映射和智能ID
         person_color_map = {}
+        person_face_count = {}  # 记录每个人员的人脸数量
+        unknown_count = 0  # 未知人员计数器
         
         for i, face_info in enumerate(faces):
             bbox = face_info.get('bbox', [])
@@ -240,13 +242,28 @@ class EnhancedFaceVisualizer:
             name = face_info.get('name', f'人脸{i+1}')
             person_id = face_info.get('person_id', -1)
             
-            # 根据人员分配颜色（相同人员用相同颜色）
+            # 智能ID分配系统
             if person_id != -1:
-                # 已知人员，用person_id作为颜色key
+                # 已知人员，使用person_id作为颜色key
                 color_key = f"person_{person_id}"
+                
+                # 计算该人员的人脸序号
+                if person_id not in person_face_count:
+                    person_face_count[person_id] = 0
+                person_face_count[person_id] += 1
+                
+                # 生成显示ID
+                if person_face_count[person_id] > 1:
+                    # 同一人的多张脸，用字母后缀区分
+                    suffix = chr(ord('A') + person_face_count[person_id] - 1)
+                    id_label = f"P{person_id}{suffix}"
+                else:
+                    id_label = f"P{person_id}"
             else:
-                # 未知人员，用名字作为颜色key
-                color_key = name
+                # 未知人员，按检测顺序分配ID
+                unknown_count += 1
+                id_label = f"U{unknown_count}"
+                color_key = f"unknown_{unknown_count}"
             
             if color_key not in person_color_map:
                 # 分配新颜色
@@ -258,14 +275,7 @@ class EnhancedFaceVisualizer:
             # 绘制边框（关闭角部加强线条）
             self._draw_gradient_box(result_image, (x1, y1, x2, y2), color, 3, show_corners=False)
             
-            # 添加ID标识（使用真实的person_id或序号）
-            if person_id != -1:
-                face_id = person_id  # 使用库中的真实人员ID
-                id_label = f"P{face_id}"  # P表示Person ID
-            else:
-                face_id = i + 1  # 未知人员使用序号
-                id_label = f"U{face_id}"  # U表示Unknown
-            
+            # 添加智能ID标识
             self._draw_id_badge(result_image, [x1, y1, x2, y2], id_label, color)
             
             # 准备标签文字
@@ -423,12 +433,14 @@ class EnhancedFaceVisualizer:
 
     def _draw_corner_badge(self, image: np.ndarray, position: Tuple[int, int], 
                           text: str, color: Tuple[int, int, int], style: str = "circle"):
-        """绘制角标，支持不同样式"""
+        """绘制角标，支持不同样式，增强可见性"""
         x, y = position
         
         if style == "circle":
             # 圆形角标
-            radius = 15
+            radius = 16
+            # 绘制阴影效果
+            cv2.circle(image, (x+2, y+2), radius, (0, 0, 0), -1)
             # 绘制圆形背景
             cv2.circle(image, (x, y), radius, color, -1)
             cv2.circle(image, (x, y), radius, (255, 255, 255), 2)
@@ -443,38 +455,82 @@ class EnhancedFaceVisualizer:
             cv2.putText(image, text, (text_x, text_y), font, font_scale, (255, 255, 255), 2)
             
         elif style == "square":
-            # 方形角标
-            size = 24
-            # 绘制方形背景
-            cv2.rectangle(image, (x - size//2, y - size//2), 
-                         (x + size//2, y + size//2), color, -1)
-            cv2.rectangle(image, (x - size//2, y - size//2), 
-                         (x + size//2, y + size//2), (255, 255, 255), 2)
+            # 方形角标 - 增强版
+            size = 26  # 稍微增大以提高可见性
+            half_size = size // 2
             
-            # 绘制文字
+            # 绘制阴影效果
+            cv2.rectangle(image, (x - half_size + 2, y - half_size + 2), 
+                         (x + half_size + 2, y + half_size + 2), (0, 0, 0), -1)
+            
+            # 绘制方形背景（填充）
+            cv2.rectangle(image, (x - half_size, y - half_size), 
+                         (x + half_size, y + half_size), color, -1)
+            
+            # 绘制白色边框
+            cv2.rectangle(image, (x - half_size, y - half_size), 
+                         (x + half_size, y + half_size), (255, 255, 255), 2)
+            
+            # 绘制文字（白色，带黑色轮廓）
             font = cv2.FONT_HERSHEY_SIMPLEX
             font_scale = 0.5
-            text_size = cv2.getTextSize(text, font, font_scale, 2)[0]
+            thickness = 2
+            
+            text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
             text_x = x - text_size[0] // 2
             text_y = y + text_size[1] // 2
             
-            cv2.putText(image, text, (text_x, text_y), font, font_scale, (255, 255, 255), 2)
+            # 黑色轮廓
+            cv2.putText(image, text, (text_x, text_y), font, font_scale, (0, 0, 0), thickness + 1)
+            # 白色文字
+            cv2.putText(image, text, (text_x, text_y), font, font_scale, (255, 255, 255), thickness)
     
     def _draw_id_badge(self, image: np.ndarray, bbox: List[int], face_id, 
                       color: Tuple[int, int, int]):
-        """在边界框左上角绘制清晰的ID标识"""
+        """在边界框左上角绘制清晰的ID标识，智能位置调整"""
         x1, y1, x2, y2 = bbox
+        img_height, img_width = image.shape[:2]
         
-        # ID标签位置（左上角外侧）
-        badge_x = x1 - 5
-        badge_y = y1 - 5
+        # 计算ID标签的理想位置和实际可用位置
+        badge_size = 24  # 方形角标的大小
+        margin = 5
         
-        # 确保在图像边界内
-        badge_x = max(15, badge_x)
-        badge_y = max(15, badge_y)
+        # 优先位置选择（按优先级排序）
+        positions = [
+            # 1. 左上角外侧（默认）
+            (x1 - badge_size//2 - margin, y1 - badge_size//2 - margin),
+            # 2. 右上角外侧  
+            (x2 + margin + badge_size//2, y1 - badge_size//2 - margin),
+            # 3. 左下角外侧
+            (x1 - badge_size//2 - margin, y2 + margin + badge_size//2),
+            # 4. 右下角外侧
+            (x2 + margin + badge_size//2, y2 + margin + badge_size//2),
+            # 5. 左上角内侧
+            (x1 + badge_size//2 + margin, y1 + badge_size//2 + margin),
+            # 6. 右上角内侧
+            (x2 - badge_size//2 - margin, y1 + badge_size//2 + margin),
+            # 7. 中心上方
+            ((x1 + x2) // 2, y1 - badge_size//2 - margin),
+            # 8. 中心下方
+            ((x1 + x2) // 2, y2 + badge_size//2 + margin)
+        ]
+        
+        # 选择第一个在图像边界内的位置
+        final_position = None
+        for pos_x, pos_y in positions:
+            if (badge_size//2 <= pos_x <= img_width - badge_size//2 and
+                badge_size//2 <= pos_y <= img_height - badge_size//2):
+                final_position = (pos_x, pos_y)
+                break
+        
+        # 如果都不合适，使用安全的边界位置
+        if final_position is None:
+            safe_x = max(badge_size//2, min(x1, img_width - badge_size//2))
+            safe_y = max(badge_size//2, min(y1, img_height - badge_size//2))
+            final_position = (safe_x, safe_y)
         
         # 绘制ID标签
-        self._draw_corner_badge(image, (badge_x, badge_y), str(face_id), 
+        self._draw_corner_badge(image, final_position, str(face_id), 
                                color, style="square")
     
     def visualize_recognition_results(self, image: np.ndarray, matches: List[Dict], 
@@ -496,8 +552,10 @@ class EnhancedFaceVisualizer:
         result_image = image.copy()
         match_details = []  # 添加详情收集
         
-        # 为不同的人分配颜色映射
+        # 为不同的人分配颜色映射和智能ID
         person_color_map = {}
+        person_face_count = {}  # 记录每个人员的人脸数量
+        unknown_count = 0  # 未知人员计数器
         
         for i, match in enumerate(matches):
             bbox = match.get('bbox', [])
@@ -512,11 +570,28 @@ class EnhancedFaceVisualizer:
             name = match.get('name', '未知')
             is_known = person_id != -1
             
-            # 根据人员分配颜色（相同人员用相同颜色）
-            if is_known:
+            # 智能ID分配系统
+            if person_id != -1:
+                # 已知人员，使用person_id作为颜色key
                 color_key = f"person_{person_id}"
+                
+                # 计算该人员的人脸序号
+                if person_id not in person_face_count:
+                    person_face_count[person_id] = 0
+                person_face_count[person_id] += 1
+                
+                # 生成显示ID
+                if person_face_count[person_id] > 1:
+                    # 同一人的多张脸，用字母后缀区分
+                    suffix = chr(ord('A') + person_face_count[person_id] - 1)
+                    id_label = f"P{person_id}{suffix}"
+                else:
+                    id_label = f"P{person_id}"
             else:
-                color_key = f"unknown_{i}"
+                # 未知人员，按检测顺序分配ID
+                unknown_count += 1
+                id_label = f"U{unknown_count}"
+                color_key = f"unknown_{unknown_count}"
             
             if color_key not in person_color_map:
                 # 分配新颜色
@@ -566,14 +641,7 @@ class EnhancedFaceVisualizer:
                 # 未知人员用虚线框
                 self._draw_dashed_rectangle(result_image, (x1, y1, x2, y2), color, 3)
             
-            # 添加ID标识（使用真实的person_id）
-            if person_id != -1:
-                face_id = person_id  # 使用库中的真实人员ID
-                id_label = f"P{face_id}"  # P表示Person ID
-            else:
-                face_id = i + 1  # 未知人员使用序号
-                id_label = f"U{face_id}"  # U表示Unknown
-            
+            # 添加智能ID标识
             self._draw_id_badge(result_image, [x1, y1, x2, y2], id_label, color)
             
             # 准备标签
