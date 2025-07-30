@@ -114,3 +114,15 @@ uv.lock
 *.bak
 *.backup
 *~
+
+# Development and testing files
+debug_*.html
+test_*.html
+diagnostic.html
+comprehensive_test.py
+test_id_position.py
+analyze_visualization.py
+frontend_optimizations.js
+backend_optimizations.py
+*_FIX_REPORT.md
+*_OPTIMIZATION_REPORT.md

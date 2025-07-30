@@ -10,7 +10,7 @@ help:  ## 显示帮助信息
 
 install:  ## 安装依赖 (使用 uv)
 	@echo "Installing dependencies with uv..."
-	uv venv --python 3.8
+	uv venv --python 3.12
 	uv pip install -e .
 
 install-dev:  ## 安装开发依赖
@@ -19,7 +19,7 @@ install-dev:  ## 安装开发依赖
 
 dev:  ## 启动开发服务器 (热重载)
 	@echo "Starting development server..."
-	uvicorn src.api.fastapi_app:create_app --factory --host 0.0.0.0 --port 8000 --reload
+	python main.py --reload
 
 start:  ## 启动生产服务器
 	@echo "Starting production server..."
@@ -67,7 +67,7 @@ cli-help:  ## 显示CLI工具帮助
 setup:  ## 初始化项目 (首次运行)
 	@echo "Setting up project..."
 	mkdir -p data/database data/faces data/uploads logs
-	uv venv --python 3.8
+	uv venv --python 3.12
 	uv pip install -e .
 	@echo "Setup complete! Run 'make dev' to start development server."
 
