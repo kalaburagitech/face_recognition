@@ -968,9 +968,20 @@ class PersonManagement {
             console.warn('无法从专门API获取人脸照片:', error);
         }
 
-        // 如果仍然没有照片，返回空状态
+        // 如果仍然没有照片，返回空状态但包含添加按钮
         if (faceImages.length === 0) {
-            return '<p class="text-muted small">暂无人脸照片</p>';
+            return `
+                <div class="text-center p-4">
+                    <div class="text-muted mb-3">
+                        <i class="bi bi-images" style="font-size: 3rem; opacity: 0.5;"></i>
+                        <p class="mt-2 mb-0">暂无人脸照片</p>
+                        <small class="text-muted">添加人脸照片以提高识别准确率</small>
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="window.personManagement.addMoreFaces(${person.id})">
+                        <i class="bi bi-plus-circle me-1"></i>添加人脸照片
+                    </button>
+                </div>
+            `;
         }
 
         let gallery = '<div class="row g-2">';
@@ -1154,13 +1165,16 @@ class PersonManagement {
                 this.showMessage('照片删除成功', 'success');
                 this.addRecentOperation('删除照片', `删除了 ${person.name} 的一张人脸照片`);
                 
+                // 重新加载人员数据以获取最新信息
+                await this.loadPersons();
+                
                 // 刷新详情页面的照片展示
                 const detailModal = document.getElementById('personDetailModal');
                 if (detailModal) {
-                    this.refreshPersonDetails(personId);
+                    await this.refreshPersonDetails(personId);
                 }
                 
-                // 刷新主列表
+                // 刷新主列表显示
                 this.displayPersons();
                 this.updateStatistics();
             }
@@ -1257,7 +1271,7 @@ class PersonManagement {
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
-                            <i class="bi bi-person-plus-fill me-2"></i>为 ${person.name} 添加人脸入库
+                            <i class="bi bi-person-plus-fill me-2"></i>为 ${person.name} 添加人脸照片
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
@@ -1266,11 +1280,11 @@ class PersonManagement {
                             <i class="bi bi-info-circle me-2"></i>
                             <strong>人脸入库说明：</strong>上传的照片将进行人脸识别分析并存储到数据库中，用于后续的人脸识别比对。
                         </div>
-                        <div class="upload-area border-2 border-dashed border-primary rounded p-4 text-center mb-3">
+                        <div class="upload-area border-2 border-dashed border-primary rounded p-4 text-center mb-3" style="cursor: pointer;" onclick="document.getElementById('addFacesInput').click()">
                             <i class="bi bi-cloud-upload text-primary mb-2" style="font-size: 2rem;"></i>
-                            <h6>选择或拖拽照片到此处</h6>
+                            <h6>点击选择或拖拽照片到此处</h6>
                             <p class="text-muted small mb-2">支持 JPG、PNG 格式，单张不超过 5MB</p>
-                            <input type="file" class="form-control" id="addFacesInput" multiple accept="image/*">
+                            <input type="file" class="d-none" id="addFacesInput" multiple accept="image/*">
                         </div>
                         <div id="addFacesPreview" class="d-none">
                             <h6 class="small text-muted mb-2">预览:</h6>
@@ -1296,10 +1310,44 @@ class PersonManagement {
             // 文件选择处理
             const fileInput = modal.querySelector('#addFacesInput');
             const uploadBtn = modal.querySelector('#uploadFacesBtn');
+            const uploadArea = modal.querySelector('.upload-area');
             
             fileInput.addEventListener('change', (e) => {
                 this.handleAddFacesFiles(e.target.files, modal);
                 uploadBtn.disabled = e.target.files.length === 0;
+            });
+
+            // 拖拽上传事件
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('border-success');
+                uploadArea.style.backgroundColor = 'rgba(var(--bs-success-rgb), 0.1)';
+            });
+
+            uploadArea.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('border-success');
+                uploadArea.style.backgroundColor = '';
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('border-success');
+                uploadArea.style.backgroundColor = '';
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    // 模拟文件输入选择
+                    const dt = new DataTransfer();
+                    for (let i = 0; i < files.length; i++) {
+                        dt.items.add(files[i]);
+                    }
+                    fileInput.files = dt.files;
+                    
+                    // 触发change事件
+                    this.handleAddFacesFiles(files, modal);
+                    uploadBtn.disabled = files.length === 0;
+                }
             });
 
             // 上传按钮事件
@@ -1410,6 +1458,7 @@ class PersonManagement {
         const detailModal = document.getElementById('personDetailModal');
         if (!detailModal) return;
 
+        // 重新获取最新的人员数据
         const person = this.allPersons.find(p => p.id === personId);
         if (!person) return;
 
@@ -1420,10 +1469,24 @@ class PersonManagement {
         }
 
         // 更新照片数量显示
-        const faceCountElement = detailModal.querySelector('.badge');
-        if (faceCountElement) {
-            faceCountElement.textContent = `${person.face_count || person.encodings_count || 0} 张`;
-        }
+        const faceCountElements = detailModal.querySelectorAll('.badge');
+        faceCountElements.forEach(element => {
+            if (element.textContent.includes('张')) {
+                element.textContent = `${person.face_count || person.encodings_count || 0} 张`;
+            }
+        });
+        
+        // 更新详情页面中的照片数量信息
+        const infoCards = detailModal.querySelectorAll('.info-card');
+        infoCards.forEach(card => {
+            const label = card.querySelector('.info-label');
+            if (label && label.textContent.includes('照片数量')) {
+                const valueElement = card.querySelector('.info-value .badge');
+                if (valueElement) {
+                    valueElement.textContent = `${person.face_count || person.encodings_count || 0} 张`;
+                }
+            }
+        });
     }
 
     // 批量操作相关方法
