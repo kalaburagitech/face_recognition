@@ -3,10 +3,10 @@
     "path": "data/database/face_recognition.db"
   },
   "face_recognition": {
-    "tolerance": 0.4,
+    "recognition_threshold": 0.24,
+    "detection_threshold": 0.1,
     "model": "buffalo_l",
     "deepface_model": "ArcFace",
-    "threshold": 0.4,
     "det_size": [
       640,
       640
@@ -28,7 +28,10 @@
       "jpeg",
       "png",
       "bmp",
-      "tiff"
+      "tiff",
+      "gif",
+      "webp",
+      "avif"
     ],
     "upload_folder": "data/uploads"
   },

@@ -3,7 +3,7 @@
 支持 InsightFace 和 DeepFace 等最新技术
 """
 from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Request, Query
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -111,6 +111,10 @@ def create_app() -> FastAPI:
     web_dir = Path(__file__).parent.parent.parent / "web"
     if web_dir.exists():
         app.mount("/static", StaticFiles(directory=str(web_dir)), name="static")
+        # 挂载新的assets目录
+        assets_dir = web_dir / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
     # 获取服务实例
     def get_face_service():
@@ -132,33 +136,19 @@ def create_app() -> FastAPI:
                 <body style="font-family: Arial, sans-serif; margin: 40px;">
                     <h1>🚀 先进人脸识别系统 API</h1>
                     <p>基于 <strong>InsightFace</strong> 和 <strong>DeepFace</strong> 的高精度人脸识别</p>
-                    
-                    <h2>🔧 功能特性</h2>
-                    <ul>
-                        <li>✅ 高精度人脸检测 (InsightFace)</li>
-                        <li>✅ 多模型支持 (ArcFace, FaceNet, VGG-Face)</li>
-                        <li>✅ 人脸属性分析 (年龄、性别、情绪)</li>
-                        <li>✅ 实时人脸识别</li>
-                        <li>✅ RESTful API 接口</li>
-                    </ul>
-                    
-                    <h2>📖 API 文档</h2>
-                    <ul>
-                        <li><a href="/docs" target="_blank">📋 Swagger UI 文档</a></li>
-                        <li><a href="/redoc" target="_blank">📚 ReDoc 文档</a></li>
-                        <li><a href="/api/health">🔍 健康检查</a></li>
-                        <li><a href="/api/statistics">📊 系统统计</a></li>
-                    </ul>
-                    
-                    <h2>🔌 主要接口</h2>
-                    <ul>
-                        <li><code>POST /api/enroll</code> - 人员入库</li>
-                        <li><code>POST /api/recognize</code> - 人脸识别</li>
-                        <li><code>POST /api/analyze</code> - 人脸属性分析</li>
-                    </ul>
+                    <p><a href="/docs">📋 查看API文档</a></p>
                 </body>
             </html>
             """)
+
+    @app.get("/{file_path}.html", response_class=HTMLResponse)
+    async def serve_html(file_path: str):
+        """服务HTML文件"""
+        web_file = Path(__file__).parent.parent.parent / "web" / f"{file_path}.html"
+        if web_file.exists():
+            return FileResponse(str(web_file))
+        else:
+            raise HTTPException(status_code=404, detail="页面未找到")
 
     @app.post("/api/enroll", response_model=EnrollmentResponse)
     async def enroll_person(
@@ -257,7 +247,6 @@ def create_app() -> FastAPI:
     @app.post("/api/recognize", response_model=RecognitionResponse)
     async def recognize_face(
         file: UploadFile = File(..., description="待识别的图像文件"),
-        threshold: float = 0.6,
         service = Depends(get_face_service)
     ):
         """
@@ -266,6 +255,15 @@ def create_app() -> FastAPI:
         上传图像进行人脸识别，返回匹配的人员信息
         """
         try:
+            # 从配置文件读取识别阈值
+            import json
+            try:
+                with open('config.json', 'r') as f:
+                    config_data = json.load(f)
+                    threshold = config_data.get('face_recognition', {}).get('recognition_threshold', 0.3)
+            except:
+                threshold = 0.3  # 默认值
+            
             # 验证文件类型
             if not file.content_type or not file.content_type.startswith('image/'):
                 raise HTTPException(status_code=400, detail="只支持图像文件")
@@ -473,6 +471,13 @@ def create_app() -> FastAPI:
                     'step': 0.05,
                     'description': '识别阈值：控制人脸识别的严格程度，值越高识别越严格'
                 },
+                'detection_threshold': {
+                    'current': getattr(config, 'DETECTION_THRESHOLD', 0.5),
+                    'min': 0.1,
+                    'max': 0.9,
+                    'step': 0.05,
+                    'description': '检测阈值：控制人脸检测的敏感度，值越高检测越严格'
+                },
                 'duplicate_threshold': {
                     'current': config.get('face_recognition.duplicate_threshold', 0.95),
                     'min': 0.8,
@@ -561,11 +566,29 @@ def create_app() -> FastAPI:
                 
                 persons_data = []
                 for person in persons:
+                    # 获取该人员的编码数量
+                    from ..models import FaceEncoding
+                    encoding_count = session.query(FaceEncoding).filter(
+                        FaceEncoding.person_id == person.id
+                    ).count()
+                    
+                    # 获取第一个人脸编码作为头像
+                    first_encoding = session.query(FaceEncoding).filter(
+                        FaceEncoding.person_id == person.id
+                    ).first()
+                    
+                    face_image_url = None
+                    if first_encoding:
+                        face_image_url = f"/api/face/{first_encoding.id}/image"
+                    
                     persons_data.append({
                         "id": person.id,
                         "name": person.name,
                         "description": person.description,
-                        "created_at": person.created_at.isoformat() if person.created_at else None
+                        "created_at": person.created_at.isoformat() if person.created_at else None,
+                        "encodings_count": encoding_count,
+                        "face_count": encoding_count,  # 兼容字段
+                        "face_image_url": face_image_url
                     })
                 
                 return JSONResponse(content={
@@ -636,6 +659,46 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.error(f"获取人员人脸列表失败: {str(e)}")
             raise HTTPException(status_code=500, detail="获取人员人脸列表失败")
+
+    @app.get("/api/face/{face_id}/image")
+    async def get_face_image(face_id: int, service = Depends(get_face_service)):
+        """
+        🖼️ 获取人脸图片
+        
+        返回指定人脸编码的图片数据
+        """
+        try:
+            with service.db_manager.get_session() as session:
+                repo = service.db_manager.get_face_encoding_repository(session)
+                encoding = repo.get_by_id(face_id)
+                if not encoding:
+                    raise HTTPException(status_code=404, detail="未找到指定人脸编码")
+                
+                image_data = encoding.get_image_data()
+                if not image_data:
+                    raise HTTPException(status_code=404, detail="该人脸编码没有关联的图片数据")
+                
+                # 返回图片数据
+                return Response(
+                    content=image_data,
+                    media_type="image/jpeg",
+                    headers={"Cache-Control": "max-age=3600"}
+                )
+                
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"获取人脸图片失败: {str(e)}")
+            raise HTTPException(status_code=500, detail="获取人脸图片失败")
+    
+    @app.get("/api/face_image/{face_id}")
+    async def get_face_image_legacy(face_id: int, service = Depends(get_face_service)):
+        """
+        🖼️ 获取人脸图片（兼容接口）
+        
+        返回指定人脸编码的图片数据
+        """
+        return await get_face_image(face_id, service)
 
     @app.put("/api/person/{person_id}")
     async def update_person(person_id: int, person_data: PersonUpdate, service = Depends(get_face_service)):
@@ -728,12 +791,12 @@ def create_app() -> FastAPI:
             from ..utils.config import config
             return JSONResponse(content={
                 "success": True,
-                "config": {
-                    "max_file_size": 10 * 1024 * 1024,  # 10MB
-                    "supported_formats": ["jpg", "jpeg", "png", "bmp", "gif"],
-                    "tolerance": getattr(config, 'RECOGNITION_THRESHOLD', 0.6),
-                    "model": "advanced_buffalo_l"
-                }
+                "recognition_threshold": getattr(config, 'RECOGNITION_THRESHOLD', 0.2),
+                "detection_threshold": getattr(config, 'DETECTION_THRESHOLD', 0.5),
+                "duplicate_threshold": config.get('face_recognition.duplicate_threshold', 0.95),
+                "max_file_size": 10 * 1024 * 1024,  # 10MB
+                "supported_formats": ["jpg", "jpeg", "png", "bmp", "gif"],
+                "model": "advanced_buffalo_l"
             })
         except Exception as e:
             logger.error(f"获取配置失败: {str(e)}")
@@ -744,24 +807,69 @@ def create_app() -> FastAPI:
         """
         ⚙️ 更新系统配置
         
-        更新识别阈值等配置
+        更新人脸识别阈值等配置，支持多种参数名称兼容
         """
         try:
             from ..utils.config import config
             data = await request.json()
             
-            if "tolerance" in data:
-                # 更新识别阈值
-                config.RECOGNITION_THRESHOLD = float(data["tolerance"])
-                logger.info(f"更新识别阈值为: {config.RECOGNITION_THRESHOLD}")
+            success_messages = []
+            
+            # 处理识别阈值
+            if "recognition_threshold" in data:
+                threshold_value = float(data["recognition_threshold"])
+                if not 0.0 <= threshold_value <= 0.9:
+                    raise HTTPException(status_code=400, detail="识别阈值必须在0.0-0.9之间")
+                
+                config.RECOGNITION_THRESHOLD = threshold_value
+                config.set('face_recognition.recognition_threshold', threshold_value)
+                success_messages.append(f"识别阈值已更新为: {threshold_value}")
+                logger.info(f"更新人脸识别阈值为: {threshold_value}")
+            
+            # 处理检测阈值
+            if "detection_threshold" in data:
+                threshold_value = float(data["detection_threshold"])
+                if not 0.1 <= threshold_value <= 0.9:
+                    raise HTTPException(status_code=400, detail="检测阈值必须在0.1-0.9之间")
+                
+                config.DETECTION_THRESHOLD = threshold_value
+                config.set('face_recognition.detection_threshold', threshold_value)
+                success_messages.append(f"检测阈值已更新为: {threshold_value}")
+                logger.info(f"更新人脸检测阈值为: {threshold_value}")
+            
+            # 处理重复阈值
+            if "duplicate_threshold" in data:
+                threshold_value = float(data["duplicate_threshold"])
+                if not 0.8 <= threshold_value <= 0.99:
+                    raise HTTPException(status_code=400, detail="重复阈值必须在0.8-0.99之间")
+                
+                config.set('face_recognition.duplicate_threshold', threshold_value)
+                success_messages.append(f"重复阈值已更新为: {threshold_value}")
+                logger.info(f"更新重复判定阈值为: {threshold_value}")
+            
+            # 兼容旧版参数名
+            if "tolerance" in data and "recognition_threshold" not in data:
+                threshold_value = float(data["tolerance"])
+                if not 0.0 <= threshold_value <= 0.9:
+                    raise HTTPException(status_code=400, detail="识别阈值必须在0.0-0.9之间")
+                
+                config.RECOGNITION_THRESHOLD = threshold_value
+                config.set('face_recognition.recognition_threshold', threshold_value)
+                success_messages.append(f"识别阈值已更新为: {threshold_value}")
+                logger.info(f"更新人脸识别阈值为: {threshold_value}")
+            
+            if not success_messages:
+                raise HTTPException(status_code=400, detail="未提供有效的配置参数")
             
             return JSONResponse(content={
                 "success": True,
-                "message": "配置更新成功",
-                "config": {
-                    "tolerance": getattr(config, 'RECOGNITION_THRESHOLD', 0.6)
-                }
+                "message": "; ".join(success_messages),
+                "recognition_threshold": getattr(config, 'RECOGNITION_THRESHOLD', 0.2),
+                "detection_threshold": getattr(config, 'DETECTION_THRESHOLD', 0.5),
+                "duplicate_threshold": config.get('face_recognition.duplicate_threshold', 0.95)
             })
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"更新配置失败: {str(e)}")
             raise HTTPException(status_code=500, detail="更新配置失败")
@@ -814,6 +922,101 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.error(f"删除人脸编码失败: {str(e)}")
             raise HTTPException(status_code=500, detail="删除人脸编码失败")
+
+    @app.post("/api/detect_faces")
+    async def detect_faces(
+        file: UploadFile = File(...),
+        include_landmarks: bool = Query(default=False, description="是否包含关键点信息"),
+        include_attributes: bool = Query(default=False, description="是否包含人脸属性(年龄、性别)"),
+        min_face_size: int = Query(default=20, description="最小人脸尺寸(像素)")
+    ):
+        """
+        🔍 纯人脸检测接口
+        
+        只进行人脸检测，不进行识别和入库操作
+        
+        Args:
+            file: 上传的图片文件
+            include_landmarks: 是否返回面部关键点坐标
+            include_attributes: 是否分析人脸属性(年龄、性别)
+            min_face_size: 检测的最小人脸尺寸
+            
+        Returns:
+            检测到的所有人脸信息
+        """
+        try:
+            # 验证文件类型
+            if not file.content_type or not file.content_type.startswith('image/'):
+                raise HTTPException(status_code=400, detail="只支持图片文件")
+            
+            # 读取图片
+            image_data = await file.read()
+            nparr = np.frombuffer(image_data, np.uint8)
+            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if image is None:
+                raise HTTPException(status_code=400, detail="无法解析图片文件")
+            
+            # 获取人脸检测服务
+            face_service = get_advanced_face_service()
+            
+            # 执行人脸检测
+            faces = face_service.detect_faces(image)
+            
+            # 过滤小于最小尺寸的人脸
+            if min_face_size > 0:
+                filtered_faces = []
+                for face in faces:
+                    bbox = face.get('bbox', [0, 0, 0, 0])
+                    width = bbox[2] - bbox[0]
+                    height = bbox[3] - bbox[1]
+                    if width >= min_face_size and height >= min_face_size:
+                        filtered_faces.append(face)
+                faces = filtered_faces
+            
+            # 构建返回数据
+            result_faces = []
+            for i, face in enumerate(faces):
+                face_data = {
+                    "face_id": i + 1,
+                    "bbox": face.get('bbox', []),
+                    "confidence": face.get('det_score', 0.0),
+                    "quality_score": face.get('quality', 0.0)
+                }
+                
+                # 添加关键点信息
+                if include_landmarks and 'landmarks' in face:
+                    face_data["landmarks"] = face['landmarks']
+                
+                # 添加属性信息
+                if include_attributes:
+                    if 'age' in face and face['age'] is not None:
+                        face_data["age"] = int(face['age'])
+                    if 'gender' in face and face['gender'] is not None:
+                        face_data["gender"] = "男" if face['gender'] == 1 else "女"
+                
+                result_faces.append(face_data)
+            
+            return JSONResponse(content={
+                "success": True,
+                "message": f"检测到 {len(result_faces)} 个人脸",
+                "total_faces": len(result_faces),
+                "faces": result_faces,
+                "image_info": {
+                    "width": image.shape[1],
+                    "height": image.shape[0],
+                    "channels": image.shape[2] if len(image.shape) > 2 else 1
+                },
+                "detection_config": {
+                    "detection_threshold": getattr(config, 'DETECTION_THRESHOLD', 0.5),
+                    "min_face_size": min_face_size,
+                    "model": "InsightFace Buffalo-L"
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"人脸检测失败: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"人脸检测失败: {str(e)}")
 
     @app.get("/api/health")
     @app.head("/api/health")

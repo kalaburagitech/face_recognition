@@ -12,7 +12,6 @@ class Config:
     
     # 人脸识别配置
     RECOGNITION_THRESHOLD = 0.6
-    TOLERANCE = 0.6
     MODEL = "buffalo_l"
     DEEPFACE_MODEL = "ArcFace"
     DET_SIZE = [640, 640]
@@ -40,8 +39,14 @@ class Config:
         """从配置文件更新类属性"""
         if 'face_recognition' in self.config:
             fr_config = self.config['face_recognition']
-            self.RECOGNITION_THRESHOLD = fr_config.get('threshold', 0.6)
-            self.TOLERANCE = fr_config.get('tolerance', 0.6)
+            # 优先使用recognition_threshold，然后是detection_threshold、threshold，最后是tolerance（向后兼容）
+            threshold = fr_config.get('recognition_threshold', 
+                                    fr_config.get('detection_threshold',
+                                                 fr_config.get('threshold', 
+                                                              fr_config.get('tolerance', 0.6))))
+            self.RECOGNITION_THRESHOLD = threshold
+            # 添加检测阈值支持
+            self.DETECTION_THRESHOLD = fr_config.get('detection_threshold', 0.5)
             self.MODEL = fr_config.get('model', 'buffalo_l')
             self.DEEPFACE_MODEL = fr_config.get('deepface_model', 'ArcFace')
             self.DET_SIZE = fr_config.get('det_size', [640, 640])
@@ -65,12 +70,13 @@ class Config:
                 "path": "data/database/face_recognition.db"
             },
             "face_recognition": {
-                "tolerance": 0.6,
+                "recognition_threshold": 0.6,  # 人脸识别阈值（用于匹配已知人脸）
+                "detection_threshold": 0.5,    # 人脸检测阈值（用于检测是否有人脸）
                 "model": "buffalo_l",  # InsightFace 模型: buffalo_l, buffalo_m, buffalo_s
                 "deepface_model": "ArcFace",  # DeepFace 模型: ArcFace, Facenet512, VGG-Face, OpenFace
-                "threshold": 0.6,  # 识别阈值
                 "det_size": [640, 640],  # 检测尺寸
-                "providers": ["CPUExecutionProvider"]  # ONNX 运行提供商
+                "providers": ["CPUExecutionProvider"],  # ONNX 运行提供商
+                "duplicate_threshold": 0.95  # 重复入库阈值
             },
             "api": {
                 "host": "0.0.0.0",

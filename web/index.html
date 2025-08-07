@@ -3,198 +3,270 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>人脸识别系统</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
-
+    <title>人脸识别系统 - 智能人脸识别管理平台</title>
+    <meta name="description" content="基于深度学习的人脸识别系统，支持人员注册、识别、管理和统计分析">
+    <meta name="keywords" content="人脸识别,深度学习,人员管理,InsightFace">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>👁️</text></svg>">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Bootstrap 5.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- 自定义样式 -->
+    <link href="assets/css/main.css" rel="stylesheet">
+    
+    <!-- 人员管理增强样式 -->
     <style>
-        .upload-area {
-            border: 2px dashed #dee2e6;
-            border-radius: 10px;
-            padding: 50px;
-            text-align: center;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        .upload-area:hover {
-            border-color: #0d6efd;
-            background-color: #f8f9fa;
-        }
-        .upload-area.dragover {
-            border-color: #0d6efd;
-            background-color: #e7f1ff;
-        }
-        .preview-image {
-            max-width: 100%;
-            max-height: 300px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-            cursor: pointer;
-            transition: transform 0.2s ease;
-        }
-        .preview-image:hover {
-            transform: scale(1.02);
-        }
-        
-        /* 所有可点击图片的通用样式 */
-        img[src*="data:image/"], 
-        img[src*="api/face_image/"],
-        .result-card img,
-        #recognitionResult img,
-        #enrollmentResult img,
-        .preview-image,
-        .card-img-top {
-            cursor: pointer !important;
-            transition: transform 0.2s ease, opacity 0.2s ease;
-        }
-        
-        img[src*="data:image/"]:hover, 
-        img[src*="api/face_image/"]:hover,
-        .result-card img:hover,
-        #recognitionResult img:hover,
-        #enrollmentResult img:hover,
-        .preview-image:hover,
-        .card-img-top:hover {
-            transform: scale(1.02);
-            opacity: 0.9;
-        }
-        
-        /* 添加放大镜图标提示 */
-        .img-zoom-hint {
+        /* 人脸照片画廊样式 */
+        .face-thumbnail {
             position: relative;
+            overflow: hidden;
+            border-radius: 8px;
+            transition: all 0.2s ease;
         }
         
-        .img-zoom-hint::after {
-            content: '🔍';
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 12px;
+        .face-thumbnail:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .face-image-container {
+            position: relative;
+            height: 80px;
+            overflow: hidden;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .face-image-container:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .face-image-container:active {
+            transform: scale(0.98);
+        }
+        
+        .face-image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .face-placeholder {
+            height: 80px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        
+        .face-actions {
             opacity: 0;
             transition: opacity 0.2s ease;
         }
         
-        .img-zoom-hint:hover::after {
+        .face-thumbnail:hover .face-actions {
             opacity: 1;
         }
         
-        .result-card {
-            transition: all 0.3s ease;
+        .btn-action {
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 2px;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.3);
         }
-        .result-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        
+        .face-info {
+            opacity: 0;
+            transition: opacity 0.2s ease;
         }
-        .face-box {
-            position: relative;
-            display: inline-block;
+        
+        .face-thumbnail:hover .face-info {
+            opacity: 1;
         }
-        .face-label {
-            position: absolute;
-            top: -25px;
-            left: 0;
-            background: rgba(0,123,255,0.8);
-            color: white;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 12px;
+        
+        /* 上传区域样式 */
+        .upload-area {
+            cursor: pointer;
+            transition: all 0.2s ease;
         }
-        .loading-spinner {
-            display: none;
+        
+        .upload-area:hover {
+            border-color: var(--bs-primary) !important;
+            background-color: rgba(var(--bs-primary-rgb), 0.05);
         }
-        .stats-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+        
+        /* 信息卡片样式增强 */
+        .info-card {
+            background: rgba(var(--bs-primary-rgb), 0.05);
+            border-radius: 8px;
+            padding: 12px;
+            border-left: 3px solid var(--bs-primary);
         }
-        .nav-pills .nav-link.active {
-            background-color: #0d6efd;
+        
+        .info-label {
+            font-size: 0.75rem;
+            color: var(--bs-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        
+        .info-value {
+            font-weight: 500;
+            color: var(--bs-dark);
+        }
+        
+        /* 模态框增强 */
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, var(--bs-primary) 0%, #0056b3 100%);
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 576px) {
+            .face-actions {
+                opacity: 1; /* 在移动设备上始终显示操作按钮 */
+            }
+            
+            .btn-action {
+                width: 24px;
+                height: 24px;
+                font-size: 0.75rem;
+            }
         }
     </style>
 </head>
-<body class="bg-light">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg">
         <div class="container">
             <a class="navbar-brand" href="#">
-                <i class="bi bi-camera-fill me-2"></i>
+                <i class="bi bi-camera-reels me-2"></i>
                 人脸识别系统
             </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto nav-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="recognition-tab" data-bs-toggle="tab" data-bs-target="#recognition" type="button" role="tab" aria-controls="recognition" aria-selected="true">
+                            <i class="bi bi-search me-1"></i>人脸识别
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="enrollment-tab" data-bs-toggle="tab" data-bs-target="#enrollment" type="button" role="tab" aria-controls="enrollment" aria-selected="false">
+                            <i class="bi bi-person-plus me-1"></i>人员注册
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="management-tab" data-bs-toggle="tab" data-bs-target="#management" type="button" role="tab" aria-controls="management" aria-selected="false">
+                            <i class="bi bi-people me-1"></i>人员管理
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics" type="button" role="tab" aria-controls="analytics" aria-selected="false">
+                            <i class="bi bi-bar-chart me-1"></i>统计分析
+                        </button>
+                    </li>
+                </ul>
+            </div>
         </div>
     </nav>
 
-    <div class="container mt-4">
-        <!-- 导航标签 -->
-        <ul class="nav nav-pills mb-4" id="mainTabs" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="recognition-tab" data-bs-toggle="pill" data-bs-target="#recognition" type="button" role="tab">
-                    <i class="bi bi-search me-2"></i>人脸识别
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="enrollment-tab" data-bs-toggle="pill" data-bs-target="#enrollment" type="button" role="tab">
-                    <i class="bi bi-person-plus me-2"></i>人脸入库
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="management-tab" data-bs-toggle="pill" data-bs-target="#management" type="button" role="tab">
-                    <i class="bi bi-people me-2"></i>人员管理
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="statistics-tab" data-bs-toggle="pill" data-bs-target="#statistics" type="button" role="tab">
-                    <i class="bi bi-graph-up me-2"></i>统计信息
-                </button>
-            </li>
-        </ul>
-
+    <!-- 主内容区域 -->
+    <main class="container my-4">
         <div class="tab-content" id="mainTabContent">
-            <!-- 人脸识别页面 -->
-            <div class="tab-pane fade show active" id="recognition" role="tabpanel">
+            <!-- 人脸识别标签页 -->
+            <div class="tab-pane fade show active" id="recognition" role="tabpanel" aria-labelledby="recognition-tab">
                 <div class="row">
                     <div class="col-lg-6">
                         <div class="card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0">
-                                    <i class="bi bi-upload me-2"></i>上传图片
+                                    <i class="bi bi-camera-fill me-2"></i>
+                                    上传照片进行识别
                                 </h5>
                             </div>
                             <div class="card-body">
-                                <div class="upload-area" id="recognitionUploadArea">
-                                    <i class="bi bi-cloud-upload fs-1 text-muted"></i>
-                                    <p class="mt-3 mb-2">点击选择图片或拖拽图片到此处</p>
-                                    <p class="text-muted small">支持 JPG, PNG, BMP 格式</p>
-                                    <input type="file" id="recognitionFileInput" accept="image/*" class="d-none">
+                                <div class="upload-zone" id="uploadZone">
+                                    <div class="upload-content">
+                                        <i class="bi bi-cloud-upload"></i>
+                                        <h6>点击或拖拽上传照片</h6>
+                                        <p class="mb-0">支持 JPEG、PNG、WebP、BMP、TIFF 格式</p>
+                                        <small class="text-muted">最大文件大小: 10MB | 推荐分辨率: 640x480以上</small>
+                                    </div>
+                                    <input type="file" id="imageFile" accept="image/*" style="display: none;">
                                 </div>
-                                <div id="recognitionPreview" class="mt-3" style="display: none;">
-                                    <img id="recognitionPreviewImg" class="preview-image">
+                                
+                                <div id="imagePreview" class="mt-3" style="display: none;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="text-primary fw-semibold">图片预览</span>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearImagePreview()">
+                                            <i class="bi bi-x me-1"></i>重新选择
+                                        </button>
+                                    </div>
+                                    <img id="previewImg" class="img-fluid rounded shadow" alt="预览图片" style="max-height: 300px;">
+                                    <div id="imageInfo" class="mt-2 small text-muted"></div>
                                 </div>
-                                <div class="mt-3 d-grid gap-2">
-                                    <button id="recognitionBtn" class="btn btn-primary" disabled>
-                                        <span class="loading-spinner spinner-border spinner-border-sm me-2"></span>
-                                        <i class="bi bi-search me-2"></i>开始识别
+
+                                <div class="d-grid gap-2 mt-3">
+                                    <button id="recognizeBtn" class="btn btn-primary btn-lg" disabled>
+                                        <i class="bi bi-search me-2"></i>
+                                        开始识别
                                     </button>
+                                    <div class="d-flex gap-2">
+                                        <button id="clearBtn" class="btn btn-outline-secondary flex-fill" onclick="clearRecognition()" style="display: none;">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>
+                                            重置
+                                        </button>
+                                        <button id="downloadBtn" class="btn btn-outline-primary flex-fill" onclick="downloadResult()" style="display: none;">
+                                            <i class="bi bi-download me-1"></i>
+                                            下载结果
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                    
                     <div class="col-lg-6">
                         <div class="card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0">
-                                    <i class="bi bi-list-check me-2"></i>识别结果
+                                    <i class="bi bi-clipboard-data me-2"></i>
+                                    识别结果
                                 </h5>
                             </div>
-                            <div class="card-body">
-                                <!-- 错误信息显示区域 -->
-                                <div id="recognitionError" style="display: none;"></div>
-                                
+                            <div class="card-body position-relative">
                                 <div id="recognitionResults">
-                                    <div class="text-center text-muted">
-                                        <i class="bi bi-image fs-1"></i>
-                                        <p class="mt-3">上传图片开始识别</p>
+                                    <div class="empty-state">
+                                        <i class="bi bi-search"></i>
+                                        <h6>等待识别</h6>
+                                        <p class="mb-0">请上传照片开始识别</p>
+                                    </div>
+                                </div>
+                                <div id="recognitionLoading" class="loading-overlay" style="display: none;">
+                                    <div class="text-center">
+                                        <div class="loading-spinner mb-3"></div>
+                                        <div class="fw-semibold text-primary">正在识别中...</div>
+                                        <div class="small text-muted">请稍候，正在分析人脸特征</div>
                                     </div>
                                 </div>
                             </div>
@@ -203,498 +275,969 @@
                 </div>
             </div>
 
-            <!-- 人脸入库页面 -->
-            <div class="tab-pane fade" id="enrollment" role="tabpanel">
+            <!-- 人员注册标签页 -->
+            <div class="tab-pane fade" id="enrollment" role="tabpanel" aria-labelledby="enrollment-tab">
                 <div class="row">
                     <div class="col-lg-8">
                         <div class="card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0">
-                                    <i class="bi bi-person-plus me-2"></i>人脸入库
+                                    <i class="bi bi-person-plus me-2"></i>
+                                    注册新人员
                                 </h5>
                             </div>
                             <div class="card-body">
                                 <form id="enrollmentForm">
                                     <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label for="personName" class="form-label">人员姓名 *</label>
-                                                <input type="text" class="form-control" id="personName" required>
-                                            </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="personName" class="form-label">姓名 *</label>
+                                            <input type="text" class="form-control" id="personName" placeholder="请输入姓名" required>
                                         </div>
-                                        <div class="col-md-6">
-                                            <div class="mb-3">
-                                                <label for="personDescription" class="form-label">描述</label>
-                                                <input type="text" class="form-control" id="personDescription" placeholder="可选">
-                                            </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label for="personDescription" class="form-label">描述</label>
+                                            <input type="text" class="form-control" id="personDescription" placeholder="可选描述信息">
                                         </div>
                                     </div>
-                                    
+
                                     <div class="mb-3">
-                                        <label class="form-label">上传方式</label>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="uploadType" id="singleUpload" value="single" checked>
-                                            <label class="form-check-label" for="singleUpload">
-                                                单张图片
-                                            </label>
-                                        </div>
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="uploadType" id="batchUpload" value="batch">
-                                            <label class="form-check-label" for="batchUpload">
-                                                批量上传
-                                            </label>
+                                        <label class="form-label">照片上传 *</label>
+                                        <div class="upload-zone" id="enrollmentUpload">
+                                            <div class="upload-content">
+                                                <i class="bi bi-images"></i>
+                                                <h6>点击或拖拽上传照片</h6>
+                                                <p class="mb-0">支持 JPEG、PNG、WebP 格式</p>
+                                                <small class="text-muted">可上传多张照片，提高识别准确率</small>
+                                            </div>
+                                            <input type="file" id="enrollmentFile" accept="image/*" multiple style="display: none;">
                                         </div>
                                     </div>
 
-                                    <div class="upload-area" id="enrollmentUploadArea">
-                                        <i class="bi bi-cloud-upload fs-1 text-muted"></i>
-                                        <p class="mt-3 mb-2" id="uploadText">点击选择图片或拖拽图片到此处</p>
-                                        <p class="text-muted small">支持 JPG, PNG, BMP 格式</p>
-                                        <input type="file" id="enrollmentFileInput" accept="image/*" class="d-none">
+                                    <div id="enrollmentPreview" class="d-none">
+                                        <label class="form-label">预览照片</label>
+                                        <div id="enrollmentImages" class="row"></div>
                                     </div>
 
-                                    <div id="enrollmentPreview" class="mt-3" style="display: none;">
-                                        <div id="enrollmentPreviewImages" class="row"></div>
-                                    </div>
-
-                                    <div class="mt-3 d-grid gap-2">
-                                        <button type="submit" id="enrollmentBtn" class="btn btn-success" disabled>
-                                            <span class="loading-spinner spinner-border spinner-border-sm me-2"></span>
-                                            <i class="bi bi-person-plus me-2"></i>开始入库
+                                    <div class="d-flex gap-2">
+                                        <button type="button" id="enrollBtn" class="btn btn-success" disabled>
+                                            <i class="bi bi-person-plus me-1"></i>
+                                            注册人员
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="clearEnrollment()">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>
+                                            重置
                                         </button>
                                     </div>
                                 </form>
-                                
-                                <!-- 入库结果显示区域 -->
-                                <div id="enrollmentError" style="display: none;" class="mt-3"></div>
-                                <div id="enrollmentResults" style="display: none;" class="mt-3"></div>
                             </div>
                         </div>
                     </div>
+
                     <div class="col-lg-4">
                         <div class="card">
                             <div class="card-header">
                                 <h5 class="card-title mb-0">
-                                    <i class="bi bi-info-circle me-2"></i>使用说明
+                                    <i class="bi bi-check-circle me-2"></i>
+                                    注册结果
                                 </h5>
                             </div>
                             <div class="card-body">
-                                <ul class="list-unstyled">
-                                    <li class="mb-2">
-                                        <i class="bi bi-check-circle text-success me-2"></i>
-                                        确保人脸清晰可见
-                                    </li>
-                                    <li class="mb-2">
-                                        <i class="bi bi-check-circle text-success me-2"></i>
-                                        避免强光或阴影
-                                    </li>
-                                    <li class="mb-2">
-                                        <i class="bi bi-check-circle text-success me-2"></i>
-                                        人脸占图片30%以上
-                                    </li>
-                                    <li class="mb-2">
-                                        <i class="bi bi-check-circle text-success me-2"></i>
-                                        支持多角度图片入库
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 人员管理页面 -->
-            <div class="tab-pane fade" id="management" role="tabpanel">
-                <div class="card">
-                    <div class="card-header">
-                        <div class="row align-items-center">
-                            <div class="col-md-6">
-                                <h5 class="card-title mb-0">
-                                    <i class="bi bi-people me-2"></i>人员列表
-                                </h5>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="d-flex justify-content-end gap-2">
-                                    <button class="btn btn-outline-secondary btn-sm" onclick="exportPersonsData()">
-                                        <i class="bi bi-download me-1"></i>导出
-                                    </button>
-                                    <button class="btn btn-primary btn-sm" onclick="loadPersons()">
-                                        <i class="bi bi-arrow-clockwise me-1"></i>刷新
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <!-- 搜索和筛选区域 -->
-                        <div class="row mb-3">
-                            <div class="col-md-4">
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                    <input type="text" class="form-control" id="searchPersons" 
-                                           placeholder="搜索人员姓名..." onkeyup="searchPersons()">
-                                    <button class="btn btn-outline-secondary" onclick="clearSearch()" title="清除搜索">
-                                        <i class="bi bi-x"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <select class="form-select" id="sortPersons" onchange="sortPersons()">
-                                    <option value="name_asc">姓名 A-Z</option>
-                                    <option value="name_desc">姓名 Z-A</option>
-                                    <option value="date_desc">最新创建</option>
-                                    <option value="date_asc">最早创建</option>
-                                    <option value="faces_desc">人脸数量(多-少)</option>
-                                    <option value="faces_asc">人脸数量(少-多)</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <select class="form-select" id="filterPersons" onchange="filterPersons()">
-                                    <option value="all">所有人员</option>
-                                    <option value="with_faces">有人脸特征</option>
-                                    <option value="no_faces">无人脸特征</option>
-                                    <option value="recent">近期添加</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <div class="btn-group" role="group">
-                                    <button class="btn btn-outline-primary btn-sm" id="listViewBtn" onclick="switchView('list')" title="列表视图">
-                                        <i class="bi bi-list"></i>
-                                    </button>
-                                    <button class="btn btn-outline-primary btn-sm" id="cardViewBtn" onclick="switchView('card')" title="卡片视图">
-                                        <i class="bi bi-grid"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- 批量操作区域 -->
-                        <div class="row mb-3" id="batchOperations" style="display: none;">
-                            <div class="col-12">
-                                <div class="alert alert-info d-flex justify-content-between align-items-center">
-                                    <span>
-                                        已选择 <span id="selectedCount">0</span> 个人员
-                                    </span>
-                                    <div>
-                                        <button class="btn btn-danger btn-sm me-2" onclick="batchDeletePersons()">
-                                            <i class="bi bi-trash me-1"></i>批量删除
-                                        </button>
-                                        <button class="btn btn-secondary btn-sm" onclick="clearSelection()">
-                                            <i class="bi bi-x me-1"></i>取消选择
-                                        </button>
+                                <div id="enrollmentResults">
+                                    <div class="empty-state">
+                                        <i class="bi bi-person-plus"></i>
+                                        <h6>等待注册信息</h6>
+                                        <p class="mb-0">请上传照片并填写信息</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        
-                        <!-- 列表视图 -->
-                        <div id="listView">
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>
-                                                <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
-                                            </th>
-                                            <th>ID</th>
-                                            <th>姓名</th>
-                                            <th>描述</th>
-                                            <th>人脸数量</th>
-                                            <th>创建时间</th>
-                                            <th>操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="personsTableBody">
-                                        <tr>
-                                            <td colspan="7" class="text-center text-muted">加载中...</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 人员管理标签页 -->
+            <div class="tab-pane fade" id="management" role="tabpanel" aria-labelledby="management-tab">
+                <!-- 顶部操作栏 -->
+                <div class="row mb-4">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-body py-3">
+                                <div class="d-flex align-items-center">
+                                    <h5 class="card-title mb-0 me-3">
+                                        <i class="bi bi-people-fill me-2 text-primary"></i>
+                                        人员管理
+                                    </h5>
+                                    <span class="badge bg-primary person-count">加载中...</span>
+                                </div>
                             </div>
                         </div>
-                        
-                        <!-- 卡片视图 -->
-                        <div id="cardView" style="display: none;">
-                            <div class="row" id="personsCardContainer">
-                                <div class="col-12 text-center text-muted">加载中...</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-body py-3">
+                                <div class="d-flex gap-2">
+                                    <div class="input-group">
+                                        <span class="input-group-text">
+                                            <i class="bi bi-search"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="searchPerson" placeholder="搜索人员...">
+                                    </div>
+                                    <button class="btn btn-outline-primary" onclick="refreshPersonList()" title="刷新">
+                                        <i class="bi bi-arrow-clockwise"></i>
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="showSortOptions()" title="排序">
+                                        <i class="bi bi-sort-down"></i>
+                                    </button>
+                                    <button class="btn btn-primary" onclick="showBulkOperations()" title="批量操作">
+                                        <i class="bi bi-list-check"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        
-                        <!-- 分页 -->
-                        <div class="d-flex justify-content-between align-items-center mt-3">
-                            <div class="text-muted">
-                                共 <span id="totalPersonsCount">0</span> 个人员，当前显示 <span id="currentPageInfo">0</span>
+                    </div>
+                </div>
+
+                <!-- 批量操作面板 -->
+                <div class="bulk-operations-panel" style="display: none;">
+                    <div class="card border-warning mb-3">
+                        <div class="card-header bg-warning text-dark">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="bi bi-check2-square me-2"></i>
+                                    <strong>批量操作</strong>
+                                    <small id="selectedCount" class="ms-2">(已选择 0 项)</small>
+                                </div>
+                                <button class="btn btn-sm btn-outline-dark" onclick="hideBulkOperations()">
+                                    <i class="bi bi-x"></i>
+                                </button>
                             </div>
-                            <nav>
-                                <ul class="pagination pagination-sm mb-0" id="pagination">
-                                    <!-- 分页按钮将通过JS生成 -->
-                                </ul>
-                            </nav>
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <button class="btn btn-sm btn-outline-primary" onclick="selectAllPersons()">
+                                    <i class="bi bi-check-all me-1"></i>全选
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="clearAllSelections()">
+                                    <i class="bi bi-square me-1"></i>清空选择
+                                </button>
+                                <div class="vr"></div>
+                                <button class="btn btn-sm btn-outline-success" onclick="exportSelectedPersons()" id="bulkExportBtn" disabled>
+                                    <i class="bi bi-download me-1"></i>导出选中
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteSelectedPersons()" id="bulkDeleteBtn" disabled>
+                                    <i class="bi bi-trash me-1"></i>批量删除
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 人员列表 -->
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-grid-3x3-gap me-2"></i>
+                                    人员列表
+                                </h6>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="viewMode" id="cardView" checked>
+                                    <label class="btn btn-outline-secondary" for="cardView" title="卡片视图">
+                                        <i class="bi bi-grid"></i>
+                                    </label>
+                                    <input type="radio" class="btn-check" name="viewMode" id="listView">
+                                    <label class="btn btn-outline-secondary" for="listView" title="列表视图">
+                                        <i class="bi bi-list"></i>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="card-body p-3">
+                                <div id="personsList">
+                                    <div class="d-flex justify-content-center p-5">
+                                        <div class="text-center">
+                                            <div class="spinner-border text-primary mb-3" role="status">
+                                                <span class="visually-hidden">加载中...</span>
+                                            </div>
+                                            <p class="text-muted">正在加载人员数据...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 侧边栏信息面板 -->
+                    <div class="col-lg-4">
+                        <!-- 快速统计 -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-bar-chart me-2"></i>
+                                    快速统计
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <div class="border-end">
+                                            <h4 class="text-primary mb-1" id="totalPersonsCount">0</h4>
+                                            <small class="text-muted">总人员</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <h4 class="text-success mb-1" id="totalFacesCount">0</h4>
+                                        <small class="text-muted">总照片</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 最近操作 -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-clock-history me-2"></i>
+                                    最近操作
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="recentOperations">
+                                    <small class="text-muted">暂无操作记录</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 批量操作面板 -->
+                        <div class="card" id="bulkOperationsPanel" style="display: none;">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-list-check me-2"></i>
+                                    批量操作
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-outline-primary btn-sm" onclick="selectAllPersons()">
+                                        <i class="bi bi-check-all me-1"></i>全选
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="clearSelection()">
+                                        <i class="bi bi-x-square me-1"></i>清除选择
+                                    </button>
+                                    <hr>
+                                    <button class="btn btn-outline-danger btn-sm" onclick="bulkDeletePersons()" disabled id="bulkDeleteBtn">
+                                        <i class="bi bi-trash me-1"></i>批量删除
+                                    </button>
+                                    <button class="btn btn-outline-info btn-sm" onclick="exportSelectedPersons()" disabled id="bulkExportBtn">
+                                        <i class="bi bi-download me-1"></i>导出数据
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 统计信息页面 -->
-            <div class="tab-pane fade" id="statistics" role="tabpanel">
-                <div class="row">
-                    <div class="col-md-3 mb-4">
-                        <div class="card stats-card">
-                            <div class="card-body text-center">
-                                <i class="bi bi-people fs-1"></i>
-                                <h3 class="mt-2" id="totalPersons">-</h3>
-                                <p class="mb-0">总人数</p>
+            <!-- 统计分析标签页 -->
+            <div class="tab-pane fade" id="analytics" role="tabpanel" aria-labelledby="analytics-tab">
+                <!-- 顶部概览卡片 - 简化布局 -->
+                <div class="row mb-4">
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="analytics-card">
+                            <div class="analytics-icon bg-primary">
+                                <i class="bi bi-people-fill"></i>
+                            </div>
+                            <div class="analytics-info">
+                                <h3 id="statTotalPersons">0</h3>
+                                <p>总人员数</p>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3 mb-4">
-                        <div class="card stats-card">
-                            <div class="card-body text-center">
-                                <i class="bi bi-camera-fill fs-1"></i>
-                                <h3 class="mt-2" id="totalEncodings">-</h3>
-                                <p class="mb-0">人脸特征数</p>
+                    
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="analytics-card">
+                            <div class="analytics-icon bg-success">
+                                <i class="bi bi-camera-fill"></i>
+                            </div>
+                            <div class="analytics-info">
+                                <h3 id="statTotalEncodings">0</h3>
+                                <p>总照片数</p>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3 mb-4">
-                        <div class="card stats-card">
-                            <div class="card-body text-center">
-                                <i class="bi bi-speedometer2 fs-1"></i>
-                                <h3 class="mt-2" id="tolerance">-</h3>
-                                <p class="mb-0">识别容忍度</p>
+                    
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="analytics-card">
+                            <div class="analytics-icon bg-warning">
+                                <i class="bi bi-bullseye"></i>
+                            </div>
+                            <div class="analytics-info">
+                                <h3 id="statThreshold">0.35</h3>
+                                <p>识别阈值</p>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-3 mb-4">
-                        <div class="card stats-card">
-                            <div class="card-body text-center">
-                                <i class="bi bi-memory fs-1"></i>
-                                <h3 class="mt-2" id="loadedEncodings">-</h3>
-                                <p class="mb-0">已加载特征数</p>
+                    
+                    <div class="col-lg-3 col-md-6 mb-3">
+                        <div class="analytics-card">
+                            <div class="analytics-icon bg-info">
+                                <i class="bi bi-cpu"></i>
+                            </div>
+                            <div class="analytics-info">
+                                <h3 class="text-success">正常</h3>
+                                <p>系统状态</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-gear me-2"></i>系统配置
-                        </h5>
+                <!-- 主要内容区域 -->
+                <div class="row">
+                    <!-- 左侧：实时统计面板 -->
+                    <div class="col-lg-8">
+                        <div class="analytics-panel">
+                            <div class="analytics-header">
+                                <h5><i class="bi bi-bar-chart-line me-2"></i>系统统计</h5>
+                                <button class="btn btn-outline-primary btn-sm" onclick="refreshAllData()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>刷新
+                                </button>
+                            </div>
+                            <div class="analytics-content">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <strong>注册人员总数</strong>
+                                            <span id="detailTotalPersons">0</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <strong>人脸照片总数</strong>
+                                            <span id="detailTotalEncodings">0</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <strong>平均每人照片</strong>
+                                            <span id="avgPhotosPerPerson">0.0 张</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="stat-item">
+                                            <strong>当前阈值</strong>
+                                            <span id="currentThreshold">0.35</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="quick-actions mt-4">
+                                    <button class="btn btn-outline-success btn-sm" onclick="exportStatistics()">
+                                        <i class="bi bi-download me-1"></i>导出统计
+                                    </button>
+                                    <button class="btn btn-outline-info btn-sm" onclick="downloadSystemReport()">
+                                        <i class="bi bi-file-text me-1"></i>系统报告
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <div id="systemConfigContainer">
-                            <div class="text-center text-muted">
-                                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-                                加载系统配置中...
+
+                    <!-- 右侧：配置面板 -->
+                    <div class="col-lg-4">
+                        <div class="analytics-panel">
+                            <div class="analytics-header">
+                                <h5><i class="bi bi-gear-fill me-2"></i>系统配置</h5>
+                            </div>
+                            <div class="analytics-content">
+                                <form id="configForm">
+                                    <div class="config-item">
+                                        <label for="recognitionThreshold" class="form-label">人脸识别阈值</label>
+                                        <div class="input-group">
+                                            <input type="range" class="form-range" id="recognitionThresholdRange" 
+                                                   min="0.1" max="0.9" step="0.01" value="0.2">
+                                            <input type="number" class="form-control" id="recognitionThreshold" 
+                                                   min="0.1" max="0.9" step="0.01" value="0.2">
+                                        </div>
+                                        <small class="text-muted">当前: <span id="recognitionThresholdDisplay">0.2</span></small>
+                                        <div class="form-text text-muted mt-1">匹配已知人脸时的相似度阈值。值越大要求越严格，只有更相似的人脸才会被认为是同一人</div>
+                                    </div>
+
+                                    <div class="config-item">
+                                        <label for="detectionThreshold" class="form-label">人脸检测阈值</label>
+                                        <div class="input-group">
+                                            <input type="range" class="form-range" id="detectionThresholdRange" 
+                                                   min="0.1" max="0.9" step="0.01" value="0.5">
+                                            <input type="number" class="form-control" id="detectionThreshold" 
+                                                   min="0.1" max="0.9" step="0.01" value="0.5">
+                                        </div>
+                                        <small class="text-muted">当前: <span id="detectionThresholdDisplay">0.5</span></small>
+                                        <div class="form-text text-muted mt-1">检测图像中是否包含人脸的置信度阈值。值越大过滤越严格，只有高置信度的检测才会被保留</div>
+                                    </div>
+
+                                    <div class="config-item">
+                                        <label for="duplicateThreshold" class="form-label">重复入库阈值</label>
+                                        <div class="input-group">
+                                            <input type="range" class="form-range" id="duplicateThresholdRange" 
+                                                   min="0.8" max="0.99" step="0.01" value="0.95">
+                                            <input type="number" class="form-control" id="duplicateThreshold" 
+                                                   min="0.8" max="0.99" step="0.01" value="0.95">
+                                        </div>
+                                        <small class="text-muted">当前: <span id="duplicateThresholdDisplay">0.95</span></small>
+                                        <div class="form-text text-muted mt-1">防止同一人重复注册的相似度阈值。值越大防重复越严格，需要更高的相似度才会被拒绝</div>
+                                    </div>
+
+                                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                        <button type="button" class="btn btn-outline-secondary me-md-2" onclick="analytics.loadConfiguration()">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>重置
+                                        </button>
+                                        <button type="button" class="btn btn-primary" onclick="analytics.updateConfiguration()">
+                                            <i class="bi bi-check-lg me-1"></i>保存配置
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- 系统信息 -->
+                        <div class="analytics-panel mt-3">
+                            <div class="analytics-header">
+                                <h5><i class="bi bi-info-circle-fill me-2"></i>系统信息</h5>
+                            </div>
+                            <div class="analytics-content">
+                                <div class="system-info">
+                                    <div class="info-item">
+                                        <strong>当前模型:</strong>
+                                        <span id="currentModel">buffalo_l</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>执行提供者:</strong>
+                                        <span id="currentProvider">CPU</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>最大文件:</strong>
+                                        <span>10MB</span>
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>支持格式:</strong>
+                                        <span>JPEG, PNG, WebP</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 快速操作 -->
+                        <div class="analytics-panel mt-3">
+                            <div class="analytics-header">
+                                <h5><i class="bi bi-lightning-fill me-2"></i>快速操作</h5>
+                            </div>
+                            <div class="analytics-content">
+                                <div class="d-grid gap-2">
+                                    <button class="btn btn-outline-warning btn-sm" onclick="clearCache()">
+                                        <i class="bi bi-trash3 me-1"></i>清理缓存
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="showApiDocs()">
+                                        <i class="bi bi-book me-1"></i>API文档
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                
-                <!-- 消息显示区域 -->
-                <div id="messagesContainer" class="mt-3" style="display: none;"></div>
+
+                <!-- 最后更新时间 -->
+                <div class="text-center mt-4">
+                    <small class="text-muted">
+                        <i class="bi bi-clock me-1"></i>
+                        最后更新: <span id="lastUpdateTime">加载中...</span>
+                    </small>
+                </div>
             </div>
         </div>
-    </div>
+    </main>
 
     <!-- 人员详情模态框 -->
     <div class="modal fade" id="personDetailModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="personDetailModalTitle">人员详情</h5>
+                    <h5 class="modal-title">人员详情</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body" id="personDetailModalBody">
-                    <!-- 动态内容 -->
+                <div class="modal-body">
+                    <!-- 动态填充内容 -->
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="button" class="btn btn-danger">
+                        <i class="bi bi-trash me-1"></i>
+                        删除人员
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 图片放大模态框 -->
-    <div class="modal fade" id="imageModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="imageModalTitle">图片查看</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body text-center p-0">
-                    <img id="imageModalImg" src="" class="img-fluid" style="max-height: 70vh; width: auto;" alt="放大图片">
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                    <button type="button" class="btn btn-primary" onclick="downloadImage()">下载图片</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Toast 容器 - 移动到右下角 -->
+    <div id="toastContainer" class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999;"></div>
 
-    <!-- 全局加载指示器 -->
-    <div id="globalSpinner" class="position-fixed top-50 start-50 translate-middle" style="z-index: 9999; display: none;">
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">加载中...</span>
-        </div>
-        <div class="mt-2 text-center">
-            <small class="text-muted" id="spinnerText">处理中...</small>
-        </div>
-    </div>
+    <!-- JavaScript 依赖 -->
+    <!-- Bootstrap 5.3 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 工具模块 -->
+    <script src="assets/js/utils.js"></script>
+    
+    <!-- 功能模块 -->
+    <script src="assets/js/recognition.js"></script>
+    <script src="assets/js/enrollment.js"></script>
+    <script src="assets/js/management.js"></script>
+    <script src="assets/js/analytics.js"></script>
 
-    <!-- 页面加载指示条 -->
-    <div id="loadingBar" class="position-fixed top-0 start-0 w-100" style="height: 3px; background: linear-gradient(90deg, #007bff 0%, #28a745 100%); z-index: 9998; transform: scaleX(0); transform-origin: left; transition: transform 0.3s ease; display: none;"></div>
+    <!-- 主应用初始化 -->
+    <script>
+        // 应用主类
+        class FaceRecognitionApp {
+            constructor() {
+                this.modules = {};
+                this.init();
+            }
 
-    <!-- Toast 通知 -->
-    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-        <div id="toast" class="toast" role="alert">
-            <div class="toast-header">
-                <strong class="me-auto" id="toastTitle">通知</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
-            </div>
-            <div class="toast-body" id="toastBody">
-                消息内容
-            </div>
-        </div>
-    </div>
+            async init() {
+                try {
+                    console.log('初始化Tab导航...');
+                    this.initializeTabs();
+                    
+                    // 初始化各个模块
+                    this.modules.recognition = new FaceRecognition();
+                    this.modules.enrollment = new PersonEnrollment();
+                    this.modules.management = new PersonManagement();
+                    this.modules.analytics = new Analytics();
 
-    <!-- 系统状态指示器 -->
-    <div class="position-fixed top-0 end-0 p-3" style="z-index: 10">
-        <div id="systemStatus" class="badge bg-success">
-            <i class="bi bi-wifi me-1"></i>在线
-        </div>
-    </div>
+                    console.log('人脸识别系统初始化完成');
+                    // 安全地显示Toast（如果失败不会阻止初始化）
+                    try {
+                        ToastManager.show('系统初始化完成', 'success');
+                    } catch (e) {
+                        console.log('Toast显示失败，但系统正常初始化');
+                    }
 
-    <!-- 图像放大模态框 -->
-    <div class="modal fade" id="imageModal" tabindex="-1">
-        <div class="modal-dialog modal-xl modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">识别结果详情</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body text-center">
-                    <img id="modalImage" class="img-fluid" style="max-height: 80vh;">
-                    <div class="mt-3">
-                        <div class="btn-group" role="group">
-                            <button class="btn btn-outline-primary" onclick="downloadModalImage()">
-                                <i class="bi bi-download"></i> 下载图片
-                            </button>
-                            <button class="btn btn-outline-info" onclick="copyImageToClipboard()">
-                                <i class="bi bi-clipboard"></i> 复制图片
-                            </button>
+                } catch (error) {
+                    console.error('应用初始化失败:', error);
+                    // 即使Toast失败也要尝试显示错误
+                    try {
+                        ToastManager.show('系统初始化失败', 'error');
+                    } catch (e) {
+                        console.error('Toast系统也失败了');
+                    }
+                }
+            }
+
+            initializeTabs() {
+                // 确保Bootstrap已加载
+                if (typeof bootstrap === 'undefined') {
+                    console.error('Bootstrap未加载！');
+                    return;
+                }
+
+                // 手动初始化所有Tab
+                const tabElements = document.querySelectorAll('[data-bs-toggle="tab"]');
+                console.log(`找到${tabElements.length}个tab元素`);
+                
+                tabElements.forEach((tabEl, index) => {
+                    try {
+                        // 创建Bootstrap Tab实例
+                        const tab = new bootstrap.Tab(tabEl);
+                        console.log(`Tab ${index + 1} 初始化成功:`, tabEl.getAttribute('data-bs-target'));
+                        
+                        // 添加点击事件监听器
+                        tabEl.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            tab.show();
+                            console.log('Tab clicked:', tabEl.getAttribute('data-bs-target'));
+                        });
+                        
+                    } catch (error) {
+                        console.error(`Tab ${index + 1} 初始化失败:`, error);
+                    }
+                });
+
+                // 监听Tab切换事件
+                document.addEventListener('shown.bs.tab', (event) => {
+                    const targetId = event.target.getAttribute('data-bs-target');
+                    console.log('Tab 切换到:', targetId);
+                    this.onTabShown(targetId.substring(1));
+                });
+            }
+
+            onTabShown(tabId) {
+                console.log('处理Tab切换:', tabId);
+                // 标签页切换时的处理逻辑
+                switch (tabId) {
+                    case 'management':
+                        // 刷新人员列表
+                        if (this.modules.management) {
+                            this.modules.management.loadPersons();
+                        }
+                        break;
+                    case 'analytics':
+                        // 刷新统计数据
+                        if (this.modules.analytics) {
+                            this.modules.analytics.loadData();
+                        }
+                        break;
+                }
+            }
+        }
+
+        // 全局函数映射（兼容原有的onclick事件）
+        function clearEnrollment() {
+            if (app.modules.enrollment) {
+                app.modules.enrollment.clearEnrollment();
+            }
+        }
+
+        function refreshPersonList() {
+            if (app.modules.management) {
+                app.modules.management.loadPersons();
+                app.modules.management.addRecentOperation('刷新数据', '重新加载人员列表数据');
+            }
+        }
+
+        function showSortOptions() {
+            if (app.modules.management) {
+                app.modules.management.showSortOptions();
+            }
+        }
+
+        function refreshStats() {
+            if (app.modules.analytics) {
+                app.modules.analytics.loadData();
+            }
+        }
+
+        function saveConfig() {
+            if (app.modules.analytics) {
+                app.modules.analytics.saveConfiguration();
+            }
+        }
+
+        // 统计分析页面专用函数
+        function refreshAllData() {
+            if (app.modules.analytics) {
+                app.modules.analytics.loadData();
+            }
+        }
+
+        function saveConfiguration() {
+            if (app.modules.analytics) {
+                app.modules.analytics.saveConfiguration();
+            }
+        }
+
+        function exportStatistics() {
+            if (app.modules.analytics) {
+                app.modules.analytics.exportStats();
+            } else {
+                alert('统计模块未加载，无法导出数据');
+            }
+        }
+
+        function downloadSystemReport() {
+            if (app.modules.analytics) {
+                app.modules.analytics.downloadSystemReport();
+            } else {
+                alert('统计模块未加载，无法下载报告');
+            }
+        }
+
+        function clearCache() {
+            if (app.modules.analytics) {
+                app.modules.analytics.clearCache();
+            } else {
+                if (confirm('确定要清理缓存吗？')) {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    alert('缓存已清理');
+                    location.reload();
+                }
+            }
+        }
+
+        function showApiDocs() {
+            if (app.modules.analytics) {
+                app.modules.analytics.showApiDocs();
+            } else {
+                alert('API 文档\n\n主要接口：\n- GET /api/statistics - 获取统计数据\n- POST /api/config - 保存配置\n- POST /api/recognize - 人脸识别\n- GET /api/persons - 获取人员列表');
+            }
+        }
+
+        // 人员管理相关函数
+        function showBulkOperations() {
+            // 切换批量操作面板显示
+            const panel = document.querySelector('.bulk-operations-panel');
+            if (panel) {
+                const isVisible = panel.style.display !== 'none';
+                panel.style.display = isVisible ? 'none' : 'block';
+                
+                // 如果显示面板，确保有选择功能
+                if (!isVisible && app.modules.management) {
+                    app.modules.management.enableBulkSelection();
+                }
+            }
+        }
+
+        function hideBulkOperations() {
+            const panel = document.querySelector('.bulk-operations-panel');
+            if (panel) {
+                panel.style.display = 'none';
+            }
+            if (app.modules.management) {
+                app.modules.management.disableBulkSelection();
+            }
+        }
+
+        function selectAllPersons() {
+            if (app.modules.management) {
+                app.modules.management.selectAllPersons();
+            }
+        }
+
+        function clearAllSelections() {
+            if (app.modules.management) {
+                app.modules.management.clearAllSelections();
+            }
+        }
+
+        function exportSelectedPersons() {
+            if (app.modules.management) {
+                app.modules.management.exportSelectedPersons();
+            }
+        }
+
+        function deleteSelectedPersons() {
+            if (app.modules.management) {
+                app.modules.management.bulkDeletePersons();
+            }
+        }
+
+        function selectAllPersons() {
+            if (app.modules.management) {
+                app.modules.management.selectAllPersons();
+            } else {
+                // 简单的全选实现
+                const checkboxes = document.querySelectorAll('input[type="checkbox"][data-person-id]');
+                checkboxes.forEach(cb => cb.checked = true);
+                updateBulkButtons();
+            }
+        }
+
+        function clearSelection() {
+            if (app.modules.management) {
+                app.modules.management.clearSelection();
+            } else {
+                // 简单的清除选择实现
+                const checkboxes = document.querySelectorAll('input[type="checkbox"][data-person-id]');
+                checkboxes.forEach(cb => cb.checked = false);
+                updateBulkButtons();
+            }
+        }
+
+        function bulkDeletePersons() {
+            const selected = document.querySelectorAll('input[type="checkbox"][data-person-id]:checked');
+            if (selected.length === 0) {
+                alert('请先选择要删除的人员');
+                return;
+            }
+            
+            if (confirm(`确定要删除选中的 ${selected.length} 个人员吗？此操作不可撤销。`)) {
+                if (app.modules.management) {
+                    app.modules.management.bulkDeletePersons();
+                } else {
+                    alert('批量删除功能开发中...');
+                }
+            }
+        }
+
+        function exportSelectedPersons() {
+            const selected = document.querySelectorAll('input[type="checkbox"][data-person-id]:checked');
+            if (selected.length === 0) {
+                alert('请先选择要导出的人员');
+                return;
+            }
+            
+            if (app.modules.management) {
+                app.modules.management.exportSelectedPersons();
+            } else {
+                alert('批量导出功能开发中...');
+            }
+        }
+
+        function updateBulkButtons() {
+            const selected = document.querySelectorAll('input[type="checkbox"][data-person-id]:checked');
+            const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+            const bulkExportBtn = document.getElementById('bulkExportBtn');
+            
+            if (bulkDeleteBtn) {
+                bulkDeleteBtn.disabled = selected.length === 0;
+            }
+            if (bulkExportBtn) {
+                bulkExportBtn.disabled = selected.length === 0;
+            }
+        }
+
+        // 新增的全局函数
+        function clearRecognition() {
+            if (app.modules.recognition) {
+                app.modules.recognition.clearRecognition();
+            }
+        }
+
+        function clearImagePreview() {
+            if (app.modules.recognition) {
+                app.modules.recognition.clearRecognition();
+            }
+        }
+
+        function downloadResult() {
+            // TODO: 实现下载识别结果功能
+            if (window.ToastManager) {
+                ToastManager.show('下载功能开发中...', 'info');
+            } else {
+                alert('下载功能开发中...');
+            }
+        }
+
+        function downloadVisualization(url) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `face_recognition_result_${new Date().getTime()}.jpg`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            if (window.ToastManager) {
+                ToastManager.show('可视化结果已下载', 'success');
+            } else {
+                alert('可视化结果已下载');
+            }
+        }
+
+        function showImageModal(url) {
+            // 创建简单的模态框显示大图
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">识别结果详图</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body text-center">
+                            <img src="${url}" class="img-fluid" alt="识别结果详图">
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <small class="text-muted me-auto">点击空白处或按ESC键关闭</small>
-                    <button class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 快捷键帮助 -->
-    <div class="position-fixed bottom-0 start-0 p-3" style="z-index: 9">
-        <div class="dropdown">
-            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown">
-                <i class="bi bi-question-circle"></i>
-            </button>
-            <ul class="dropdown-menu">
-                <li><span class="dropdown-item-text"><strong>快捷键</strong></span></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><span class="dropdown-item-text">Ctrl+R: 刷新数据</span></li>
-                <li><span class="dropdown-item-text">Ctrl+U: 快速上传</span></li>
-                <li><span class="dropdown-item-text">Esc: 关闭弹窗</span></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><span class="dropdown-item-text"><strong>ID标识说明</strong></span></li>
-                <li><span class="dropdown-item-text">P1: 已知人员ID=1</span></li>
-                <li><span class="dropdown-item-text">P1B: 同一人的第2张脸</span></li>
-                <li><span class="dropdown-item-text">U1: 第1个未知人员</span></li>
-            </ul>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/static/js/app.js"></script>
-    
-    <script>
-        // 图像模态框功能
-        function showImageModal(imageSrc) {
-            const modal = new bootstrap.Modal(document.getElementById('imageModal'));
-            document.getElementById('modalImage').src = imageSrc;
-            modal.show();
-        }
-        
-        // 下载模态框中的图片
-        function downloadModalImage() {
-            const img = document.getElementById('modalImage');
-            const link = document.createElement('a');
-            link.href = img.src;
-            link.download = `face_recognition_result_${new Date().getTime()}.jpg`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-        
-        // 复制图片到剪贴板
-        async function copyImageToClipboard() {
-            try {
-                const img = document.getElementById('modalImage');
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                
-                canvas.width = img.naturalWidth;
-                canvas.height = img.naturalHeight;
-                ctx.drawImage(img, 0, 0);
-                
-                canvas.toBlob(async (blob) => {
-                    const item = new ClipboardItem({ 'image/png': blob });
-                    await navigator.clipboard.write([item]);
-                    showToast('成功', '图片已复制到剪贴板', 'success');
-                });
-            } catch (err) {
-                showToast('错误', '复制失败: ' + err.message, 'error');
-            }
-        }
-        
-        // 键盘快捷键
-        document.addEventListener('keydown', function(e) {
-            // Ctrl + U: 快速上传
-            if (e.ctrlKey && e.key === 'u') {
-                e.preventDefault();
-                const activeTab = document.querySelector('.tab-pane.active');
-                const fileInput = activeTab ? activeTab.querySelector('input[type="file"]') : null;
-                if (fileInput) fileInput.click();
-            }
+            `;
+            document.body.appendChild(modal);
             
-            // Ctrl + R: 刷新统计
-            if (e.ctrlKey && e.key === 'r') {
-                e.preventDefault();
-                if (typeof refreshStatistics === 'function') {
-                    refreshStatistics();
+            if (window.bootstrap) {
+                const bootstrapModal = new bootstrap.Modal(modal);
+                bootstrapModal.show();
+                
+                modal.addEventListener('hidden.bs.modal', () => {
+                    document.body.removeChild(modal);
+                });
+            } else {
+                // 简单的图片查看器
+                window.open(url, '_blank');
+                document.body.removeChild(modal);
+            }
+        }
+
+        function showEnrollmentModal() {
+            // 切换到注册标签页
+            const enrollmentTab = document.getElementById('enrollment-tab');
+            if (enrollmentTab) {
+                if (window.bootstrap) {
+                    const tab = new bootstrap.Tab(enrollmentTab);
+                    tab.show();
+                } else {
+                    // 简单的标签切换
+                    enrollmentTab.click();
+                }
+                
+                if (window.ToastManager) {
+                    ToastManager.show('已切换到人员注册页面', 'info');
                 }
             }
+        }
+
+        // 启动应用
+        let app;
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM加载完成，启动应用...');
             
-            // Escape: 关闭模态框
-            if (e.key === 'Escape') {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('imageModal'));
-                if (modal) modal.hide();
+            // 先强制初始化Tab导航（不依赖于其他模块）
+            initializeTabsDirectly();
+            
+            // 然后初始化主应用
+            try {
+                app = new FaceRecognitionApp();
+                
+                // 设置全局引用以便调试
+                window.app = app;
+                window.personManagement = app.modules.management;
+                window.analytics = app.modules.analytics;
+            } catch (error) {
+                console.error('主应用初始化失败，但Tab导航仍然可用:', error);
             }
         });
-        
-        // 点击图片显示模态框的事件委托
-        document.addEventListener('click', function(e) {
-            if (e.target.tagName === 'IMG' && 
-                (e.target.classList.contains('preview-image') || 
-                 e.target.closest('.img-zoom-hint') ||
-                 e.target.onclick)) {
-                showImageModal(e.target.src);
-            }
-        });
+
+        // 直接初始化Tab导航的函数
+        function initializeTabsDirectly() {
+            console.log('直接初始化Tab导航...');
+            
+            // 等待Bootstrap加载
+            const waitForBootstrap = setInterval(() => {
+                if (typeof bootstrap !== 'undefined') {
+                    clearInterval(waitForBootstrap);
+                    
+                    const tabElements = document.querySelectorAll('[data-bs-toggle="tab"]');
+                    console.log(`找到${tabElements.length}个tab元素`);
+                    
+                    tabElements.forEach((tabEl, index) => {
+                        try {
+                            // 创建Bootstrap Tab实例
+                            const tab = new bootstrap.Tab(tabEl);
+                            console.log(`Tab ${index + 1} 初始化成功`);
+                            
+                            // 添加点击事件监听器
+                            tabEl.addEventListener('click', function(e) {
+                                e.preventDefault();
+                                tab.show();
+                                console.log('Tab切换到:', this.getAttribute('data-bs-target'));
+                            });
+                            
+                        } catch (error) {
+                            console.error(`Tab ${index + 1} 初始化失败:`, error);
+                        }
+                    });
+
+                    // 监听Tab切换事件
+                    document.addEventListener('shown.bs.tab', function(event) {
+                        const targetId = event.target.getAttribute('data-bs-target');
+                        console.log('Tab切换完成:', targetId);
+                        
+                        // 调用相应的处理函数
+                        if (window.app && window.app.onTabShown) {
+                            window.app.onTabShown(targetId.substring(1));
+                        }
+                    });
+                    
+                    console.log('Tab导航初始化完成');
+                }
+            }, 100);
+        }
     </script>
 </body>
 </html>

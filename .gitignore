@@ -80,17 +80,31 @@ logs/
 *.sqlite
 *.sqlite3
 
-# Uploads and data
+# Data and uploads
 uploads/
 data/faces/
 data/temp/
+data/database/
+data/uploads/
+data/test_images/
 
 # Models (too large for git)
-models/
+models/buffalo_l/
+models/*.onnx
+models/*.pkl
+models/*.pt
+models/*.pth
+models/*.zip
+buffalo_l/
 *.onnx
 *.pkl
 *.pt
 *.pth
+*.zip
+
+# Keep source code models directory
+!src/models/
+!src/models/*.py
 
 # Configuration files with sensitive data
 config_prod.json

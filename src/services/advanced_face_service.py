@@ -116,12 +116,20 @@ class AdvancedFaceRecognitionService:
         """
         faces = []
         
+        # 获取人脸检测阈值
+        detection_threshold = getattr(config, 'DETECTION_THRESHOLD', 0.5)
+        
         try:
             if self.app:
                 # 使用 InsightFace 检测
                 results = self.app.get(image)
                 
                 for face in results:
+                    # 应用检测阈值过滤
+                    if face.det_score < detection_threshold:
+                        logger.debug(f"人脸检测置信度过低: {face.det_score:.3f} < {detection_threshold}")
+                        continue
+                        
                     face_info = {
                         'bbox': face.bbox.astype(int).tolist(),  # [x1, y1, x2, y2]
                         'landmarks': face.kps.astype(int).tolist(),  # 5个关键点
@@ -274,7 +282,7 @@ class AdvancedFaceRecognitionService:
             if features is None:
                 return {'success': False, 'error': '特征提取失败'}
             
-            # 检查是否已存在相似人脸
+            # 检查是否已存在相似人脸（只对不同姓名的人员进行检查）
             duplicate_threshold_value = config.get('face_recognition.duplicate_threshold', 0.95)
             if isinstance(duplicate_threshold_value, (int, float)):
                 duplicate_threshold = float(duplicate_threshold_value)
@@ -284,13 +292,15 @@ class AdvancedFaceRecognitionService:
             existing_match = self.recognize_face(image)
             if existing_match['matches']:
                 best_match = existing_match['matches'][0]
-                # 将相似度阈值转换为百分比进行比较
-                similarity_threshold_percent = duplicate_threshold * 100
-                if best_match['match_score'] > similarity_threshold_percent:
-                    return {
-                        'success': False, 
-                        'error': f'相似人脸已存在：{best_match["name"]} (匹配度: {best_match["match_score"]:.1f}%，阈值: {similarity_threshold_percent:.1f}%)'
-                    }
+                # 只有当匹配到的是不同姓名的人员时才阻止入库
+                if best_match['name'] != name:
+                    # 将相似度阈值转换为百分比进行比较
+                    similarity_threshold_percent = duplicate_threshold * 100
+                    if best_match['match_score'] > similarity_threshold_percent:
+                        return {
+                            'success': False, 
+                            'error': f'相似人脸已存在：{best_match["name"]} (匹配度: {best_match["match_score"]:.1f}%，阈值: {similarity_threshold_percent:.1f}%)'
+                        }
             
             # 保存到数据库
             try:
@@ -422,7 +432,14 @@ class AdvancedFaceRecognitionService:
             匹配结果列表
         """
         matches = []
-        threshold = getattr(config, 'RECOGNITION_THRESHOLD', 0.6)
+        # 从配置文件读取当前的识别阈值
+        import json
+        try:
+            with open('config.json', 'r') as f:
+                config_data = json.load(f)
+                threshold = config_data.get('face_recognition', {}).get('recognition_threshold', 0.3)
+        except:
+            threshold = 0.3  # 默认值
         
         try:
             for person_id, cached_data in self._face_cache.items():
@@ -568,7 +585,9 @@ class AdvancedFaceRecognitionService:
                     'current_model': f"InsightFace_{self.model_name}",
                     'deepface_model': self.current_deepface_model,
                     'supported_models': self.deepface_models,
-                    'recognition_threshold': config.RECOGNITION_THRESHOLD
+                    'recognition_threshold': config.RECOGNITION_THRESHOLD,
+                    'detection_threshold': getattr(config, 'DETECTION_THRESHOLD', 0.5),
+                    'duplicate_threshold': config.get('face_recognition.duplicate_threshold', 0.95)
                 }
         
         except Exception as e:
@@ -633,11 +652,21 @@ class AdvancedFaceRecognitionService:
                                 'quality': face.get('det_score', 0.9)
                             }
                 
+                # 记录调试信息
+                logger.info(f"识别结果 - 最佳相似度: {best_similarity:.3f}, 阈值: {threshold:.3f}")
+                if best_match:
+                    logger.info(f"最佳匹配: {best_match['name']}, 相似度: {best_similarity:.3f}")
+                
                 # 只返回超过阈值的匹配
                 if best_match and best_similarity >= threshold:
+                    logger.info(f"识别成功: {best_match['name']}, 相似度: {best_similarity:.3f} >= 阈值: {threshold:.3f}")
                     matches.append(best_match)
                 else:
                     # 添加未识别的人脸信息
+                    if best_match:
+                        logger.info(f"识别失败: 最佳匹配 {best_match['name']} 相似度 {best_similarity:.3f} < 阈值 {threshold:.3f}")
+                    else:
+                        logger.info(f"识别失败: 未找到任何匹配的人脸")
                     matches.append({
                         'person_id': -1,
                         'name': '未知人员',

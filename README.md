@@ -215,6 +215,41 @@ name: 人员姓名
 description: 描述信息 (可选)
 ```
 
+#### 纯人脸检测 (新增)
+```bash
+POST /api/detect_faces
+Content-Type: multipart/form-data
+
+# 参数
+file: 图片文件
+include_landmarks: 是否包含关键点信息 (可选)
+include_attributes: 是否包含人脸属性(年龄、性别) (可选)
+min_face_size: 最小人脸尺寸(像素) (可选，默认20)
+
+# 返回
+{
+    "success": true,
+    "message": "检测到 1 个人脸",
+    "total_faces": 1,
+    "faces": [
+        {
+            "face_id": 1,
+            "bbox": [48, 76, 248, 355],
+            "confidence": 0.846,
+            "quality_score": 0.846,
+            "landmarks": [...],  // 可选
+            "age": 25,          // 可选
+            "gender": "女"      // 可选
+        }
+    ],
+    "detection_config": {
+        "detection_threshold": 0.1,
+        "min_face_size": 20,
+        "model": "InsightFace Buffalo-L"
+    }
+}
+```
+
 #### 人脸识别
 ```bash
 POST /api/recognize
@@ -225,7 +260,7 @@ file: 图片文件
 threshold: 识别阈值 (可选，默认使用配置值)
 ```
 
-#### 可视化人脸识别 (新增)
+#### 可视化人脸识别
 ```bash
 POST /api/recognize_visual
 Content-Type: multipart/form-data
@@ -240,7 +275,7 @@ threshold: 识别阈值 (可选)
 - 颜色编码：同一人员使用相同颜色
 ```
 
-#### 可视化人脸检测 (新增)
+#### 可视化人脸检测
 ```bash
 POST /api/detect_visual
 Content-Type: multipart/form-data
@@ -401,6 +436,26 @@ tail -f logs/access.log
 5. 开启 Pull Request
 
 ## 🆕 更新日志
+
+### v1.2.0 (2025-08-07)
+- ✅ **新增专用人脸检测API**
+  - 🔍 新增 `/api/detect_faces` 纯人脸检测接口
+  - 📊 支持可选的关键点和属性信息返回
+  - ⚙️ 可配置最小人脸尺寸过滤
+  - 🎯 返回详细的检测置信度和质量评分
+- ✅ **系统优化和代码清理**
+  - 🧹 清理不必要的测试文件和重复代码
+  - 🔧 修复前端重复的 `showMessage` 方法问题
+  - 📝 更新完整的API文档和使用说明
+  - 🏗️ 改进代码结构和错误处理机制
+- ✅ **人脸照片显示问题修复**
+  - 🖼️ 修复人员详情页面人脸照片显示为"暂无人脸照片"的问题
+  - 🔗 确保人脸照片显示实际存储在数据库中的照片
+  - 🎨 优化人脸画廊的显示效果和交互体验
+- ✅ **阈值调整功能验证**
+  - ⚙️ 验证人脸检测阈值调整功能正常工作
+  - 📊 确认阈值范围限制在0.1-0.9之间
+  - 🔧 提供API接口动态调整系统参数
 
 ### v1.1.0 (2025-07-23)
 - ✅ **可视化系统重大修复和优化**
