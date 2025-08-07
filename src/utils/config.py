@@ -38,23 +38,22 @@ class Config:
     def _update_from_config(self):
         """从配置文件更新类属性"""
         if 'face_recognition' in self.config:
-            fr_config = self.config['face_recognition']
-            # 优先使用recognition_threshold，然后是detection_threshold、threshold，最后是tolerance（向后兼容）
-            threshold = fr_config.get('recognition_threshold', 
-                                    fr_config.get('detection_threshold',
-                                                 fr_config.get('threshold', 
-                                                              fr_config.get('tolerance', 0.6))))
-            self.RECOGNITION_THRESHOLD = threshold
-            # 添加检测阈值支持
-            self.DETECTION_THRESHOLD = fr_config.get('detection_threshold', 0.5)
-            self.MODEL = fr_config.get('model', 'buffalo_l')
-            self.DEEPFACE_MODEL = fr_config.get('deepface_model', 'ArcFace')
-            self.DET_SIZE = fr_config.get('det_size', [640, 640])
-        
+            face_config = self.config['face_recognition']
+            self.RECOGNITION_THRESHOLD = face_config.get('recognition_threshold', 0.6)
+            self.DETECTION_THRESHOLD = face_config.get('detection_threshold', 0.5)
+            self.MODEL = face_config.get('model', 'buffalo_l')
+            self.DEEPFACE_MODEL = face_config.get('deepface_model', 'ArcFace')
+            self.DET_SIZE = face_config.get('det_size', [640, 640])
+            self.PROVIDERS = face_config.get('providers', ["CPUExecutionProvider"])
+            
+        if 'database' in self.config:
+            db_config = self.config['database']
+            self.DATABASE_PATH = db_config.get('path', 'data/database/face_recognition.db')
+            
         if 'upload' in self.config:
             upload_config = self.config['upload']
             self.MAX_FILE_SIZE = upload_config.get('max_file_size', 16777216)
-            self.ALLOWED_EXTENSIONS = upload_config.get('allowed_extensions', ["jpg", "jpeg", "png", "bmp", "tiff"])
+            self.ALLOWED_EXTENSIONS = upload_config.get('allowed_extensions', ["jpg", "jpeg", "png", "bmp", "tiff", "webp", "avif"])
             self.UPLOAD_FOLDER = upload_config.get('upload_folder', 'data/uploads')
         
         if 'api' in self.config:
@@ -62,6 +61,11 @@ class Config:
             self.HOST = api_config.get('host', '0.0.0.0')
             self.PORT = api_config.get('port', 8000)
             self.DEBUG = api_config.get('debug', False)
+            
+        if 'models' in self.config:
+            models_config = self.config['models']
+            self.MODELS_INSIGHTFACE_ROOT = models_config.get('insightface_root', 'models/insightface')
+            self.MODELS_CACHE_DIR = models_config.get('cache_dir', 'models/cache')
     
     def _load_config(self) -> dict:
         """加载配置文件"""
@@ -180,6 +184,18 @@ class Config:
     def reload(self):
         """重新加载配置"""
         self.config = self._load_config()
+        self._update_from_config()
+        logger.info("配置文件已重新加载")
+    
+    def save(self):
+        """保存当前配置到文件"""
+        try:
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, indent=2, ensure_ascii=False)
+            logger.info(f"配置已保存到 {self.config_file}")
+        except Exception as e:
+            logger.error(f"保存配置失败: {str(e)}")
+            raise
 
 # 全局配置实例
 config = Config()

@@ -6,7 +6,7 @@ const CONFIG = {
         'image/webp', 'image/bmp', 'image/tiff', 'image/avif',
         'image/svg+xml', 'image/x-icon', 'image/heic', 'image/heif'
     ],
-    MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
+    MAX_FILE_SIZE: 16 * 1024 * 1024, // 16MB - 与后端config.json保持一致
     TOAST_DURATION: {
         success: 3000,
         error: 5000,
@@ -101,11 +101,15 @@ class FileValidator {
     }
 
     static validateMultiple(files) {
-        const results = Array.from(files).map(file => ({
+        // 保持文件的原始顺序，不进行排序
+        const fileArray = Array.from(files);
+        
+        const results = fileArray.map(file => ({
             file,
             ...this.validate(file)
         }));
 
+        // 保持原始顺序，只过滤出有效文件
         const validFiles = results.filter(r => r.valid).map(r => r.file);
         const allErrors = results.filter(r => !r.valid).flatMap(r => r.errors);
 

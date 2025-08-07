@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人脸识别系统 - 修复版</title>
+    
+    <!-- Bootstrap 5.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- 自定义样式 -->
+    <link href="assets/css/main.css" rel="stylesheet">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-camera-reels me-2"></i>
+                人脸识别系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto nav-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="recognition-tab" data-bs-toggle="tab" data-bs-target="#recognition" type="button" role="tab" aria-controls="recognition" aria-selected="true">
+                            <i class="bi bi-search me-1"></i>人脸识别
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="enrollment-tab" data-bs-toggle="tab" data-bs-target="#enrollment" type="button" role="tab" aria-controls="enrollment" aria-selected="false">
+                            <i class="bi bi-person-plus me-1"></i>人员注册
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="management-tab" data-bs-toggle="tab" data-bs-target="#management" type="button" role="tab" aria-controls="management" aria-selected="false">
+                            <i class="bi bi-people me-1"></i>人员管理
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="analytics-tab" data-bs-toggle="tab" data-bs-target="#analytics" type="button" role="tab" aria-controls="analytics" aria-selected="false">
+                            <i class="bi bi-bar-chart me-1"></i>统计分析
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容区域 -->
+    <main class="container my-4">
+        <div class="tab-content" id="mainTabContent">
+            <!-- 人脸识别标签页 -->
+            <div class="tab-pane fade show active" id="recognition" role="tabpanel" aria-labelledby="recognition-tab">
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-camera-fill me-2"></i>
+                                    上传照片进行识别
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="upload-zone" id="uploadZone">
+                                    <div class="upload-content">
+                                        <i class="bi bi-cloud-upload"></i>
+                                        <h6>点击或拖拽上传照片</h6>
+                                        <p class="mb-0">支持 JPEG、PNG、WebP 格式</p>
+                                        <small class="text-muted">最大文件大小: 10MB</small>
+                                    </div>
+                                    <input type="file" id="imageFile" accept="image/jpeg,image/jpg,image/png,image/webp,image/bmp,image/tiff,image/gif,image/avif" style="display: none;">
+                                </div>
+                                
+                                <div id="imagePreview" class="mt-3" style="display: none;">
+                                    <img id="previewImg" class="img-fluid rounded shadow" alt="预览图片">
+                                </div>
+
+                                <div class="d-grid mt-3">
+                                    <button id="recognizeBtn" class="btn btn-primary" disabled>
+                                        <i class="bi bi-search me-1"></i>
+                                        开始识别
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-clipboard-data me-2"></i>
+                                    识别结果
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="recognitionResults">
+                                    <div class="empty-state">
+                                        <i class="bi bi-search"></i>
+                                        <h6>等待识别</h6>
+                                        <p class="mb-0">请上传照片开始识别</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 人员注册标签页 -->
+            <div class="tab-pane fade" id="enrollment" role="tabpanel" aria-labelledby="enrollment-tab">
+                <div class="alert alert-success">
+                    <h4><i class="bi bi-person-plus me-2"></i>人员注册页面</h4>
+                    <p>这里是人员注册功能。Tab切换成功！</p>
+                </div>
+            </div>
+
+            <!-- 人员管理标签页 -->
+            <div class="tab-pane fade" id="management" role="tabpanel" aria-labelledby="management-tab">
+                <div class="alert alert-info">
+                    <h4><i class="bi bi-people me-2"></i>人员管理页面</h4>
+                    <p>这里是人员管理功能。Tab切换成功！</p>
+                </div>
+            </div>
+
+            <!-- 统计分析标签页 -->
+            <div class="tab-pane fade" id="analytics" role="tabpanel" aria-labelledby="analytics-tab">
+                <div class="alert alert-warning">
+                    <h4><i class="bi bi-bar-chart me-2"></i>统计分析页面</h4>
+                    <p>这里是统计分析功能。Tab切换成功！</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bootstrap 5.3 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 工具模块 -->
+    <script src="assets/js/utils.js"></script>
+    
+    <!-- 功能模块 -->
+    <script src="assets/js/recognition.js"></script>
+    <script src="assets/js/enrollment.js"></script>
+    <script src="assets/js/management.js"></script>
+    <script src="assets/js/analytics.js"></script>
+
+    <!-- 主应用初始化 -->
+    <script>
+        // 应用主类
+        class FaceRecognitionApp {
+            constructor() {
+                this.modules = {};
+                this.init();
+            }
+
+            async init() {
+                try {
+                    console.log('初始化Tab导航...');
+                    this.initializeTabs();
+                    
+                    // 初始化各个模块
+                    this.modules.recognition = new FaceRecognition();
+                    this.modules.enrollment = new PersonEnrollment();
+                    this.modules.management = new PersonManagement();
+                    this.modules.analytics = new Analytics();
+
+                    console.log('人脸识别系统初始化完成');
+
+                } catch (error) {
+                    console.error('应用初始化失败:', error);
+                }
+            }
+
+            initializeTabs() {
+                // 确保Bootstrap已加载
+                if (typeof bootstrap === 'undefined') {
+                    console.error('Bootstrap未加载！');
+                    return;
+                }
+
+                // 手动初始化所有Tab
+                const tabElements = document.querySelectorAll('[data-bs-toggle="tab"]');
+                console.log(`找到${tabElements.length}个tab元素`);
+                
+                tabElements.forEach((tabEl, index) => {
+                    try {
+                        // 创建Bootstrap Tab实例
+                        const tab = new bootstrap.Tab(tabEl);
+                        console.log(`Tab ${index + 1} 初始化成功:`, tabEl.getAttribute('data-bs-target'));
+                        
+                        // 添加点击事件监听器
+                        tabEl.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            tab.show();
+                            console.log('Tab clicked:', tabEl.getAttribute('data-bs-target'));
+                        });
+                        
+                    } catch (error) {
+                        console.error(`Tab ${index + 1} 初始化失败:`, error);
+                    }
+                });
+
+                // 监听Tab切换事件
+                document.addEventListener('shown.bs.tab', (event) => {
+                    const targetId = event.target.getAttribute('data-bs-target');
+                    console.log('Tab 切换到:', targetId);
+                    this.onTabShown(targetId.substring(1));
+                });
+            }
+
+            onTabShown(tabId) {
+                console.log('处理Tab切换:', tabId);
+                switch (tabId) {
+                    case 'management':
+                        if (this.modules.management) {
+                            this.modules.management.loadPersons();
+                        }
+                        break;
+                    case 'analytics':
+                        if (this.modules.analytics) {
+                            this.modules.analytics.loadData();
+                        }
+                        break;
+                }
+            }
+        }
+
+        // 启动应用
+        let app;
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM加载完成，启动应用...');
+            app = new FaceRecognitionApp();
+            
+            // 设置全局引用以便调试
+            window.app = app;
+            window.bootstrap = bootstrap;
+        });
+    </script>
+</body>
+</html>

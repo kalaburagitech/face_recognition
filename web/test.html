@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模块测试页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { border: 1px solid #ddd; padding: 20px; margin: 10px 0; border-radius: 5px; }
+        .success { color: green; }
+        .error { color: red; }
+        .test-result { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>人脸识别系统 - 模块测试</h1>
+    
+    <div class="test-section">
+        <h2>1. 模块加载测试</h2>
+        <div id="moduleLoadTest">测试中...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. API连接测试</h2>
+        <div id="apiTest">测试中...</div>
+        <button onclick="testAPI()">重新测试API</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. 文件上传组件测试</h2>
+        <div id="uploadTest">
+            <div id="testUploadArea" style="border: 2px dashed #ccc; padding: 20px; text-align: center; margin: 10px 0;">
+                拖拽文件到此处测试
+                <input type="file" id="testFileInput" accept="image/*" style="display: none;">
+            </div>
+            <div id="uploadResult"></div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. 功能按钮测试</h2>
+        <button onclick="testRecognition()">测试识别模块</button>
+        <button onclick="testEnrollment()">测试入库模块</button>
+        <button onclick="testManagement()">测试管理模块</button>
+        <button onclick="testStatistics()">测试统计模块</button>
+        <div id="buttonTest"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>5. 控制台日志</h2>
+        <div id="consoleLog" style="background: #000; color: #0f0; padding: 10px; height: 200px; overflow-y: auto; font-family: monospace;"></div>
+    </div>
+
+    <script type="module">
+        // 捕获控制台日志
+        const originalLog = console.log;
+        const originalError = console.error;
+        const logContainer = document.getElementById('consoleLog');
+        
+        function addLog(message, type = 'log') {
+            const div = document.createElement('div');
+            div.style.color = type === 'error' ? '#f00' : '#0f0';
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(div);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog(args.join(' '), 'log');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog(args.join(' '), 'error');
+        };
+
+        // 测试模块加载
+        async function testModuleLoading() {
+            const testDiv = document.getElementById('moduleLoadTest');
+            try {
+                // 尝试导入配置
+                const { CONFIG } = await import('/assets/js/config.js');
+                
+                // 尝试导入服务
+                const { faceRecognitionService } = await import('/assets/js/services/face-recognition-api.js');
+                
+                // 尝试导入UI组件
+                const { showToast } = await import('/assets/js/utils/ui-components.js');
+                
+                testDiv.innerHTML = `
+                    <div class="success">✅ 所有模块加载成功</div>
+                    <div class="test-result">
+                        <strong>配置信息:</strong><br>
+                        API Base URL: ${CONFIG.API.BASE_URL}<br>
+                        超时时间: ${CONFIG.API.TIMEOUT}ms<br>
+                        应用版本: ${CONFIG.APP.VERSION}
+                    </div>
+                `;
+                
+                console.log('模块加载测试通过');
+                
+            } catch (error) {
+                testDiv.innerHTML = `
+                    <div class="error">❌ 模块加载失败</div>
+                    <div class="test-result">错误: ${error.message}</div>
+                `;
+                console.error('模块加载失败:', error);
+            }
+        }
+
+        // 测试API连接
+        window.testAPI = async function() {
+            const testDiv = document.getElementById('apiTest');
+            testDiv.innerHTML = '测试中...';
+            
+            try {
+                const { faceRecognitionService } = await import('/assets/js/services/face-recognition-api.js');
+                
+                // 测试统计信息API
+                const stats = await faceRecognitionService.getStatistics();
+                
+                testDiv.innerHTML = `
+                    <div class="success">✅ API连接成功</div>
+                    <div class="test-result">
+                        <strong>统计信息:</strong><br>
+                        总人数: ${stats.total_persons || 0}<br>
+                        人脸特征数: ${stats.total_encodings || 0}<br>
+                        识别阈值: ${stats.recognition_threshold || 0.6}
+                    </div>
+                `;
+                
+                console.log('API测试通过:', stats);
+                
+            } catch (error) {
+                testDiv.innerHTML = `
+                    <div class="error">❌ API连接失败</div>
+                    <div class="test-result">错误: ${error.message}</div>
+                `;
+                console.error('API测试失败:', error);
+            }
+        };
+
+        // 测试文件上传组件
+        async function testFileUpload() {
+            try {
+                const { FileUploader } = await import('/assets/js/utils/ui-components.js');
+                const uploadArea = document.getElementById('testUploadArea');
+                const resultDiv = document.getElementById('uploadResult');
+                
+                const uploader = new FileUploader(uploadArea, {
+                    accept: ['image/jpeg', 'image/png'],
+                    multiple: false,
+                    maxFileSize: 10 * 1024 * 1024,
+                    onFilesSelected: (files) => {
+                        resultDiv.innerHTML = `
+                            <div class="success">✅ 文件选择成功</div>
+                            <div class="test-result">
+                                文件名: ${files[0].name}<br>
+                                文件大小: ${(files[0].size / 1024).toFixed(2)} KB<br>
+                                文件类型: ${files[0].type}
+                            </div>
+                        `;
+                        console.log('文件上传组件测试通过');
+                    },
+                    onFileValidationError: (error) => {
+                        resultDiv.innerHTML = `
+                            <div class="error">❌ 文件验证失败</div>
+                            <div class="test-result">错误: ${error.message}</div>
+                        `;
+                    },
+                    customFileInput: document.getElementById('testFileInput')
+                });
+                
+                console.log('文件上传组件初始化成功');
+                
+            } catch (error) {
+                document.getElementById('uploadResult').innerHTML = `
+                    <div class="error">❌ 文件上传组件初始化失败</div>
+                    <div class="test-result">错误: ${error.message}</div>
+                `;
+                console.error('文件上传组件测试失败:', error);
+            }
+        }
+
+        // 测试功能模块
+        window.testRecognition = function() {
+            const testDiv = document.getElementById('buttonTest');
+            if (window.recognitionModule) {
+                testDiv.innerHTML += '<div class="success">✅ 识别模块可用</div>';
+                console.log('识别模块状态:', window.recognitionModule.getStatus?.());
+            } else {
+                testDiv.innerHTML += '<div class="error">❌ 识别模块不可用</div>';
+            }
+        };
+
+        window.testEnrollment = function() {
+            const testDiv = document.getElementById('buttonTest');
+            if (window.enrollmentModule) {
+                testDiv.innerHTML += '<div class="success">✅ 入库模块可用</div>';
+                console.log('入库模块状态:', window.enrollmentModule.getStatus?.());
+            } else {
+                testDiv.innerHTML += '<div class="error">❌ 入库模块不可用</div>';
+            }
+        };
+
+        window.testManagement = function() {
+            const testDiv = document.getElementById('buttonTest');
+            if (window.managementModule) {
+                testDiv.innerHTML += '<div class="success">✅ 管理模块可用</div>';
+                console.log('管理模块状态:', window.managementModule.getStatus?.());
+            } else {
+                testDiv.innerHTML += '<div class="error">❌ 管理模块不可用</div>';
+            }
+        };
+
+        window.testStatistics = function() {
+            const testDiv = document.getElementById('buttonTest');
+            if (window.statisticsModule) {
+                testDiv.innerHTML += '<div class="success">✅ 统计模块可用</div>';
+                console.log('统计模块状态:', window.statisticsModule.getStatus?.());
+            } else {
+                testDiv.innerHTML += '<div class="error">❌ 统计模块不可用</div>';
+            }
+        };
+
+        // 页面加载完成后运行测试
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('开始运行测试...');
+            
+            await testModuleLoading();
+            
+            // 等待一秒后测试API
+            setTimeout(async () => {
+                await testAPI();
+            }, 1000);
+            
+            // 等待两秒后测试文件上传
+            setTimeout(async () => {
+                await testFileUpload();
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

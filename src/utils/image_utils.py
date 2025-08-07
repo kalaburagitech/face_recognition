@@ -24,7 +24,7 @@ def validate_image(image_path: str) -> bool:
             return False
         
         # 检查文件扩展名
-        valid_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp'}
+        valid_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp', '.avif'}
         _, ext = os.path.splitext(image_path.lower())
         if ext not in valid_extensions:
             return False

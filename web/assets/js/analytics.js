@@ -141,7 +141,7 @@ class Analytics {
         return {
             total_persons: 0,
             total_encodings: 0,
-            avg_encodings_per_person: 0,
+            avg_photos_per_person: 0,
             recognition_threshold: 0.2,
             detection_threshold: 0.5,
             duplicate_threshold: 0.95,
@@ -170,7 +170,7 @@ class Analytics {
         // 更新详细统计
         this.updateElement('detailTotalPersons', this.stats.total_persons || 0);
         this.updateElement('detailTotalEncodings', this.stats.total_encodings || 0);
-        this.updateElement('avgPhotosPerPerson', (this.stats.avg_encodings_per_person || 0).toFixed(1) + ' 张');
+        this.updateElement('avgPhotosPerPerson', (this.stats.avg_photos_per_person || 0).toFixed(1) + ' 张');
         this.updateElement('currentThreshold', (this.stats.recognition_threshold || 0.35).toFixed(2));
     }
 
@@ -430,7 +430,7 @@ class Analytics {
                 系统概览: {
                     总人员数: this.stats?.total_persons || 0,
                     总照片数: this.stats?.total_encodings || 0,
-                    平均每人照片: (this.stats?.avg_encodings_per_person || 0).toFixed(1),
+                    平均每人照片: (this.stats?.avg_photos_per_person || 0).toFixed(1),
                     识别阈值: (this.stats?.recognition_threshold || 0.35).toFixed(2)
                 },
                 系统配置: {

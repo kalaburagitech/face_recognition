@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最小测试页面</title>
+</head>
+<body>
+    <h1>最小测试页面</h1>
+    <input type="file" id="fileInput" accept="image/*">
+    <button onclick="testUpload()">测试上传</button>
+    <div id="result"></div>
+    
+    <script>
+        function testUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const resultDiv = document.getElementById('result');
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                resultDiv.innerHTML = '请选择文件';
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            resultDiv.innerHTML = `选择的文件: ${file.name} (${file.size} bytes)`;
+            
+            console.log('文件对象:', file);
+            console.log('文件类型检查:', file instanceof File);
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            console.log('FormData检查:');
+            console.log('has("file"):', formData.has('file'));
+            
+            for (let [key, value] of formData.entries()) {
+                console.log('Entry:', key, value);
+            }
+            
+            resultDiv.innerHTML += '<br>开始发送请求...';
+            
+            fetch('http://localhost:8001/api/recognize?threshold=0.6', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('响应状态:', response.status);
+                resultDiv.innerHTML += `<br>响应状态: ${response.status}`;
+                return response.text();
+            })
+            .then(text => {
+                console.log('响应内容:', text);
+                resultDiv.innerHTML += `<br>响应: ${text}`;
+            })
+            .catch(error => {
+                console.error('错误:', error);
+                resultDiv.innerHTML += `<br>错误: ${error.message}`;
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API调试页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 3px; font-family: monospace; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>人脸识别API调试页面</h1>
+    
+    <div class="test-section">
+        <h3>测试1: 基本文件上传</h3>
+        <input type="file" id="testFile1" accept="image/*">
+        <button onclick="testBasicUpload()">测试基本上传</button>
+        <div id="log1" class="log"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>测试2: FormData详细调试</h3>
+        <input type="file" id="testFile2" accept="image/*">
+        <button onclick="testFormDataDebug()">测试FormData</button>
+        <div id="log2" class="log"></div>
+    </div>
+    
+    <script>
+        const API_BASE_URL = 'http://localhost:8001/api';
+        
+        function log(containerId, message) {
+            const container = document.getElementById(containerId);
+            container.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+        }
+        
+        async function testBasicUpload() {
+            const fileInput = document.getElementById('testFile1');
+            const file = fileInput.files[0];
+            const logContainer = 'log1';
+            
+            document.getElementById(logContainer).textContent = '';
+            
+            if (!file) {
+                log(logContainer, '错误: 请先选择文件');
+                return;
+            }
+            
+            log(logContainer, '文件信息: ' + JSON.stringify({
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                lastModified: file.lastModified
+            }));
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                log(logContainer, 'FormData.has("file"): ' + formData.has('file'));
+                
+                for (let [key, value] of formData.entries()) {
+                    log(logContainer, 'FormData entry: ' + key + ' = ' + (value instanceof File ? 'File对象' : value));
+                }
+                
+                log(logContainer, '发送请求...');
+                
+                const response = await fetch(`${API_BASE_URL}/recognize?threshold=0.6`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                log(logContainer, '响应状态: ' + response.status);
+                
+                const result = await response.text();
+                log(logContainer, '响应内容: ' + result);
+                
+            } catch (error) {
+                log(logContainer, '错误: ' + error.message);
+            }
+        }
+        
+        async function testFormDataDebug() {
+            const fileInput = document.getElementById('testFile2');
+            const file = fileInput.files[0];
+            const logContainer = 'log2';
+            
+            document.getElementById(logContainer).textContent = '';
+            
+            if (!file) {
+                log(logContainer, '错误: 请先选择文件');
+                return;
+            }
+            
+            log(logContainer, '=== 详细调试信息 ===');
+            log(logContainer, 'file instanceof File: ' + (file instanceof File));
+            log(logContainer, 'file instanceof Blob: ' + (file instanceof Blob));
+            log(logContainer, 'typeof file: ' + typeof file);
+            log(logContainer, 'file.constructor.name: ' + file.constructor.name);
+            
+            log(logContainer, '文件属性详情:');
+            log(logContainer, '  name: ' + file.name);
+            log(logContainer, '  size: ' + file.size);
+            log(logContainer, '  type: ' + file.type);
+            log(logContainer, '  lastModified: ' + file.lastModified);
+            
+            const formData = new FormData();
+            log(logContainer, '创建FormData前: FormData为空');
+            
+            formData.append('file', file);
+            log(logContainer, '添加文件后: FormData.has("file") = ' + formData.has('file'));
+            
+            log(logContainer, 'FormData内容检查:');
+            let hasFileEntry = false;
+            for (let [key, value] of formData.entries()) {
+                log(logContainer, '  ' + key + ': ' + value + ' (类型: ' + value.constructor.name + ')');
+                if (key === 'file') {
+                    hasFileEntry = true;
+                    log(logContainer, '    -> 这是文件条目');
+                    log(logContainer, '    -> value instanceof File: ' + (value instanceof File));
+                    log(logContainer, '    -> value.name: ' + value.name);
+                }
+            }
+            
+            if (!hasFileEntry) {
+                log(logContainer, '警告: FormData中没有找到file条目！');
+            }
+            
+            // 测试请求
+            try {
+                log(logContainer, '发送请求到: ' + API_BASE_URL + '/recognize?threshold=0.6');
+                
+                const response = await fetch(`${API_BASE_URL}/recognize?threshold=0.6`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                log(logContainer, '响应状态: ' + response.status);
+                log(logContainer, '响应头Content-Type: ' + response.headers.get('content-type'));
+                
+                const responseText = await response.text();
+                log(logContainer, '响应内容: ' + responseText);
+                
+            } catch (error) {
+                log(logContainer, '请求错误: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

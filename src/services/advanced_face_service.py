@@ -244,14 +244,15 @@ class AdvancedFaceRecognitionService:
             logger.error(f"特征提取失败: {str(e)}")
             return None
     
-    def enroll_person(self, name: str, image_path: str, description: Optional[str] = None) -> Dict[str, Any]:
+    def enroll_person(self, name: str, image_path: str, description: Optional[str] = None, original_filename: Optional[str] = None) -> Dict[str, Any]:
         """
         高精度人员入库
         
         Args:
             name: 人员姓名
-            image_path: 图像路径
+            image_path: 图像路径（临时文件路径）
             description: 人员描述
+            original_filename: 原始文件名（用于数据库存储）
             
         Returns:
             入库结果信息
@@ -282,20 +283,63 @@ class AdvancedFaceRecognitionService:
             if features is None:
                 return {'success': False, 'error': '特征提取失败'}
             
-            # 检查是否已存在相似人脸（只对不同姓名的人员进行检查）
+            # 检查是否已存在相似人脸（同名和不同名都查重）
             duplicate_threshold_value = config.get('face_recognition.duplicate_threshold', 0.95)
             if isinstance(duplicate_threshold_value, (int, float)):
                 duplicate_threshold = float(duplicate_threshold_value)
             else:
                 duplicate_threshold = 0.95  # 默认值
-                
+
+            similarity_threshold_percent = duplicate_threshold * 100
+
+            # 1. 查重：同名同脸禁止
+            existing_person = self.db_manager.get_person_by_name(name)
+            if existing_person:
+                person_id_checked = getattr(existing_person, "id", None)
+                if not isinstance(person_id_checked, int):
+                    logger.error(f"existing_person.id 不是int类型，跳过同名查重。实际类型: {type(person_id_checked)}")
+                else:
+                    encodings = self.db_manager.get_face_encodings_by_person(person_id_checked)
+                    for encoding_obj in encodings:
+                        db_enc = encoding_obj.encoding
+                        # 只对bytes类型做反序列化
+                        if isinstance(db_enc, bytes):
+                            try:
+                                db_feature = pickle.loads(db_enc)
+                            except Exception as e:
+                                logger.warning(f"特征反序列化失败: {e}")
+                                continue
+                            # 计算余弦相似度
+                            similarity = float(np.dot(features, db_feature) / (np.linalg.norm(features) * np.linalg.norm(db_feature)))
+                            match_score = similarity * 100
+                            if match_score > similarity_threshold_percent:
+                                return {
+                                    'success': False,
+                                    'error': f'该人员已存在相似人脸 (匹配度: {match_score:.1f}%，阈值: {similarity_threshold_percent:.1f}%)'
+                                }
+                for encoding_obj in encodings:
+                    db_enc = encoding_obj.encoding
+                    # 只对bytes类型做反序列化
+                    if isinstance(db_enc, bytes):
+                        try:
+                            db_feature = pickle.loads(db_enc)
+                        except Exception as e:
+                            logger.warning(f"特征反序列化失败: {e}")
+                            continue
+                        # 计算余弦相似度
+                        similarity = float(np.dot(features, db_feature) / (np.linalg.norm(features) * np.linalg.norm(db_feature)))
+                        match_score = similarity * 100
+                        if match_score > similarity_threshold_percent:
+                            return {
+                                'success': False,
+                                'error': f'该人员已存在相似人脸 (匹配度: {match_score:.1f}%，阈值: {similarity_threshold_percent:.1f}%)'
+                            }
+
+            # 2. 查重：不同名同脸禁止
             existing_match = self.recognize_face(image)
             if existing_match['matches']:
                 best_match = existing_match['matches'][0]
-                # 只有当匹配到的是不同姓名的人员时才阻止入库
                 if best_match['name'] != name:
-                    # 将相似度阈值转换为百分比进行比较
-                    similarity_threshold_percent = duplicate_threshold * 100
                     if best_match['match_score'] > similarity_threshold_percent:
                         return {
                             'success': False, 
@@ -309,7 +353,10 @@ class AdvancedFaceRecognitionService:
                 
                 if existing_person:
                     # 同名人员已存在，为其添加新的人脸特征
-                    person_id = existing_person.id
+                    person_id = getattr(existing_person, "id", None)
+                    if not isinstance(person_id, int):
+                        logger.error(f"existing_person.id 不是int类型，无法入库。实际类型: {type(person_id)}")
+                        return {'success': False, 'error': '数据库人员ID异常，无法入库'}
                     logger.info(f"为现有人员 {name} (ID: {person_id}) 添加新的人脸特征")
                 else:
                     # 创建新人员记录
@@ -325,10 +372,13 @@ class AdvancedFaceRecognitionService:
                 bbox = face['bbox']
                 face_bbox_str = f"[{int(bbox[0])},{int(bbox[1])},{int(bbox[2])},{int(bbox[3])}]"
                 
+                # 使用原始文件名作为image_path存储，而不是临时路径
+                stored_image_path = original_filename if original_filename else os.path.basename(image_path)
+                
                 face_encoding = self.db_manager.add_face_encoding(
                     person_id=person_id,
                     encoding=features,
-                    image_path=image_path,
+                    image_path=stored_image_path,  # 存储原始文件名
                     image_data=image_data,
                     face_bbox=face_bbox_str,
                     confidence=face['quality'],
@@ -572,6 +622,11 @@ class AdvancedFaceRecognitionService:
                 total_persons = session.query(Person).count()
                 total_encodings = session.query(FaceEncoding).count()
                 
+                # 计算平均每人照片数
+                avg_photos_per_person = 0.0
+                if total_persons > 0:
+                    avg_photos_per_person = round(total_encodings / total_persons, 1)
+                
                 # 获取最近7天的人员统计
                 from datetime import timedelta
                 recent_date = datetime.now() - timedelta(days=7)
@@ -580,6 +635,7 @@ class AdvancedFaceRecognitionService:
                 return {
                     'total_persons': total_persons,
                     'total_encodings': total_encodings,
+                    'avg_photos_per_person': avg_photos_per_person,
                     'recent_persons': recent_persons,
                     'cache_size': len(self._face_cache),
                     'current_model': f"InsightFace_{self.model_name}",

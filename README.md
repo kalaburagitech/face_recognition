@@ -133,13 +133,7 @@ python main.py --workers 4
 python main.py --help
 ```
 
-#### Makefile方式
-```bash
-make dev          # 开发模式启动
-make start        # 生产模式启动  
-make install      # 安装依赖
-make test         # 运行测试
-```
+
 
 ### 人脸入库
 1. 进入 **"人脸入库"** 页面

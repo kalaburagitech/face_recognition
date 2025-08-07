@@ -10,6 +10,12 @@ class PersonManagement {
         this.sortOrder = 'desc'; // 'asc' or 'desc'
         this.bulkSelectionMode = false; // 批量选择模式
         this.recentOperations = JSON.parse(localStorage.getItem('recentOperations') || '[]');
+        
+        // 分页相关属性
+        this.currentPage = 1;
+        this.pageSize = parseInt(localStorage.getItem('personManagement_pageSize')) || 20; // 从localStorage加载用户偏好
+        this.totalPages = 1;
+        
         this.init();
     }
 
@@ -82,6 +88,7 @@ class PersonManagement {
             this.allPersons = data.persons || data || [];
             this.filteredPersons = [...this.allPersons];
             this.sortPersons(); // 添加排序
+            this.updatePagination(); // 添加分页更新
             this.displayPersons();
             this.updateStatistics();
             this.updateRecentOperations(); // 更新最近操作显示
@@ -157,6 +164,7 @@ class PersonManagement {
         }
         
         this.sortPersons(); // 重新排序
+        this.updatePagination(); // 更新分页
         this.displayPersons();
     }
 
@@ -186,6 +194,186 @@ class PersonManagement {
                 return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
             }
         });
+    }
+
+    // 分页相关方法
+    updatePagination() {
+        this.totalPages = Math.ceil(this.filteredPersons.length / this.pageSize);
+        
+        // 如果当前页面超出范围，回到第一页
+        if (this.currentPage > this.totalPages) {
+            this.currentPage = 1;
+        }
+        
+        // 确保至少有1页
+        if (this.totalPages === 0) {
+            this.totalPages = 1;
+        }
+        
+        this.renderPaginationControls();
+    }
+
+    getCurrentPagePersons() {
+        const startIndex = (this.currentPage - 1) * this.pageSize;
+        const endIndex = startIndex + this.pageSize;
+        return this.filteredPersons.slice(startIndex, endIndex);
+    }
+
+    goToPage(page) {
+        if (page < 1 || page > this.totalPages) return;
+        
+        this.currentPage = page;
+        this.displayPersons();
+        this.renderPaginationControls();
+        
+        // 滚动到人员列表顶部
+        const container = document.getElementById('personsList');
+        if (container) {
+            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
+    previousPage() {
+        if (this.currentPage > 1) {
+            this.goToPage(this.currentPage - 1);
+        }
+    }
+
+    nextPage() {
+        if (this.currentPage < this.totalPages) {
+            this.goToPage(this.currentPage + 1);
+        }
+    }
+
+    renderPaginationControls() {
+        // 查找或创建分页容器
+        let paginationContainer = document.getElementById('personsPagination');
+        if (!paginationContainer) {
+            // 在人员列表卡片的 card-body 后面添加分页控件
+            const personsCard = document.getElementById('personsList')?.closest('.card');
+            if (personsCard) {
+                paginationContainer = document.createElement('div');
+                paginationContainer.id = 'personsPagination';
+                paginationContainer.className = 'card-footer bg-transparent border-top';
+                personsCard.appendChild(paginationContainer);
+            }
+        }
+        
+        if (!paginationContainer) return;
+
+        // 如果只有一页或没有数据，隐藏分页控件
+        if (this.totalPages <= 1) {
+            paginationContainer.style.display = 'none';
+            return;
+        }
+        
+        paginationContainer.style.display = 'block';
+
+        const startItem = (this.currentPage - 1) * this.pageSize + 1;
+        const endItem = Math.min(this.currentPage * this.pageSize, this.filteredPersons.length);
+        
+        paginationContainer.innerHTML = `
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center">
+                        <span class="small text-muted me-2">每页显示:</span>
+                        <select class="form-select form-select-sm" style="width: 80px;" onchange="window.personManagement.changePageSize(this.value)">
+                            <option value="10" ${this.pageSize === 10 ? 'selected' : ''}>10</option>
+                            <option value="20" ${this.pageSize === 20 ? 'selected' : ''}>20</option>
+                            <option value="50" ${this.pageSize === 50 ? 'selected' : ''}>50</option>
+                            <option value="100" ${this.pageSize === 100 ? 'selected' : ''}>100</option>
+                        </select>
+                        <span class="small text-muted ms-2">项</span>
+                    </div>
+                </div>
+                <div class="col-md-4 text-center">
+                    <nav aria-label="人员列表分页">
+                        <ul class="pagination pagination-sm mb-0 justify-content-center">
+                            <li class="page-item ${this.currentPage === 1 ? 'disabled' : ''}">
+                                <button class="page-link" onclick="window.personManagement.previousPage()" 
+                                        ${this.currentPage === 1 ? 'disabled' : ''}>
+                                    <i class="bi bi-chevron-left"></i>
+                                </button>
+                            </li>
+                            ${this.generatePageNumbers()}
+                            <li class="page-item ${this.currentPage === this.totalPages ? 'disabled' : ''}">
+                                <button class="page-link" onclick="window.personManagement.nextPage()"
+                                        ${this.currentPage === this.totalPages ? 'disabled' : ''}>
+                                    <i class="bi bi-chevron-right"></i>
+                                </button>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="small text-muted">
+                        显示第 ${startItem}-${endItem} 项，共 ${this.filteredPersons.length} 项
+                        <br>第 ${this.currentPage} / ${this.totalPages} 页
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    changePageSize(newSize) {
+        this.pageSize = parseInt(newSize);
+        this.currentPage = 1; // 回到第一页
+        this.updatePagination();
+        this.displayPersons();
+        
+        // 保存用户偏好
+        localStorage.setItem('personManagement_pageSize', this.pageSize);
+        
+        this.showMessage(`每页显示 ${this.pageSize} 项`, 'info');
+    }
+
+    generatePageNumbers() {
+        let html = '';
+        const maxVisiblePages = 5;
+        const halfVisible = Math.floor(maxVisiblePages / 2);
+        
+        let startPage = Math.max(1, this.currentPage - halfVisible);
+        let endPage = Math.min(this.totalPages, startPage + maxVisiblePages - 1);
+        
+        // 调整开始页面，确保显示足够的页码
+        if (endPage - startPage + 1 < maxVisiblePages) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+        
+        // 如果开始页面不是1，显示第一页和省略号
+        if (startPage > 1) {
+            html += `
+                <li class="page-item">
+                    <button class="page-link" onclick="window.personManagement.goToPage(1)">1</button>
+                </li>
+            `;
+            if (startPage > 2) {
+                html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+            }
+        }
+        
+        // 显示页码
+        for (let i = startPage; i <= endPage; i++) {
+            html += `
+                <li class="page-item ${i === this.currentPage ? 'active' : ''}">
+                    <button class="page-link" onclick="window.personManagement.goToPage(${i})">${i}</button>
+                </li>
+            `;
+        }
+        
+        // 如果结束页面不是最后一页，显示省略号和最后一页
+        if (endPage < this.totalPages) {
+            if (endPage < this.totalPages - 1) {
+                html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+            }
+            html += `
+                <li class="page-item">
+                    <button class="page-link" onclick="window.personManagement.goToPage(${this.totalPages})">${this.totalPages}</button>
+                </li>
+            `;
+        }
+        
+        return html;
     }
 
     showSortOptions() {
@@ -280,7 +468,8 @@ class PersonManagement {
             this.sortOrder = sortOrderElements[0].value;
         }
         
-        this.sortPersons();
+        this.sortPersons(); // 重新排序
+        this.updatePagination(); // 更新分页
         this.displayPersons();
         this.showMessage('排序已应用', 'success');
         
@@ -295,6 +484,9 @@ class PersonManagement {
         const container = document.getElementById('personsList');
         if (!container) return;
 
+        // 获取当前页面的人员数据
+        const currentPagePersons = this.getCurrentPagePersons();
+
         if (this.filteredPersons.length === 0) {
             container.innerHTML = `
                 <div class="empty-state text-center p-5">
@@ -303,18 +495,23 @@ class PersonManagement {
                     <p class="text-muted mb-0">请先注册人员信息</p>
                 </div>
             `;
+            // 隐藏分页控件
+            this.renderPaginationControls();
             return;
         }
 
         if (this.viewMode === 'card') {
-            this.displayCardView(container);
+            this.displayCardView(container, currentPagePersons);
         } else {
-            this.displayListView(container);
+            this.displayListView(container, currentPagePersons);
         }
+        
+        // 更新分页控件
+        this.renderPaginationControls();
     }
 
-    displayCardView(container) {
-        const cardsHtml = this.filteredPersons.map(person => `
+    displayCardView(container, persons = this.filteredPersons) {
+        const cardsHtml = persons.map(person => `
             <div class="col-lg-4 col-md-6 mb-3">
                 <div class="card h-100 person-card shadow-sm" data-person-id="${person.id}">
                     <div class="card-body p-3">
@@ -404,8 +601,10 @@ class PersonManagement {
     getPersonAvatar(person) {
         // 如果有人脸图片，显示真实头像
         if (person.face_image_url) {
+            // 添加时间戳防止缓存问题
+            const imageUrl = person.face_image_url + (person.face_image_url.includes('?') ? '&' : '?') + 't=' + Date.now();
             return `
-                <img src="${person.face_image_url}" 
+                <img src="${imageUrl}" 
                      class="rounded-circle object-fit-cover cursor-pointer" 
                      style="width: 72px; height: 72px; border: 3px solid var(--bs-primary);"
                      alt="${person.name}"
@@ -452,8 +651,8 @@ class PersonManagement {
         return date.toLocaleDateString('zh-CN');
     }
 
-    displayListView(container) {
-        const rowsHtml = this.filteredPersons.map(person => `
+    displayListView(container, persons = this.filteredPersons) {
+        const rowsHtml = persons.map(person => `
             <tr class="person-row" data-person-id="${person.id}">
                 <td>
                     <div class="form-check">
@@ -531,8 +730,10 @@ class PersonManagement {
     getPersonAvatarSmall(person) {
         // 列表视图的小头像
         if (person.face_image_url) {
+            // 添加时间戳防止缓存问题
+            const imageUrl = person.face_image_url + (person.face_image_url.includes('?') ? '&' : '?') + 't=' + Date.now();
             return `
-                <img src="${person.face_image_url}" 
+                <img src="${imageUrl}" 
                      class="rounded-circle object-fit-cover cursor-pointer" 
                      style="width: 48px; height: 48px; border: 2px solid var(--bs-primary);"
                      alt="${person.name}"
@@ -785,7 +986,7 @@ class PersonManagement {
                     <div class="face-thumbnail position-relative">
                         <div class="face-image-container" onclick="window.personManagement.viewFaceImage('${face.id}', '${face.image_url || ''}', '${person.name}', ${i + 1})" style="cursor: pointer;">
                             ${face.image_url && face.has_image ? 
-                                `<img src="${face.image_url}" class="img-fluid rounded" alt="人脸照片 ${i+1}" style="width: 100%; height: 80px; object-fit: cover;"
+                                `<img src="${face.image_url}?t=${Date.now()}" class="img-fluid rounded" alt="人脸照片 ${i+1}" style="width: 100%; height: 80px; object-fit: cover;"
                                       onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                                  <div class="bg-light rounded d-flex align-items-center justify-content-center face-placeholder" style="width: 100%; height: 80px; display: none;">
                                      <i class="bi bi-person-circle text-muted"></i>
@@ -2119,6 +2320,394 @@ class PersonManagement {
             }
         }
     }
+
+    // 批量人脸入库功能
+    showBatchFaceEnrollmentModal() {
+        // 移除已存在的模态框
+        const existingModal = document.getElementById('batchFaceEnrollmentModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = 'batchFaceEnrollmentModal';
+        modal.innerHTML = `
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg">
+                    <div class="modal-header bg-primary text-white border-0">
+                        <h5 class="modal-title">
+                            <i class="bi bi-person-plus-fill me-2"></i>批量人脸入库
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="alert alert-info border-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>批量人脸入库说明：</strong><br>
+                            • 支持上传多张人脸照片，系统会自动识别人脸并入库<br>
+                            • 可以为现有人员添加更多人脸照片，或创建新人员<br>
+                            • 支持从文件名自动提取人员姓名<br>
+                            • 每张照片最大5MB，支持JPG、PNG格式
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">
+                                <i class="bi bi-upload me-1"></i>选择人脸照片
+                            </label>
+                            <div class="upload-area border-2 border-dashed border-primary rounded p-4 text-center mb-3" 
+                                 id="batchUploadArea" onclick="document.getElementById('batchFaceFiles').click()">
+                                <i class="bi bi-cloud-upload text-primary mb-2" style="font-size: 3rem;"></i>
+                                <h6 class="text-primary">点击选择或拖拽照片到此处</h6>
+                                <p class="text-muted small mb-0">支持多选，系统将从文件名自动提取人员姓名</p>
+                                <input type="file" class="d-none" id="batchFaceFiles" multiple accept="image/*">
+                            </div>
+                            
+                            <div id="batchFacePreview" class="d-none">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="small text-muted mb-0">预览 (<span id="previewCount">0</span> 张照片)：</h6>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="this.parentElement.parentElement.parentElement.querySelector('#batchFaceFiles').click()">
+                                        <i class="bi bi-plus me-1"></i>添加更多
+                                    </button>
+                                </div>
+                                <div id="batchFaceImages" class="row g-2" style="max-height: 300px; overflow-y: auto;"></div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">
+                                    <i class="bi bi-gear me-1"></i>入库模式
+                                </label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="enrollmentMode" id="autoMode" value="auto" checked>
+                                    <label class="form-check-label" for="autoMode">
+                                        <strong>自动模式</strong><br>
+                                        <small class="text-muted">从文件名自动提取姓名</small>
+                                    </label>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="radio" name="enrollmentMode" id="manualMode" value="manual">
+                                    <label class="form-check-label" for="manualMode">
+                                        <strong>手动模式</strong><br>
+                                        <small class="text-muted">手动指定人员信息</small>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div id="manualModeOptions" class="d-none">
+                                    <label for="batchPersonName" class="form-label">
+                                        <i class="bi bi-person me-1"></i>统一姓名（可选）
+                                    </label>
+                                    <input type="text" class="form-control mb-2" id="batchPersonName" 
+                                           placeholder="留空则使用文件名">
+                                    
+                                    <label for="batchPersonDesc" class="form-label">
+                                        <i class="bi bi-card-text me-1"></i>统一描述（可选）
+                                    </label>
+                                    <input type="text" class="form-control" id="batchPersonDesc" 
+                                           placeholder="为所有照片添加统一描述">
+                                </div>
+                                <div id="autoModeInfo" class="">
+                                    <div class="alert alert-light border mb-0">
+                                        <small class="text-muted">
+                                            <i class="bi bi-lightbulb me-1"></i>
+                                            <strong>文件命名建议：</strong><br>
+                                            • 张三.jpg → 姓名：张三<br>
+                                            • John_Smith.png → 姓名：John Smith<br>
+                                            • 员工001.jpg → 姓名：员工001
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="batchResults" class="mt-3 d-none">
+                            <h6 class="text-muted mb-2">
+                                <i class="bi bi-list-check me-1"></i>入库结果：
+                            </h6>
+                            <div id="batchResultsContent"></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x me-1"></i>关闭
+                        </button>
+                        <button type="button" class="btn btn-primary" id="startBatchEnrollment" disabled>
+                            <i class="bi bi-database-add me-1"></i>开始批量入库
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        if (window.bootstrap) {
+            const bootstrapModal = new bootstrap.Modal(modal);
+            bootstrapModal.show();
+
+            // 绑定事件
+            this.bindBatchFaceEnrollmentEvents(modal);
+
+            modal.addEventListener('hidden.bs.modal', () => {
+                document.body.removeChild(modal);
+            });
+        }
+    }
+
+    bindBatchFaceEnrollmentEvents(modal) {
+        const fileInput = modal.querySelector('#batchFaceFiles');
+        const uploadArea = modal.querySelector('#batchUploadArea');
+        const startBtn = modal.querySelector('#startBatchEnrollment');
+        const autoMode = modal.querySelector('#autoMode');
+        const manualMode = modal.querySelector('#manualMode');
+        const manualOptions = modal.querySelector('#manualModeOptions');
+        const autoInfo = modal.querySelector('#autoModeInfo');
+
+        // 文件选择事件
+        fileInput.addEventListener('change', (e) => {
+            this.handleBatchFaceFiles(e.target.files, modal);
+        });
+
+        // 拖拽上传
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('border-success');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('border-success');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('border-success');
+            this.handleBatchFaceFiles(e.dataTransfer.files, modal);
+        });
+
+        // 模式切换
+        autoMode.addEventListener('change', () => {
+            if (autoMode.checked) {
+                manualOptions.classList.add('d-none');
+                autoInfo.classList.remove('d-none');
+            }
+        });
+
+        manualMode.addEventListener('change', () => {
+            if (manualMode.checked) {
+                manualOptions.classList.remove('d-none');
+                autoInfo.classList.add('d-none');
+            }
+        });
+
+        // 开始批量入库
+        startBtn.addEventListener('click', () => {
+            this.performBatchFaceEnrollment(modal);
+        });
+    }
+
+    handleBatchFaceFiles(files, modal) {
+        const preview = modal.querySelector('#batchFacePreview');
+        const container = modal.querySelector('#batchFaceImages');
+        const startBtn = modal.querySelector('#startBatchEnrollment');
+        const countSpan = modal.querySelector('#previewCount');
+
+        if (files.length === 0) {
+            preview.classList.add('d-none');
+            startBtn.disabled = true;
+            return;
+        }
+
+        // 保存文件到模态框数据中
+        modal._batchFiles = Array.from(files);
+        countSpan.textContent = files.length;
+
+        container.innerHTML = '';
+
+        Array.from(files).forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const col = document.createElement('div');
+                col.className = 'col-3 mb-2';
+                
+                // 从文件名提取可能的姓名
+                const fileName = file.name;
+                const nameFromFile = fileName.replace(/\.(jpg|jpeg|png|gif|bmp|webp)$/i, '')
+                                             .replace(/[_-]/g, ' ')
+                                             .trim() || '未命名';
+
+                col.innerHTML = `
+                    <div class="position-relative">
+                        <img src="${e.target.result}" class="img-fluid rounded border" 
+                             style="height: 80px; object-fit: cover; width: 100%;" 
+                             alt="${fileName}">
+                        <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" 
+                                onclick="this.closest('.col-3').remove(); window.personManagement.updateBatchFileCount()" 
+                                title="移除">
+                            <i class="bi bi-x"></i>
+                        </button>
+                        <div class="position-absolute bottom-0 start-0 end-0 bg-dark bg-opacity-75 text-white p-1 rounded-bottom small text-center">
+                            ${nameFromFile.length > 8 ? nameFromFile.substring(0, 8) + '...' : nameFromFile}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(col);
+            };
+            reader.readAsDataURL(file);
+        });
+
+        preview.classList.remove('d-none');
+        startBtn.disabled = false;
+    }
+
+    updateBatchFileCount() {
+        const modal = document.getElementById('batchFaceEnrollmentModal');
+        if (!modal) return;
+
+        const images = modal.querySelectorAll('#batchFaceImages .col-3');
+        const countSpan = modal.querySelector('#previewCount');
+        const startBtn = modal.querySelector('#startBatchEnrollment');
+
+        const count = images.length;
+        countSpan.textContent = count;
+        startBtn.disabled = count === 0;
+
+        if (count === 0) {
+            modal.querySelector('#batchFacePreview').classList.add('d-none');
+        }
+    }
+
+    async performBatchFaceEnrollment(modal) {
+        const files = modal._batchFiles;
+        if (!files || files.length === 0) {
+            this.showMessage('请先选择人脸照片', 'warning');
+            return;
+        }
+
+        const startBtn = modal.querySelector('#startBatchEnrollment');
+        const results = modal.querySelector('#batchResults');
+        const resultsContent = modal.querySelector('#batchResultsContent');
+        const autoMode = modal.querySelector('#autoMode').checked;
+        const manualName = modal.querySelector('#batchPersonName').value.trim();
+        const manualDesc = modal.querySelector('#batchPersonDesc').value.trim();
+
+        const originalBtnText = startBtn.innerHTML;
+        startBtn.innerHTML = '<i class="bi bi-spinner bi-spin me-1"></i>批量入库中...';
+        startBtn.disabled = true;
+
+        try {
+            const formData = new FormData();
+            
+            // 添加文件
+            files.forEach(file => {
+                formData.append('files', file);
+            });
+
+            // 如果是手动模式且指定了姓名，添加姓名参数
+            if (!autoMode && manualName) {
+                formData.append('names', manualName);
+            }
+
+            // 如果指定了描述，添加描述参数
+            if (manualDesc) {
+                formData.append('descriptions', manualDesc);
+            }
+
+            const response = await fetch('/api/batch_enroll', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            
+            // 显示结果
+            this.displayBatchEnrollmentResults(result, resultsContent);
+            results.classList.remove('d-none');
+
+            if (result.success && result.success_count > 0) {
+                this.showMessage(`批量入库完成：成功 ${result.success_count} 个，失败 ${result.error_count} 个`, 
+                    result.error_count === 0 ? 'success' : 'warning');
+                this.addRecentOperation('批量人脸入库', `批量入库了 ${result.success_count} 张人脸照片`);
+                
+                // 刷新人员列表
+                await this.loadPersons();
+            } else {
+                this.showMessage('批量入库失败', 'error');
+            }
+
+        } catch (error) {
+            console.error('Batch face enrollment error:', error);
+            this.showMessage(`批量入库失败: ${error.message}`, 'error');
+        } finally {
+            startBtn.innerHTML = originalBtnText;
+            startBtn.disabled = false;
+        }
+    }
+
+    displayBatchEnrollmentResults(result, container) {
+        if (!result || !container) return;
+
+        let html = `
+            <div class="alert alert-${result.error_count === 0 ? 'success' : 'warning'} border-0">
+                <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-${result.error_count === 0 ? 'check-circle-fill' : 'exclamation-triangle-fill'} me-2"></i>
+                    <strong>批量入库完成</strong>
+                </div>
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="fs-4 fw-bold">${result.total_files || 0}</div>
+                        <small class="text-muted">总计</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="fs-4 fw-bold text-success">${result.success_count || 0}</div>
+                        <small class="text-muted">成功</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="fs-4 fw-bold text-danger">${result.error_count || 0}</div>
+                        <small class="text-muted">失败</small>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        if (result.results && result.results.length > 0) {
+            html += '<div class="mt-3"><h6 class="small text-muted mb-2">详细结果：</h6>';
+            
+            result.results.forEach((item, index) => {
+                const statusClass = item.success ? 'success' : 'danger';
+                const statusIcon = item.success ? 'check-circle-fill' : 'x-circle-fill';
+                
+                html += `
+                    <div class="card border-${statusClass} mb-2">
+                        <div class="card-body p-2">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-${statusIcon} text-${statusClass} me-2"></i>
+                                <div class="flex-grow-1 small">
+                                    <div class="fw-bold">${item.file_name}</div>
+                                    <div class="text-muted">
+                                        ${item.name ? `姓名: ${item.name}` : ''}
+                                        ${item.success ? 
+                                            `${item.person_id ? ` | ID: ${item.person_id}` : ''}${item.quality_score ? ` | 质量: ${(item.quality_score * 100).toFixed(1)}%` : ''}` :
+                                            ` | 错误: ${item.error}`
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+        }
+
+        container.innerHTML = html;
+    }
 }
 
 // 全局函数
@@ -2185,6 +2774,15 @@ function bulkDeletePersons() {
 function exportSelectedPersons() {
     if (window.personManagement) {
         window.personManagement.exportSelectedPersons();
+    } else {
+        alert('人员管理模块未加载');
+    }
+}
+
+// 批量人脸入库功能
+function showBatchFaceEnrollment() {
+    if (window.personManagement) {
+        window.personManagement.showBatchFaceEnrollmentModal();
     } else {
         alert('人员管理模块未加载');
     }

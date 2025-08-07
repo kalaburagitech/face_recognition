@@ -196,7 +196,7 @@ def create_app() -> FastAPI:
                 # 调用服务进行入库
                 import time
                 start_time = time.time()
-                result = service.enroll_person(name, temp_file.name, description)
+                result = service.enroll_person(name, temp_file.name, description, file.filename)
                 processing_time = time.time() - start_time
                 
                 if result['success']:
@@ -243,6 +243,166 @@ def create_app() -> FastAPI:
                 success=False,
                 error=f"服务器内部错误: {str(e)}"
             )
+
+    @app.post("/api/batch_enroll")
+    async def batch_enroll_persons(
+        files: List[UploadFile] = File(..., description="人脸图像文件列表"),
+        names: Optional[List[str]] = Form(None, description="人员姓名列表（可选，如未提供则从文件名提取）"),
+        descriptions: Optional[List[str]] = Form(None, description="人员描述列表（可选）"),
+        sort_by_filename: bool = Form(True, description="是否按文件名排序处理"),
+        service = Depends(get_face_service)
+    ):
+        """
+        🔐 批量人员入库接口
+        
+        批量上传人脸图像进行人员注册入库
+        支持从文件名自动提取人员姓名
+        默认按文件名排序，确保处理顺序一致性
+        """
+        try:
+            if not files:
+                raise HTTPException(status_code=400, detail="请至少上传一个文件")
+            
+            # 如果启用文件名排序，按文件名对文件进行排序
+            file_items = []
+            for i, file in enumerate(files):
+                file_items.append({
+                    'file': file,
+                    'original_index': i,
+                    'filename': file.filename or f"unnamed_file_{i+1}"
+                })
+            
+            if sort_by_filename:
+                # 按文件名排序，确保数字编号文件按正确顺序处理
+                file_items.sort(key=lambda x: x['filename'])
+                logger.info(f"批量入库：按文件名排序，处理顺序: {[item['filename'] for item in file_items]}")
+            
+            results = []
+            success_count = 0
+            error_count = 0
+            
+            # 验证参数长度一致性
+            if names and len(names) != len(files):
+                raise HTTPException(status_code=400, detail="姓名列表长度与文件数量不匹配")
+            
+            # 扩展描述列表以匹配文件数量
+            desc_list: List[Optional[str]] = []
+            if descriptions:
+                desc_list = list(descriptions)
+                while len(desc_list) < len(files):
+                    desc_list.append(None)
+            else:
+                desc_list = [None] * len(files)
+            
+            for i, item in enumerate(file_items):
+                file = item['file']
+                original_index = item['original_index']
+                # 在处理开始时立即保存文件名，避免后续状态变化
+                original_filename = item['filename']
+                name = "unknown"  # 初始化默认值
+                
+                logger.info(f"处理文件 {i+1}/{len(file_items)}: {original_filename}")
+                
+                try:
+                    # 验证文件类型
+                    if file.content_type and not file.content_type.startswith('image/'):
+                        results.append({
+                            'file_name': original_filename,
+                            'success': False,
+                            'error': '不支持的文件类型'
+                        })
+                        error_count += 1
+                        continue
+
+                    # 获取人员姓名 - 使用保存的原始文件名
+                    if names and original_index < len(names):
+                        name = names[original_index]
+                    else:
+                        # 从文件名提取姓名（去除扩展名）
+                        name = os.path.splitext(original_filename)[0]
+                        # 清理文件名作为姓名
+                        name = name.replace('_', ' ').replace('-', ' ').strip()
+                        if not name or name.startswith("unnamed_file_"):
+                            name = f"person_{i+1}"
+                    
+                    # 获取描述
+                    description = desc_list[original_index] if original_index < len(desc_list) else None
+
+                    # 检查文件大小
+                    content = await file.read()
+                    file_size = len(content)
+                    
+                    max_size = 10 * 1024 * 1024  # 10MB
+                    if file_size > max_size:
+                        results.append({
+                            'file_name': original_filename,
+                            'name': name,
+                            'success': False,
+                            'error': '文件太大'
+                        })
+                        error_count += 1
+                        continue
+
+                    # 保存临时文件
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+                    temp_file.write(content)
+                    temp_file.close()
+
+                    try:
+                        # 调用服务进行入库，传入原始文件名以便正确存储
+                        result = service.enroll_person(name, temp_file.name, description, original_filename)
+                        
+                        if result['success']:
+                            results.append({
+                                'file_name': original_filename,
+                                'name': name,
+                                'person_id': result.get('person_id'),
+                                'success': True,
+                                'quality_score': result.get('quality_score', 0)
+                            })
+                            success_count += 1
+                        else:
+                            results.append({
+                                'file_name': original_filename,
+                                'name': name,
+                                'success': False,
+                                'error': result.get('error', '入库失败')
+                            })
+                            error_count += 1
+                            
+                    finally:
+                        # 删除临时文件
+                        if os.path.exists(temp_file.name):
+                            os.unlink(temp_file.name)
+                            
+                except Exception as file_error:
+                    results.append({
+                        'file_name': original_filename,
+                        'name': name,
+                        'success': False,
+                        'error': f"处理文件失败: {str(file_error)}"
+                    })
+                    error_count += 1
+
+            return {
+                'success': True,
+                'total_files': len(files),
+                'success_count': success_count,
+                'error_count': error_count,
+                'results': results,
+                'message': f"批量入库完成：成功 {success_count} 个，失败 {error_count} 个"
+            }
+            
+        except Exception as e:
+            logger.error(f"批量入库接口错误: {str(e)}")
+            return {
+                'success': False,
+                'error': f"批量入库失败: {str(e)}",
+                'total_files': len(files) if files else 0,
+                'success_count': 0,
+                'error_count': len(files) if files else 0,
+                'results': []
+            }
 
     @app.post("/api/recognize", response_model=RecognitionResponse)
     async def recognize_face(
@@ -553,11 +713,11 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=500, detail="更新重复入库阈值失败")
 
     @app.get("/api/persons")
-    async def get_persons(service = Depends(get_face_service)):
+    async def get_persons(include_image_info: bool = Query(False, description="是否包含图片信息"), service = Depends(get_face_service)):
         """
         👥 获取所有人员列表
         
-        返回系统中所有已录入的人员信息
+        返回系统中所有已录入的人员信息，可选择包含原始文件名等图片信息
         """
         try:
             with service.db_manager.get_session() as session:
@@ -568,20 +728,20 @@ def create_app() -> FastAPI:
                 for person in persons:
                     # 获取该人员的编码数量
                     from ..models import FaceEncoding
-                    encoding_count = session.query(FaceEncoding).filter(
+                    encodings = session.query(FaceEncoding).filter(
                         FaceEncoding.person_id == person.id
-                    ).count()
+                    ).all()
+                    
+                    encoding_count = len(encodings)
                     
                     # 获取第一个人脸编码作为头像
-                    first_encoding = session.query(FaceEncoding).filter(
-                        FaceEncoding.person_id == person.id
-                    ).first()
+                    first_encoding = encodings[0] if encodings else None
                     
                     face_image_url = None
                     if first_encoding:
                         face_image_url = f"/api/face/{first_encoding.id}/image"
                     
-                    persons_data.append({
+                    person_data = {
                         "id": person.id,
                         "name": person.name,
                         "description": person.description,
@@ -589,13 +749,37 @@ def create_app() -> FastAPI:
                         "encodings_count": encoding_count,
                         "face_count": encoding_count,  # 兼容字段
                         "face_image_url": face_image_url
-                    })
+                    }
+                    
+                    # 如果请求包含图片信息，添加详细的图片文件名信息
+                    if include_image_info and encodings:
+                        person_data["image_files"] = []
+                        for encoding in encodings:
+                            person_data["image_files"].append({
+                                "encoding_id": encoding.id,
+                                "original_filename": encoding.image_path,  # 现在存储的是原始文件名
+                                "quality_score": encoding.quality_score,
+                                "created_at": encoding.created_at.isoformat() if encoding.created_at else None,
+                                "image_size": len(encoding.image_data) if encoding.image_data else 0
+                            })
+                    
+                    persons_data.append(person_data)
                 
-                return JSONResponse(content={
+                response_data = {
                     "success": True,
                     "persons": persons_data,
                     "total": len(persons_data)
-                })
+                }
+                
+                # 如果包含图片信息，添加统计摘要
+                if include_image_info:
+                    total_images = sum(len(p.get("image_files", [])) for p in persons_data)
+                    response_data["image_summary"] = {
+                        "total_images": total_images,
+                        "persons_with_multiple_images": len([p for p in persons_data if len(p.get("image_files", [])) > 1])
+                    }
+                
+                return JSONResponse(content=response_data)
         except Exception as e:
             logger.error(f"获取人员列表失败: {str(e)}")
             raise HTTPException(status_code=500, detail="获取人员列表失败")
@@ -660,8 +844,8 @@ def create_app() -> FastAPI:
             logger.error(f"获取人员人脸列表失败: {str(e)}")
             raise HTTPException(status_code=500, detail="获取人员人脸列表失败")
 
-    @app.get("/api/face/{face_id}/image")
-    async def get_face_image(face_id: int, service = Depends(get_face_service)):
+    @app.api_route("/api/face/{face_id}/image", methods=["GET", "HEAD"])
+    async def get_face_image(face_id: int, request: Request, service = Depends(get_face_service)):
         """
         🖼️ 获取人脸图片
         
@@ -678,7 +862,18 @@ def create_app() -> FastAPI:
                 if not image_data:
                     raise HTTPException(status_code=404, detail="该人脸编码没有关联的图片数据")
                 
-                # 返回图片数据
+                # 对于HEAD请求，只返回headers，不返回内容
+                if request.method == "HEAD":
+                    return Response(
+                        content="",
+                        media_type="image/jpeg",
+                        headers={
+                            "Cache-Control": "max-age=3600",
+                            "Content-Length": str(len(image_data))
+                        }
+                    )
+                
+                # 对于GET请求，返回图片数据
                 return Response(
                     content=image_data,
                     media_type="image/jpeg",
@@ -791,12 +986,20 @@ def create_app() -> FastAPI:
             from ..utils.config import config
             return JSONResponse(content={
                 "success": True,
-                "recognition_threshold": getattr(config, 'RECOGNITION_THRESHOLD', 0.2),
-                "detection_threshold": getattr(config, 'DETECTION_THRESHOLD', 0.5),
+                "recognition_threshold": getattr(config, 'RECOGNITION_THRESHOLD', 0.24),
+                "detection_threshold": getattr(config, 'DETECTION_THRESHOLD', 0.31),
                 "duplicate_threshold": config.get('face_recognition.duplicate_threshold', 0.95),
-                "max_file_size": 10 * 1024 * 1024,  # 10MB
-                "supported_formats": ["jpg", "jpeg", "png", "bmp", "gif"],
-                "model": "advanced_buffalo_l"
+                "max_file_size": getattr(config, 'MAX_FILE_SIZE', 16777216),
+                "supported_formats": getattr(config, 'ALLOWED_EXTENSIONS', ["jpg", "jpeg", "png", "bmp", "tiff", "webp", "avif"]),
+                "model": getattr(config, 'MODEL', 'buffalo_l'),
+                "providers": getattr(config, 'PROVIDERS', ["CPUExecutionProvider"]),
+                "host": getattr(config, 'HOST', '0.0.0.0'),
+                "port": getattr(config, 'PORT', 8000),
+                "debug": getattr(config, 'DEBUG', False),
+                "upload_folder": getattr(config, 'UPLOAD_FOLDER', 'data/uploads'),
+                "database_path": getattr(config, 'DATABASE_PATH', 'data/database/face_recognition.db'),
+                "models_root": getattr(config, 'MODELS_INSIGHTFACE_ROOT', 'models/insightface'),
+                "cache_dir": getattr(config, 'MODELS_CACHE_DIR', 'models/cache')
             })
         except Exception as e:
             logger.error(f"获取配置失败: {str(e)}")
@@ -847,6 +1050,15 @@ def create_app() -> FastAPI:
                 success_messages.append(f"重复阈值已更新为: {threshold_value}")
                 logger.info(f"更新重复判定阈值为: {threshold_value}")
             
+            # 保存配置到文件
+            if success_messages:
+                try:
+                    config.save()
+                    logger.info("配置已保存到config.json文件")
+                except Exception as e:
+                    logger.warning(f"保存配置文件失败: {str(e)}")
+                    # 不抛出异常，因为内存中的配置已更新
+            
             # 兼容旧版参数名
             if "tolerance" in data and "recognition_threshold" not in data:
                 threshold_value = float(data["tolerance"])
@@ -874,29 +1086,6 @@ def create_app() -> FastAPI:
             logger.error(f"更新配置失败: {str(e)}")
             raise HTTPException(status_code=500, detail="更新配置失败")
 
-    @app.get("/api/face_image/{encoding_id}")
-    async def get_face_image(encoding_id: int, service = Depends(get_face_service)):
-        """
-        🖼️ 获取人脸图片
-        
-        根据编码ID获取对应的人脸图片
-        """
-        try:
-            image_data = service.db_manager.get_face_encoding_image(encoding_id)
-            if image_data is None:
-                raise HTTPException(status_code=404, detail="未找到对应的人脸图片")
-            
-            return Response(
-                content=image_data,
-                media_type="image/jpeg",
-                headers={"Content-Disposition": f"inline; filename=face_{encoding_id}.jpg"}
-            )
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"获取人脸图片失败: {str(e)}")
-            raise HTTPException(status_code=500, detail="获取人脸图片失败")
-
     @app.delete("/api/face_encoding/{encoding_id}")
     async def delete_face_encoding(encoding_id: int, service = Depends(get_face_service)):
         """
@@ -923,6 +1112,188 @@ def create_app() -> FastAPI:
             logger.error(f"删除人脸编码失败: {str(e)}")
             raise HTTPException(status_code=500, detail="删除人脸编码失败")
 
+    @app.delete("/api/person/{person_id}/faces/{face_id}")
+    async def delete_person_face(person_id: int, face_id: int, service = Depends(get_face_service)):
+        """
+        🗑️ 删除指定人员的指定人脸
+        
+        删除指定人员的某张人脸照片
+        """
+        try:
+            with service.db_manager.get_session() as session:
+                from ..models import Person, FaceEncoding
+                
+                # 验证人员是否存在
+                person = session.query(Person).filter(Person.id == person_id).first()
+                if not person:
+                    raise HTTPException(status_code=404, detail="人员不存在")
+                
+                # 获取人员姓名，避免后续会话问题
+                person_name = person.name
+                
+                # 验证人脸编码是否存在且属于该人员
+                face_encoding = session.query(FaceEncoding).filter(
+                    FaceEncoding.id == face_id,
+                    FaceEncoding.person_id == person_id
+                ).first()
+                
+                if not face_encoding:
+                    raise HTTPException(status_code=404, detail="指定人脸不存在或不属于该人员")
+                
+                # 删除人脸编码
+                session.delete(face_encoding)
+                session.commit()
+            
+            # 在会话外清除缓存并重新加载
+            service._face_cache.clear()
+            service._load_face_cache()
+            
+            return JSONResponse(content={
+                "success": True,
+                "message": f"已删除 {person_name} 的人脸照片"
+            })
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"删除人员人脸失败: {str(e)}")
+            raise HTTPException(status_code=500, detail="删除人员人脸失败")
+
+    @app.post("/api/person/{person_id}/faces")
+    async def add_person_faces(
+        person_id: int,
+        faces: List[UploadFile] = File(..., description="人脸图像文件列表"),
+        service = Depends(get_face_service)
+    ):
+        """
+        📸 为指定人员添加更多人脸照片
+        
+        为已存在的人员添加多张人脸照片
+        """
+        try:
+            person_name = ""  # 初始化人员姓名变量
+            
+            with service.db_manager.get_session() as session:
+                from ..models import Person
+                
+                # 验证人员是否存在
+                person = session.query(Person).filter(Person.id == person_id).first()
+                if not person:
+                    raise HTTPException(status_code=404, detail="人员不存在")
+                
+                # 保存人员姓名，避免会话问题
+                person_name = person.name
+            
+            success_count = 0
+            error_count = 0
+            results = []
+            
+            for i, face_file in enumerate(faces):
+                try:
+                    # 验证文件类型
+                    if face_file.content_type and not face_file.content_type.startswith('image/'):
+                        results.append({
+                            'file_name': face_file.filename,
+                            'success': False,
+                            'error': '不支持的文件类型'
+                        })
+                        error_count += 1
+                        continue
+                    
+                    # 保存临时文件
+                    content = await face_file.read()
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+                    temp_file.write(content)
+                    temp_file.close()
+                    
+                    try:
+                        # 使用人脸识别服务处理图像并提取编码
+                        # 读取图像
+                        image = cv2.imread(temp_file.name)
+                        if image is None:
+                            results.append({
+                                'file_name': face_file.filename,
+                                'success': False,
+                                'error': '无法读取图像文件'
+                            })
+                            error_count += 1
+                            continue
+                        
+                        # 检测人脸并提取特征
+                        detected_faces = service.detect_faces(image)
+                        if not detected_faces:
+                            results.append({
+                                'file_name': face_file.filename,
+                                'success': False,
+                                'error': '未检测到人脸'
+                            })
+                            error_count += 1
+                            continue
+                        
+                        # 使用第一个检测到的人脸
+                        detected_face = detected_faces[0]
+                        encoding = detected_face.get('embedding')
+                        if encoding is None:
+                            results.append({
+                                'file_name': face_file.filename,
+                                'success': False,
+                                'error': '无法提取人脸特征'
+                            })
+                            error_count += 1
+                            continue
+                        
+                        # 读取图像数据用于存储
+                        with open(temp_file.name, 'rb') as img_file:
+                            image_data = img_file.read()
+                        
+                        # 添加到数据库
+                        face_encoding = service.db_manager.add_face_encoding(
+                            person_id=person_id,
+                            encoding=encoding,
+                            image_path=face_file.filename,  # 存储原始文件名
+                            image_data=image_data,
+                            face_bbox=str(detected_face.get('bbox', [])),
+                            confidence=detected_face.get('det_score', 1.0),
+                            quality_score=detected_face.get('quality', 1.0)
+                        )
+                        
+                        results.append({
+                            'file_name': face_file.filename,
+                            'success': True,
+                            'encoding_id': face_encoding.id,
+                            'quality_score': detected_face.get('quality', 0)
+                        })
+                        success_count += 1
+                    finally:
+                        # 清理临时文件
+                        if os.path.exists(temp_file.name):
+                            os.unlink(temp_file.name)
+                
+                except Exception as file_error:
+                    results.append({
+                        'file_name': face_file.filename,
+                        'success': False,
+                        'error': f"处理文件失败: {str(file_error)}"
+                    })
+                    error_count += 1
+            
+            return JSONResponse(content={
+                "success": True,
+                "person_id": person_id,
+                "person_name": person_name,
+                "total_files": len(faces),
+                "success_count": success_count,
+                "error_count": error_count,
+                "count": success_count,  # 兼容前端
+                "results": results,
+                "message": f"为 {person_name} 添加人脸完成：成功 {success_count} 个，失败 {error_count} 个"
+            })
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"添加人员人脸失败: {str(e)}")
+            raise HTTPException(status_code=500, detail="添加人员人脸失败")
+
     @app.post("/api/detect_faces")
     async def detect_faces(
         file: UploadFile = File(...),
@@ -946,8 +1317,9 @@ def create_app() -> FastAPI:
         """
         try:
             # 验证文件类型
-            if not file.content_type or not file.content_type.startswith('image/'):
-                raise HTTPException(status_code=400, detail="只支持图片文件")
+            allowed_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp']
+            if file.filename and not any(file.filename.lower().endswith(ext) for ext in allowed_extensions):
+                raise HTTPException(status_code=400, detail=f"不支持的文件格式。支持的格式: {', '.join(allowed_extensions)}")
             
             # 读取图片
             image_data = await file.read()

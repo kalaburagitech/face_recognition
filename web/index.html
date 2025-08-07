@@ -209,7 +209,7 @@
                                     <div class="upload-content">
                                         <i class="bi bi-cloud-upload"></i>
                                         <h6>点击或拖拽上传照片</h6>
-                                        <p class="mb-0">支持 JPEG、PNG、WebP、BMP、TIFF 格式</p>
+                                        <p class="mb-0">支持 JPEG、PNG、WebP、AVIF、BMP、TIFF 格式</p>
                                         <small class="text-muted">最大文件大小: 10MB | 推荐分辨率: 640x480以上</small>
                                     </div>
                                     <input type="file" id="imageFile" accept="image/*" style="display: none;">
@@ -290,8 +290,11 @@
                                 <form id="enrollmentForm">
                                     <div class="row">
                                         <div class="col-md-6 mb-3">
-                                            <label for="personName" class="form-label">姓名 *</label>
-                                            <input type="text" class="form-control" id="personName" placeholder="请输入姓名" required>
+                                            <label for="personName" class="form-label">
+                                                姓名 
+                                                <small class="text-muted">(可选，留空将使用文件名)</small>
+                                            </label>
+                                            <input type="text" class="form-control" id="personName" placeholder="请输入姓名或留空使用文件名">
                                         </div>
                                         <div class="col-md-6 mb-3">
                                             <label for="personDescription" class="form-label">描述</label>
@@ -682,7 +685,10 @@
                                                    min="0.8" max="0.99" step="0.01" value="0.95">
                                         </div>
                                         <small class="text-muted">当前: <span id="duplicateThresholdDisplay">0.95</span></small>
-                                        <div class="form-text text-muted mt-1">防止同一人重复注册的相似度阈值。值越大防重复越严格，需要更高的相似度才会被拒绝</div>
+                                        <div class="form-text text-muted mt-1">
+                                            防止同一人重复注册的相似度阈值。当新入库的人脸与数据库中<strong>不同姓名</strong>的人员相似度超过此阈值时，会被拒绝入库。
+                                            值越大防重复越严格。
+                                        </div>
                                     </div>
 
                                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -718,7 +724,7 @@
                                     </div>
                                     <div class="info-item">
                                         <strong>支持格式:</strong>
-                                        <span>JPEG, PNG, WebP</span>
+                                        <span>JPEG, PNG, WebP, AVIF</span>
                                     </div>
                                 </div>
                             </div>
