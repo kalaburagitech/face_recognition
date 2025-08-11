@@ -219,7 +219,8 @@ class PersonEnrollment {
                     formData.append('files', file);
                 });
 
-                // 如果填写了名称，则使用该名称作为第一个文件的名称
+                // 如果填写了名称，所有文件都将使用这个名称
+                // 如果没有填写名称，每个文件将使用各自的文件名作为姓名
                 if (name) {
                     formData.append('names', name);
                 }

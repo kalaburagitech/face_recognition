@@ -281,9 +281,16 @@ def create_app() -> FastAPI:
             success_count = 0
             error_count = 0
             
-            # 验证参数长度一致性
-            if names and len(names) != len(files):
-                raise HTTPException(status_code=400, detail="姓名列表长度与文件数量不匹配")
+            # 处理姓名列表 - 支持灵活的姓名分配
+            names_list: List[Optional[str]] = []
+            if names:
+                # 如果提供了姓名，先使用提供的姓名，不足的部分后续用文件名补充
+                names_list = list(names)
+                logger.info(f"批量入库：收到 {len(names)} 个姓名，共 {len(files)} 个文件")
+            else:
+                # 如果没有提供姓名，全部使用文件名
+                names_list = []
+                logger.info(f"批量入库：未提供姓名，将使用文件名作为姓名")
             
             # 扩展描述列表以匹配文件数量
             desc_list: List[Optional[str]] = []
@@ -314,11 +321,12 @@ def create_app() -> FastAPI:
                         error_count += 1
                         continue
 
-                    # 获取人员姓名 - 使用保存的原始文件名
-                    if names and original_index < len(names):
-                        name = names[original_index]
+                    # 获取人员姓名 - 灵活处理姓名分配
+                    if names_list and len(names_list) > 0 and names_list[0]:
+                        # 如果提供了姓名，所有文件都使用这个姓名
+                        name = names_list[0].strip()
                     else:
-                        # 从文件名提取姓名（去除扩展名）
+                        # 如果没有提供姓名，从文件名提取姓名（去除扩展名）
                         name = os.path.splitext(original_filename)[0]
                         # 清理文件名作为姓名
                         name = name.replace('_', ' ').replace('-', ' ').strip()
