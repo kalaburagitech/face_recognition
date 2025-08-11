@@ -70,6 +70,14 @@ class ModelManager:
         os.environ['TORCH_HOME'] = str(self.cache_dir / "torch")
         os.environ['TRANSFORMERS_CACHE'] = str(self.cache_dir / "transformers")
         
+        # 设置其他可能的ML库缓存目录
+        os.environ['SKLEARN_DATA_DIR'] = str(self.cache_dir / "sklearn")
+        os.environ['MPLCONFIGDIR'] = str(self.cache_dir / "matplotlib") 
+        os.environ['KERAS_HOME'] = str(self.cache_dir / "keras")
+        
+        # 设置TensorFlow相关环境变量
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'  # 减少TensorFlow日志噪音
+        
         logger.info("环境变量设置完成")
         logger.debug(f"DEEPFACE_HOME: {os.environ.get('DEEPFACE_HOME')}")
         logger.debug(f"INSIGHTFACE_HOME: {os.environ.get('INSIGHTFACE_HOME')}")
@@ -88,6 +96,12 @@ class ModelManager:
             'cache_dir': str(self.cache_dir),
             'deepface_weights': str(self.deepface_dir / ".deepface" / "weights"),
             'deepface_models': str(self.deepface_dir / ".deepface" / "models"),
+            'huggingface_cache': str(self.cache_dir / "huggingface"),
+            'torch_cache': str(self.cache_dir / "torch"),
+            'transformers_cache': str(self.cache_dir / "transformers"),
+            'sklearn_cache': str(self.cache_dir / "sklearn"),
+            'matplotlib_cache': str(self.cache_dir / "matplotlib"),
+            'keras_cache': str(self.cache_dir / "keras"),
         }
     
     def configure_insightface(self, model_name: str = 'buffalo_l') -> str:

@@ -44,7 +44,11 @@ def test_model_environment():
             'INSIGHTFACE_HOME', 
             'HUGGINGFACE_HUB_CACHE',
             'TORCH_HOME',
-            'TRANSFORMERS_CACHE'
+            'TRANSFORMERS_CACHE',
+            'SKLEARN_DATA_DIR',
+            'MPLCONFIGDIR',
+            'KERAS_HOME',
+            'TF_CPP_MIN_LOG_LEVEL'
         ]
         
         for var in env_vars:

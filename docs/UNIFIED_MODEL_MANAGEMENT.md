@@ -33,11 +33,22 @@ models/
 
 系统会自动设置以下环境变量，重定向所有模型下载到项目目录：
 
+**核心模型路径:**
 - `DEEPFACE_HOME`: `models/deepface`
-- `INSIGHTFACE_HOME`: `models/insightface`  
+- `INSIGHTFACE_HOME`: `models/insightface`
+
+**通用缓存路径:**
 - `HUGGINGFACE_HUB_CACHE`: `models/cache/huggingface`
 - `TORCH_HOME`: `models/cache/torch`
 - `TRANSFORMERS_CACHE`: `models/cache/transformers`
+
+**科学计算库缓存:**
+- `SKLEARN_DATA_DIR`: `models/cache/sklearn`
+- `MPLCONFIGDIR`: `models/cache/matplotlib`
+- `KERAS_HOME`: `models/cache/keras`
+
+**优化配置:**
+- `TF_CPP_MIN_LOG_LEVEL`: `1` (减少TensorFlow日志噪音)
 
 **注意**: DeepFace 库有固定的目录结构行为：
 - 设置 `DEEPFACE_HOME=models/deepface` 后，DeepFace 会自动在该目录下创建 `.deepface` 子目录
@@ -144,11 +155,16 @@ python test_model_management.py
 
 当前项目中的模型文件：
 
-| 类型 | 数量 | 总大小 |
-|-----|-----|-------|
-| InsightFace ONNX | 5个 | ~601MB |
-| DeepFace H5 | 1个 | ~131MB |
-| **总计** | **6个** | **~732MB** |
+| 类型 | 数量 | 总大小 | 位置 |
+|-----|-----|-------|------|
+| InsightFace ONNX | 5个 | ~601MB | `models/insightface/models/buffalo_l/` |
+| DeepFace H5 | 2个 | ~684MB | `models/deepface/.deepface/weights/` |
+| **总计** | **7个** | **~1.3GB** | **项目 models/ 目录** |
+
+**模型详情:**
+- `arcface_weights.h5` (130.7MB) - ArcFace 人脸识别模型
+- `vgg_face_weights.h5` (553.2MB) - VGG-Face 人脸识别模型  
+- InsightFace Buffalo-L 模型组 (5个ONNX文件)
 
 ## 迁移说明
 
