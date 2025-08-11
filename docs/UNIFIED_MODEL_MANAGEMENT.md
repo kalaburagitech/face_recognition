@@ -17,9 +17,10 @@ models/
 │           ├── genderage.onnx      # 性别年龄识别 (1.3MB)
 │           └── w600k_r50.onnx      # 人脸特征提取 (166.3MB)
 ├── deepface/              # DeepFace 模型目录
-│   └── .deepface/
-│       └── weights/
-│           └── arcface_weights.h5  # ArcFace 模型权重 (130.7MB)
+│   └── .deepface/         # DeepFace 自动创建的目录结构
+│       ├── weights/       # 模型权重文件
+│       │   └── arcface_weights.h5  # ArcFace 模型权重 (130.7MB)
+│       └── models/        # 其他模型文件
 └── cache/                 # 通用缓存目录
     ├── huggingface/       # HuggingFace 模型缓存
     ├── torch/             # PyTorch 模型缓存
@@ -37,6 +38,11 @@ models/
 - `HUGGINGFACE_HUB_CACHE`: `models/cache/huggingface`
 - `TORCH_HOME`: `models/cache/torch`
 - `TRANSFORMERS_CACHE`: `models/cache/transformers`
+
+**注意**: DeepFace 库有固定的目录结构行为：
+- 设置 `DEEPFACE_HOME=models/deepface` 后，DeepFace 会自动在该目录下创建 `.deepface` 子目录
+- 实际的模型文件会存储在 `models/deepface/.deepface/weights/` 下
+- 这是 DeepFace 库的内部逻辑，无法改变，但不影响正常使用
 
 ### 2. 自动模型迁移
 

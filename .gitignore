@@ -89,22 +89,22 @@ data/uploads/
 data/test_images/
 
 # Models (too large for git)
-models/buffalo_l/
-models/*.onnx
-models/*.pkl
-models/*.pt
-models/*.pth
-models/*.zip
-buffalo_l/
-*.onnx
-*.pkl
-*.pt
-*.pth
-*.zip
-
-# Keep source code models directory
-!src/models/
-!src/models/*.py
+models/
+!models/insightface/
+!models/deepface/
+!models/cache/
+models/insightface/models/**/*.onnx
+models/insightface/models/**/*.zip
+models/deepface/.deepface/**/*.h5
+models/deepface/.deepface/**/*.pb
+models/deepface/.deepface/**/*.onnx
+models/deepface/.deepface/**/*.pth
+models/deepface/.deepface/**/*.bin
+models/cache/**/*
+# Allow empty dirs for structure
+!models/insightface/.gitkeep
+!models/deepface/.gitkeep  
+!models/cache/.gitkeep
 
 # Configuration files with sensitive data
 config_prod.json

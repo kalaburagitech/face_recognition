@@ -86,8 +86,8 @@ class ModelManager:
             'insightface_dir': str(self.insightface_dir),
             'deepface_dir': str(self.deepface_dir),
             'cache_dir': str(self.cache_dir),
-            'deepface_weights': str(self.deepface_dir / "weights"),
-            'deepface_models': str(self.deepface_dir / "models"),
+            'deepface_weights': str(self.deepface_dir / ".deepface" / "weights"),
+            'deepface_models': str(self.deepface_dir / ".deepface" / "models"),
         }
     
     def configure_insightface(self, model_name: str = 'buffalo_l') -> str:
@@ -120,22 +120,19 @@ class ModelManager:
         Returns:
             DeepFace 相关路径配置
         """
-        # 创建 DeepFace 相关目录
-        weights_dir = self.deepface_dir / "weights"
-        models_dir = self.deepface_dir / "models"
-        
-        weights_dir.mkdir(parents=True, exist_ok=True)
-        models_dir.mkdir(parents=True, exist_ok=True)
+        # DeepFace 会在 DEEPFACE_HOME 下自动创建 .deepface 目录结构
+        # 我们只需要确保基础目录存在即可
+        self.deepface_dir.mkdir(parents=True, exist_ok=True)
         
         # 检查是否需要从系统默认位置迁移模型
         home_deepface = Path.home() / ".deepface"
         if home_deepface.exists():
-            self._migrate_deepface_models(home_deepface, self.deepface_dir)
+            self._migrate_deepface_models(home_deepface, self.deepface_dir / ".deepface")
         
         return {
             'deepface_home': str(self.deepface_dir),
-            'weights_dir': str(weights_dir),
-            'models_dir': str(models_dir)
+            'weights_dir': str(self.deepface_dir / ".deepface" / "weights"),
+            'models_dir': str(self.deepface_dir / ".deepface" / "models")
         }
     
     def _migrate_deepface_models(self, source_dir: Path, target_dir: Path):
