@@ -44,6 +44,9 @@
   },
   "models": {
     "insightface_root": "models/insightface",
-    "cache_dir": "models/cache"
+    "deepface_root": "models/deepface",
+    "cache_dir": "models/cache",
+    "unified_management": true,
+    "auto_migrate": true
   }
 }

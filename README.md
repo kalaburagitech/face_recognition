@@ -22,6 +22,7 @@
 - **🎨 现代界面**: Bootstrap 5 + 响应式设计，支持拖拽上传
 - **🛡️ 生产就绪**: 完整的错误处理、日志记录和监控系统
 - **📱 用户友好**: 实时进度提示、快捷键支持、离线检测
+- **📦 统一模型管理**: 所有ML模型统一存储在项目目录，便于管理和部署
 
 ### 🎛️ 主要功能
 - **人脸入库**: 单张/批量入库，自动人脸检测和质量评估
@@ -37,11 +38,15 @@
 │   ├── api/               # FastAPI 路由和接口
 │   ├── models/            # 数据模型和数据库
 │   ├── services/          # 业务逻辑服务
-│   └── utils/             # 工具函数
+│   └── utils/             # 工具函数和模型管理
 ├── web/                   # 前端界面
 │   ├── css/              # 样式文件
 │   ├── js/               # JavaScript 逻辑
 │   └── index.html        # 主页面
+├── models/               # 统一模型存储目录 🆕
+│   ├── insightface/      # InsightFace 模型文件
+│   ├── deepface/         # DeepFace 模型文件
+│   └── cache/            # 模型缓存目录
 ├── scripts/              # 脚本工具
 ├── tests/                # 测试用例
 ├── data/                 # 数据存储
@@ -99,7 +104,39 @@ python main.py --reload --log-level DEBUG
 ### 访问系统
 启动后访问: http://localhost:8000
 
-## 📖 使用指南
+## � 统一模型管理
+
+### 🎯 设计理念
+系统采用统一模型管理架构，将所有机器学习模型文件集中存储在项目的 `models/` 目录下，避免模型文件散布在系统各处，便于管理和部署。
+
+### 📁 模型目录结构
+```
+models/
+├── insightface/           # InsightFace 模型 (~601MB)
+│   └── models/buffalo_l/  # Buffalo-L 模型文件
+├── deepface/              # DeepFace 模型 (~131MB) 
+│   └── .deepface/weights/ # ArcFace 权重文件
+└── cache/                 # 通用模型缓存
+    ├── huggingface/       # HuggingFace 缓存
+    ├── torch/             # PyTorch 缓存
+    └── transformers/      # Transformers 缓存
+```
+
+### ✨ 主要优势
+- **🎯 统一管理**: 所有模型文件集中在一个位置
+- **🚀 自动配置**: 启动时自动设置环境变量和路径
+- **📦 便于部署**: 模型文件跟随项目，支持容器化
+- **🔄 自动迁移**: 自动从系统默认位置迁移现有模型
+
+### 🧪 验证配置
+运行测试脚本验证模型管理是否正常：
+```bash
+python test_model_management.py
+```
+
+详细文档: [统一模型管理文档](docs/UNIFIED_MODEL_MANAGEMENT.md)
+
+## �📖 使用指南
 
 ### 🚀 多种启动方式
 

@@ -27,6 +27,7 @@ import onnxruntime
 # 本地模块
 from ..models.database import DatabaseManager, Person, FaceEncoding
 from ..utils.config import config
+from ..utils.model_manager import get_model_manager
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,9 @@ class AdvancedFaceRecognitionService:
                 - buffalo_m: 中型模型，平衡精度和速度
                 - buffalo_s: 小型模型，最快速度
         """
+        # 初始化模型管理器
+        self.model_manager = get_model_manager()
+        
         self.db_manager = DatabaseManager()
         self.model_name = model_name
         
@@ -74,19 +78,18 @@ class AdvancedFaceRecognitionService:
     def _init_insightface(self):
         """初始化 InsightFace"""
         try:
-            # 设置模型路径
-            model_path = Path("models/insightface")
-            model_path.mkdir(parents=True, exist_ok=True)
+            # 使用模型管理器配置 InsightFace 路径
+            model_root = self.model_manager.configure_insightface(self.model_name)
             
             # 初始化应用
             self.app = insightface.app.FaceAnalysis(
                 name=self.model_name,
-                root=str(model_path),
+                root=model_root,
                 providers=['CPUExecutionProvider']  # 使用 CPU，GPU 可改为 CUDAExecutionProvider
             )
             self.app.prepare(ctx_id=0, det_size=(640, 640))
             
-            logger.info("InsightFace 初始化成功")
+            logger.info(f"InsightFace 初始化成功，模型路径: {model_root}")
             
         except Exception as e:
             logger.error(f"InsightFace 初始化失败: {str(e)}")
@@ -94,6 +97,10 @@ class AdvancedFaceRecognitionService:
     
     def _init_deepface(self):
         """初始化 DeepFace 配置"""
+        # 配置 DeepFace 模型路径
+        deepface_config = self.model_manager.configure_deepface()
+        logger.info(f"DeepFace 配置路径: {deepface_config['deepface_home']}")
+        
         self.deepface_models = [
             'ArcFace',      # 最新的 ArcFace 模型
             'Facenet512',   # 高维特征 FaceNet

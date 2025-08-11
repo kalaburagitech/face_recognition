@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
 人脸识别系统主程序入口
-Face Recognition System Main Entry Point
-
-Usage:
-    python main.py
-    python main.py --host 0.0.0.0 --port 8000 --reload
+支持 Web API 和 CLI 模式
 """
 
+import sys
+import os
 import argparse
 import logging
-import os
-import sys
 from pathlib import Path
 
-# 添加项目根目录到Python路径
+# 添加项目根目录到 Python 路径
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
+
+# 设置模型环境（在导入其他模块之前）
+from src.utils.model_manager import setup_model_environment
+setup_model_environment()
 
 # 导入FastAPI应用
 from src.api.advanced_fastapi_app import create_app
