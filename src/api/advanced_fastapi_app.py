@@ -496,15 +496,25 @@ def create_app() -> FastAPI:
     @app.post("/api/recognize_visual", summary="人脸识别（带可视化）")
     async def recognize_face_with_visualization(
         file: UploadFile = File(..., description="待识别的图像文件"),
-        threshold: float = 0.6,
+        threshold: Optional[float] = None,
         service = Depends(get_face_service)
     ):
         """
         🔍 人脸识别接口（带可视化）
         
         上传图像进行人脸识别，返回标注了检测框和匹配信息的图像
+        如果不提供阈值参数，将使用配置文件中的识别阈值
         """
         try:
+            # 如果没有提供阈值，从配置文件读取
+            if threshold is None:
+                import json
+                try:
+                    with open('config.json', 'r') as f:
+                        config_data = json.load(f)
+                        threshold = config_data.get('face_recognition', {}).get('recognition_threshold', 0.25)
+                except:
+                    threshold = 0.25  # 默认值，与配置文件一致
             # 验证文件类型
             if not file.content_type or not file.content_type.startswith('image/'):
                 raise HTTPException(status_code=400, detail="只支持图像文件")
@@ -521,6 +531,9 @@ def create_app() -> FastAPI:
             result = service.recognize_face_with_threshold(image, threshold)
             
             if result['success']:
+                # 确保threshold不为None（此时已经被赋值）
+                assert threshold is not None, "threshold should not be None at this point"
+                
                 # 使用增强可视化器生成可视化图像
                 visual_result = visualizer.visualize_recognition_results(
                     image, result['matches'], threshold

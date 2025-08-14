@@ -11,7 +11,7 @@ class Config:
     """配置管理类"""
     
     # 人脸识别配置
-    RECOGNITION_THRESHOLD = 0.6
+    RECOGNITION_THRESHOLD = 0.25
     MODEL = "buffalo_l"
     DEEPFACE_MODEL = "ArcFace"
     DET_SIZE = [640, 640]
@@ -39,7 +39,7 @@ class Config:
         """从配置文件更新类属性"""
         if 'face_recognition' in self.config:
             face_config = self.config['face_recognition']
-            self.RECOGNITION_THRESHOLD = face_config.get('recognition_threshold', 0.6)
+            self.RECOGNITION_THRESHOLD = face_config.get('recognition_threshold', 0.25)
             self.DETECTION_THRESHOLD = face_config.get('detection_threshold', 0.5)
             self.MODEL = face_config.get('model', 'buffalo_l')
             self.DEEPFACE_MODEL = face_config.get('deepface_model', 'ArcFace')

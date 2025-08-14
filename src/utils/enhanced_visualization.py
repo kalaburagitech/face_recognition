@@ -534,7 +534,7 @@ class EnhancedFaceVisualizer:
                                color, style="square")
     
     def visualize_recognition_results(self, image: np.ndarray, matches: List[Dict], 
-                                    threshold: float = 0.6) -> Dict[str, Any]:
+                                    threshold: float = 0.25) -> Dict[str, Any]:
         """
         可视化人脸识别结果
         

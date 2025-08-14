@@ -657,7 +657,7 @@ class AdvancedFaceRecognitionService:
             logger.error(f"获取统计信息失败: {str(e)}")
             return {}
 
-    def recognize_face_with_threshold(self, image: np.ndarray, threshold: float = 0.6) -> Dict[str, Any]:
+    def recognize_face_with_threshold(self, image: np.ndarray, threshold: float = 0.25) -> Dict[str, Any]:
         """
         使用自定义阈值进行人脸识别
         
