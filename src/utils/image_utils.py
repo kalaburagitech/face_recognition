@@ -23,8 +23,10 @@ def validate_image(image_path: str) -> bool:
         if not os.path.exists(image_path):
             return False
         
-        # 检查文件扩展名
-        valid_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp', '.avif'}
+        # 检查文件扩展名 - 从配置文件读取
+        from .config import config
+        allowed_extensions = config.get_allowed_extensions_with_dot()
+        valid_extensions = set(ext.lower() for ext in allowed_extensions)
         _, ext = os.path.splitext(image_path.lower())
         if ext not in valid_extensions:
             return False

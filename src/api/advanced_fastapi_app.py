@@ -1011,7 +1011,7 @@ def create_app() -> FastAPI:
                 "detection_threshold": getattr(config, 'DETECTION_THRESHOLD', 0.31),
                 "duplicate_threshold": config.get('face_recognition.duplicate_threshold', 0.95),
                 "max_file_size": getattr(config, 'MAX_FILE_SIZE', 16777216),
-                "supported_formats": getattr(config, 'ALLOWED_EXTENSIONS', ["jpg", "jpeg", "png", "bmp", "tiff", "webp", "avif"]),
+                "supported_formats": config.ALLOWED_EXTENSIONS,
                 "model": getattr(config, 'MODEL', 'buffalo_l'),
                 "providers": getattr(config, 'PROVIDERS', ["CPUExecutionProvider"]),
                 "host": getattr(config, 'HOST', '0.0.0.0'),
@@ -1337,8 +1337,8 @@ def create_app() -> FastAPI:
             检测到的所有人脸信息
         """
         try:
-            # 验证文件类型
-            allowed_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp']
+            # 验证文件类型 - 从配置文件读取
+            allowed_extensions = config.get_allowed_extensions_with_dot()
             if file.filename and not any(file.filename.lower().endswith(ext) for ext in allowed_extensions):
                 raise HTTPException(status_code=400, detail=f"不支持的文件格式。支持的格式: {', '.join(allowed_extensions)}")
             
