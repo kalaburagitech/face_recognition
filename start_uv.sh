@@ -27,7 +27,11 @@ fi
 
 # 创建或同步虚拟环境 (使用Python 3.12)
 echo "创建/同步虚拟环境 (Python 3.12)..."
-uv venv --python 3.12
+if [[ ! -d ".venv" ]]; then
+    uv venv --python 3.12
+else
+    echo "虚拟环境已存在，跳过创建步骤"
+fi
 
 # 激活虚拟环境
 echo "激活虚拟环境..."
@@ -47,4 +51,32 @@ mkdir -p logs
 # 启动应用
 echo "🚀 启动先进人脸识别系统 (InsightFace + DeepFace + FastAPI)..."
 echo "特性: 99.83% LFW精度 + 多模型支持 + 属性分析"
-python main.py
+
+# 检查是否是测试模式
+if [[ "$1" == "--test" ]]; then
+    echo "🧪 测试模式：检查依赖和配置..."
+    python -c "
+import sys
+sys.path.insert(0, '.')
+try:
+    from src.utils.model_manager import setup_model_environment
+    setup_model_environment()
+    print('✅ 模型环境配置正常')
+except Exception as e:
+    print(f'❌ 模型环境配置失败: {e}')
+    sys.exit(1)
+
+try:
+    from src.api.advanced_fastapi_app import create_app
+    app = create_app()
+    print('✅ FastAPI应用创建正常')
+except Exception as e:
+    print(f'❌ FastAPI应用创建失败: {e}')
+    sys.exit(1)
+
+print('✅ 所有依赖检查通过，可以正常启动服务')
+"
+    echo "测试完成！运行 './start_uv.sh' 启动服务"
+else
+    python main.py "$@"
+fi
