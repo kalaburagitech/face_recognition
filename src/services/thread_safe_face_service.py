@@ -82,6 +82,11 @@ class ThreadSafeFaceService:
         with self._cache_lock:
             return self._service.get_statistics()
     
+    def get_all_persons(self) -> list:
+        """线程安全的获取所有人员"""
+        with self._cache_lock:
+            return self._service.db_manager.get_all_persons()
+    
     def recognize_face_with_threshold(self, image, threshold: float = 0.25) -> Dict[str, Any]:
         """线程安全的带阈值人脸识别"""
         with self._cache_lock:
@@ -91,6 +96,12 @@ class ThreadSafeFaceService:
         """线程安全的人脸检测可视化"""
         with self._service_lock:
             return self._service.visualize_face_detection(image_path)
+    
+    @property
+    def _face_cache(self) -> Dict[str, Any]:
+        """线程安全的缓存访问"""
+        with self._cache_lock:
+            return self._service._face_cache
 
 
 # 全局单例实例
