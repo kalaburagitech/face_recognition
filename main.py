@@ -86,7 +86,14 @@ def main():
     print("🔄 热重载: {}".format('启用' if args.reload else '禁用'))
     
     if args.use_gunicorn and not args.reload:
-        print("🚀 架构: Gunicorn + {}线程 (生产优化)".format(args.threads))
+        # 检查worker配置
+        if args.workers > 1:
+            print("⚠️  警告: 检测到多worker配置 (workers={})".format(args.workers))
+            print("⚠️  多进程模式可能导致人脸入库数据竞争问题")
+            print("⚠️  建议使用: --workers 1 --threads {} 获得最佳性能和数据一致性".format(args.threads * args.workers))
+            print("-" * 60)
+        
+        print("🚀 架构: Gunicorn + {}worker + {}线程 (生产优化)".format(args.workers, args.threads))
         print("💡 特性: 多线程共享模型内存，5-8x性能提升")
         print("🔒 线程安全: SQLAlchemy scoped_session + RLock保护")
         print("=" * 60)
@@ -100,12 +107,10 @@ def main():
             f"--workers={args.workers}",
             f"--threads={args.threads}",
             "--worker-class=uvicorn.workers.UvicornWorker",
-            "--factory",
             f"--log-level={args.log_level.lower()}",
             "--access-logfile=-",
             "--error-logfile=-",
             "--timeout=120",
-            "--keepalive=5",
             "--max-requests=1000",
             "--max-requests-jitter=50",
             "--preload"  # 预加载应用，共享模型内存
