@@ -65,7 +65,6 @@ def main():
     parser.add_argument("--port", type=int, default=8000, help="服务器监听端口")
     parser.add_argument("--reload", action="store_true", help="启用热重载 (开发模式)")
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="日志级别")
-    parser.add_argument("--workers", type=int, default=1, help="工作进程数")
     
     args = parser.parse_args()
     
@@ -80,10 +79,11 @@ def main():
     print("=" * 60)
     print("🎯 人脸识别系统 (Face Recognition System)")
     print("=" * 60)
-    print(f"🚀 启动地址: http://{args.host}:{args.port}")
-    print(f"📊 管理界面: http://{args.host}:{args.port}/docs")
-    print(f"📝 日志级别: {args.log_level}")
-    print(f"🔄 热重载: {'启用' if args.reload else '禁用'}")
+    print("🚀 启动地址: http://{}:{}".format(args.host, args.port))
+    print("📊 管理界面: http://{}:{}/docs".format(args.host, args.port))
+    print("📝 日志级别: {}".format(args.log_level))
+    print("🔄 热重载: {}".format('启用' if args.reload else '禁用'))
+    print("💡 架构: 单进程 + AsyncIO (高性能异步)")
     print("=" * 60)
     
     try:
@@ -97,7 +97,6 @@ def main():
             host=args.host,
             port=args.port,
             reload=args.reload,
-            workers=args.workers if not args.reload else 1,
             log_level=args.log_level.lower(),
             access_log=True
         )

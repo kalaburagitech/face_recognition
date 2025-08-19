@@ -613,3 +613,14 @@ class OptimizedDatabaseManager:
 
 # 向后兼容的全局变量
 DatabaseManager = OptimizedDatabaseManager
+
+# 全局数据库管理器实例
+_database_manager = None
+
+def get_database_manager() -> OptimizedDatabaseManager:
+    """获取数据库管理器单例"""
+    global _database_manager
+    if _database_manager is None:
+        from ..utils.config import config
+        _database_manager = OptimizedDatabaseManager(config.DATABASE_PATH)
+    return _database_manager

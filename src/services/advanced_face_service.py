@@ -69,9 +69,10 @@ class AdvancedFaceRecognitionService:
         # 设置 DeepFace 配置
         self._init_deepface()
         
-        # 人脸特征缓存
+        # 使用内存缓存系统
         self._face_cache = {}
         self._load_face_cache()
+        logger.info("📝 使用内存缓存模式")
         
         logger.info(f"先进人脸识别服务初始化完成，使用模型: {model_name}")
     
@@ -392,7 +393,7 @@ class AdvancedFaceRecognitionService:
                     quality_score=face['quality']
                 )
                 
-                # 更新缓存
+                # 更新内存缓存
                 if person_id not in self._face_cache:
                     self._face_cache[person_id] = {
                         'name': name,
@@ -499,7 +500,10 @@ class AdvancedFaceRecognitionService:
             threshold = 0.3  # 默认值
         
         try:
-            for person_id, cached_data in self._face_cache.items():
+            # 从内存缓存获取数据
+            cache_items = self._face_cache.items()
+            
+            for person_id, cached_data in cache_items:
                 cached_embeddings = cached_data['embeddings']
                 
                 # 遍历该人员的所有特征向量

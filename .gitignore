@@ -116,6 +116,7 @@ tmp/
 temp/
 *.tmp
 *.temp
+ossutil_output
 
 # Face recognition specific
 face_recognition.db

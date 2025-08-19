@@ -1411,6 +1411,15 @@ def create_app() -> FastAPI:
             logger.error(f"人脸检测失败: {str(e)}")
             raise HTTPException(status_code=500, detail=f"人脸检测失败: {str(e)}")
 
+    @app.get("/health")
+    @app.head("/health")
+    async def health_check_docker():
+        """Docker 健康检查接口"""
+        try:
+            return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Service unhealthy: {str(e)}")
+
     @app.get("/api/health")
     @app.head("/api/health")
     async def health_check():
