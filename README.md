@@ -412,10 +412,3 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ---
 
-## 📞 技术支持
-
-- **GitHub Issues**: [提交问题](https://github.com/ccfco/face-recognition-system/issues)
-- **项目文档**: [详细文档](https://github.com/ccfco/face-recognition-system/wiki)
-- **更新日志**: [版本历史](https://github.com/ccfco/face-recognition-system/releases)
-
-🚀 **立即体验世界级人脸识别技术！**
