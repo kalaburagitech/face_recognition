@@ -27,6 +27,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from ..services.advanced_face_service import get_advanced_face_service
 from ..utils.config import config, get_upload_config
 from src.utils.enhanced_visualization import EnhancedFaceVisualizer
+from src.utils.font_manager import get_font_manager
 
 logger = logging.getLogger(__name__)
 
@@ -1445,50 +1446,21 @@ def create_app() -> FastAPI:
 
 def draw_chinese_text(img, text, position, font_size=20, color=(255, 255, 255)):
     """
-    在图像上绘制中文文字，支持多种字体回退
+    在图像上绘制中文文字，使用统一的字体管理器
     """
     try:
         # 转换为PIL图像
         img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         draw = ImageDraw.Draw(img_pil)
         
-        # 更全面的中文字体列表
-        font_paths = [
-            # Linux 中文字体
-            "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-            "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc", 
-            "/usr/share/fonts/truetype/arphic/uming.ttc",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            # Windows 字体
-            "C:/Windows/Fonts/simhei.ttf",
-            "C:/Windows/Fonts/simsun.ttc",
-            "C:/Windows/Fonts/msyh.ttc",
-            # macOS 字体
-            "/System/Library/Fonts/Arial.ttf",
-            "/System/Library/Fonts/PingFang.ttc"
-        ]
-        
-        font = None
-        for font_path in font_paths:
-            if os.path.exists(font_path):
-                try:
-                    font = ImageFont.truetype(font_path, font_size)
-                    # 测试字体是否能渲染中文
-                    test_bbox = draw.textbbox((0, 0), "测试", font=font)
-                    if test_bbox[2] > test_bbox[0]:  # 宽度大于0说明能渲染
-                        break
-                except Exception:
-                    continue
+        # 获取字体管理器并加载字体
+        font_manager = get_font_manager()
+        font = font_manager.get_font(font_size)
         
         if font is None:
-            # 如果没有找到合适字体，使用默认字体但增大尺寸
-            try:
-                font = ImageFont.load_default()
-            except:
-                # 最后回退：使用OpenCV绘制
-                cv2.putText(img, str(text), position, cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-                return img
+            # 如果字体管理器无法提供字体，使用OpenCV绘制
+            cv2.putText(img, str(text), position, cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+            return img
         
         # 添加文字背景以提高可读性
         try:
@@ -1511,6 +1483,7 @@ def draw_chinese_text(img, text, position, font_size=20, color=(255, 255, 255)):
         
     except Exception as e:
         # 如果PIL完全失败，使用OpenCV绘制
+        logger.error(f"绘制中文文字失败: {e}")
         try:
             # 尝试编码为ASCII，失败则显示英文替代
             display_text = text.encode('ascii', 'ignore').decode('ascii')

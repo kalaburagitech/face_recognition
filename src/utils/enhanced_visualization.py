@@ -11,6 +11,7 @@ import base64
 from typing import List, Dict, Tuple, Any, Optional
 import colorsys
 import math
+from .font_manager import get_font_manager
 
 class EnhancedFaceVisualizer:
     """增强的人脸可视化器"""
@@ -18,15 +19,7 @@ class EnhancedFaceVisualizer:
     def __init__(self):
         self.colors = self._generate_distinct_colors(20)  # 预生成20种不同颜色
         self.font_cache = {}  # 字体缓存，提高性能
-        self.font_paths = [
-            "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",  # 文泉驿微米黑
-            "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",    # 文泉驿正黑
-            "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",  # Droid Sans
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-            None  # 系统默认字体
-        ]
-        self.font = self._load_font()
+        self.font_manager = get_font_manager()  # 使用统一的字体管理器
     
     def _generate_distinct_colors(self, num_colors: int) -> List[Tuple[int, int, int]]:
         """生成视觉上区分度高的颜色"""
@@ -46,44 +39,12 @@ class EnhancedFaceVisualizer:
         return colors
     
     def _load_font(self, size: int = 20) -> Optional[Any]:
-        """加载合适的字体，支持缓存"""
-        cache_key = f"font_{size}"
-        if cache_key in self.font_cache:
-            return self.font_cache[cache_key]
-            
-        for font_path in self.font_paths:
-            try:
-                if font_path:
-                    font = ImageFont.truetype(font_path, size)
-                    # 测试中文字符
-                    test_text = "测试"
-                    font.getbbox(test_text)
-                    self.font_cache[cache_key] = font
-                    return font
-                else:
-                    font = ImageFont.load_default()
-                    self.font_cache[cache_key] = font
-                    return font
-            except Exception as e:
-                print(f"Failed to load font {font_path}: {e}")
-                continue
-        return None
+        """加载合适的字体，使用字体管理器"""
+        return self.font_manager.get_font(size)
     
     def _get_text_size(self, text: str, font_size: int = 20) -> Tuple[int, int]:
-        """获取文字尺寸，使用缓存字体"""
-        font = self._load_font(font_size)
-        if font:
-            try:
-                bbox = font.getbbox(text)
-                return int(bbox[2] - bbox[0]), int(bbox[3] - bbox[1])
-            except Exception as e:
-                print(f"Error getting text size: {e}")
-        
-        # 回退到估算（考虑中文字符）
-        char_count = len(text)
-        # 中文字符宽度约为字体大小的0.9倍，英文约0.6倍
-        avg_width = font_size * 0.8  # 平均值
-        return int(char_count * avg_width), int(font_size * 1.2)
+        """获取文字尺寸，使用字体管理器"""
+        return self.font_manager.get_text_size(text, font_size)
     
     def _calculate_adaptive_font_size(self, bbox: List[int], text: str, 
                                      min_size: int = 12, max_size: int = 24) -> int:

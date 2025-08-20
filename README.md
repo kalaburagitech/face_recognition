@@ -20,10 +20,15 @@
 - **人员入库**: 支持单人/批量入库，智能去重
 - **实时识别**: 毫秒级人脸识别响应
 - **属性分析**: 年龄、性别、表情分析
+- **中文支持**: 完整的中文字体管理，支持中文人员姓名显示
 - **Web管理界面**: 直观的可视化管理
 - **RESTful API**: 完整的API接口
 
 ## 🚀 快速开始
+
+### 环境要求
+- Python 3.8+
+- 支持中文字体的系统（已内置字体文件）
 
 ### 一键启动（推荐）
 
@@ -32,7 +37,10 @@
 git clone https://github.com/ccfco/face-recognition-system.git
 cd face-recognition-system
 
-# 2. 启动服务（自动安装依赖和模型）
+# 2. 设置字体环境（可选，系统会自动配置）
+./scripts/setup_fonts.sh
+
+# 3. 启动服务（自动安装依赖和模型）
 chmod +x start_uv.sh
 ./start_uv.sh
 ```
@@ -352,8 +360,23 @@ git pull origin main
 # 更新依赖
 pip install -r requirements.txt --upgrade
 
+# 更新字体环境
+./scripts/setup_fonts.sh
+
 # 验证更新
 ./start_uv.sh --test
+```
+
+### 字体管理
+```bash
+# 检查字体状态
+python scripts/font_manager.py check
+
+# 测试中文字体渲染
+python scripts/font_manager.py test --text "测试中文显示"
+
+# 重新安装项目字体
+python scripts/font_manager.py install
 ```
 
 ### 数据迁移
@@ -364,6 +387,17 @@ python -c "from src.models.database import DatabaseManager; print(DatabaseManage
 # 执行数据迁移（如需要）
 python scripts/migrate_database.py
 ```
+
+## 🎨 中文字体支持
+
+本项目已完整集成中文字体管理系统，确保在任何环境下都能正确显示中文字符：
+
+- **内置字体**: 项目包含文泉驿微米黑和正黑字体文件
+- **智能回退**: 自动选择最佳可用字体
+- **跨平台支持**: Linux、Windows、macOS全平台兼容
+- **Docker优化**: 容器环境下自动配置字体
+
+详细信息请参考 [字体管理指南](docs/FONT_MANAGEMENT.md)。
 
 ## 📄 许可证
 

@@ -18,8 +18,12 @@ RUN apt-get update && apt-get install -y \
     libgthread-2.0-0 \
     libgtk-3-0 \
     libfontconfig1 \
+    fonts-wqy-microhei \
+    fonts-wqy-zenhei \
+    fontconfig \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -fv
 
 # 复制requirements文件
 COPY requirements.txt .
@@ -31,7 +35,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # 创建必要的目录
-RUN mkdir -p data/database data/faces data/uploads logs models
+RUN mkdir -p data/database data/faces data/uploads logs models assets/fonts
+
+# 复制项目字体文件
+COPY assets/fonts/ assets/fonts/
+
+# 确保字体缓存刷新
+RUN fc-cache -fv
 
 # 设置环境变量
 ENV PYTHONPATH=/app
