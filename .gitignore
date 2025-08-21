@@ -83,11 +83,13 @@ logs/
 
 # Data and uploads
 uploads/
+data/低分辨率图片/
 data/faces/
 data/temp/
 data/database/
 data/uploads/
 data/test_images/
+results/
 
 # Models (too large for git)
 models/

@@ -2755,7 +2755,7 @@ class PersonManagement {
                                     <div class="text-muted">
                                         ${item.name ? `姓名: ${item.name}` : ''}
                                         ${item.success ? 
-                                            `${item.person_id ? ` | ID: ${item.person_id}` : ''}${item.quality_score ? ` | 质量: ${(item.quality_score * 100).toFixed(1)}%` : ''}` :
+                                            `${item.person_id ? ` | 人员ID: ${item.person_id}` : ''}${item.face_encoding_id ? ` | 人脸ID: ${item.face_encoding_id}` : ''}${item.quality_score ? ` | 质量: ${(item.quality_score * 100).toFixed(1)}%` : ''}` :
                                             ` | 错误: ${item.error}`
                                         }
                                     </div>

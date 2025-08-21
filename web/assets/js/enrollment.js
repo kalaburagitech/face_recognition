@@ -340,6 +340,7 @@ class PersonEnrollment {
                 </div>
                 <div class="small text-muted mt-2">
                     <div><strong>人员ID:</strong> ${result.person_id}</div>
+                    ${result.face_encoding_id ? `<div><strong>人脸ID:</strong> ${result.face_encoding_id}</div>` : ''}
                     <div><strong>姓名:</strong> ${result.person_name || result.name}</div>
                     ${result.description ? `<div><strong>描述:</strong> ${result.description}</div>` : ''}
                     <div><strong>处理时间:</strong> ${result.processing_time ? (result.processing_time * 1000).toFixed(0) + 'ms' : 'N/A'}</div>

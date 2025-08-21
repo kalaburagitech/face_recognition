@@ -62,6 +62,7 @@ class RecognitionResponse(BaseModel):
 class EnrollmentResponse(BaseModel):
     success: bool
     person_id: Optional[int] = None
+    face_encoding_id: Optional[int] = None  # 人脸特征ID
     person_name: Optional[str] = None
     description: Optional[str] = None
     faces_detected: Optional[int] = None
@@ -217,6 +218,7 @@ def create_app() -> FastAPI:
                     return EnrollmentResponse(
                         success=True,
                         person_id=int(result['person_id']),
+                        face_encoding_id=int(result.get('face_encoding_id', 0)) if result.get('face_encoding_id') else None,
                         person_name=name,
                         description=description,
                         faces_detected=int(result.get('faces_detected', 1)),
@@ -226,6 +228,89 @@ def create_app() -> FastAPI:
                         embeddings_count=1,
                         visualized_image=visualized_image,
                         face_details=face_details
+                    )
+                else:
+                    return EnrollmentResponse(
+                        success=False,
+                        error=result['error']
+                    )
+            finally:
+                # 清理临时文件
+                os.unlink(temp_file.name)
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"入库接口错误: {str(e)}")
+            return EnrollmentResponse(
+                success=False,
+                error=f"服务器内部错误: {str(e)}"
+            )
+
+    @app.post("/api/enroll_simple", response_model=EnrollmentResponse)
+    async def enroll_person_simple(
+        file: UploadFile = File(..., description="人脸图像文件"),
+        name: str = Form(..., description="人员姓名"),
+        description: Optional[str] = Form(None, description="人员描述"),
+        service = Depends(get_face_service)
+    ):
+        """
+        🔐 人员入库接口 (简化版)
+        
+        上传人脸图像进行人员注册入库，不返回图片数据节省带宽
+        """
+        try:
+            # 验证文件类型
+            if file.content_type and not file.content_type.startswith('image/'):
+                raise HTTPException(status_code=400, detail="只支持图像文件")
+
+            # 保存临时文件
+            upload_config = get_upload_config()
+            
+            # 检查文件大小
+            content = await file.read()
+            file_size = len(content)
+            
+            max_size = 10 * 1024 * 1024  # 10MB 默认值
+            if upload_config and isinstance(upload_config, dict):
+                max_size = upload_config.get('MAX_FILE_SIZE', max_size)
+            
+            # 确保 max_size 是整数
+            if isinstance(max_size, (int, float)):
+                if file_size > max_size:
+                    raise HTTPException(status_code=400, detail="文件太大")
+            else:
+                # 如果配置有问题，使用默认值
+                if file_size > 10 * 1024 * 1024:
+                    raise HTTPException(status_code=400, detail="文件太大")
+
+            # 保存临时文件
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            temp_file.write(content)
+            temp_file.close()
+
+            try:
+                # 调用服务进行入库
+                import time
+                start_time = time.time()
+                result = service.enroll_person(name, temp_file.name, description, file.filename)
+                processing_time = time.time() - start_time
+                
+                if result['success']:
+                    return EnrollmentResponse(
+                        success=True,
+                        person_id=int(result['person_id']),
+                        face_encoding_id=int(result.get('face_encoding_id', 0)) if result.get('face_encoding_id') else None,
+                        person_name=name,
+                        description=description,
+                        faces_detected=int(result.get('faces_detected', 1)),
+                        face_quality=float(result.get('quality_score', 0.0)) if result.get('quality_score') else None,
+                        processing_time=float(processing_time),
+                        feature_dim=int(result.get('feature_dim', 0)) if result.get('feature_dim') else None,
+                        embeddings_count=1,
+                        # 简化版本不返回图片数据
+                        visualized_image=None,
+                        face_details=None
                     )
                 else:
                     return EnrollmentResponse(
@@ -366,6 +451,7 @@ def create_app() -> FastAPI:
                                 'file_name': original_filename,
                                 'name': name,
                                 'person_id': result.get('person_id'),
+                                'face_encoding_id': result.get('face_encoding_id'),  # 添加人脸特征ID
                                 'success': True,
                                 'quality_score': result.get('quality_score', 0)
                             })
@@ -1281,7 +1367,7 @@ def create_app() -> FastAPI:
                         results.append({
                             'file_name': face_file.filename,
                             'success': True,
-                            'encoding_id': face_encoding.id,
+                            'face_encoding_id': face_encoding.id,  # 统一使用face_encoding_id字段名
                             'quality_score': detected_face.get('quality', 0)
                         })
                         success_count += 1
