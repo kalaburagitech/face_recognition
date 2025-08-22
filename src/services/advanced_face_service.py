@@ -448,90 +448,57 @@ class AdvancedFaceRecognitionService:
             # 获取图像尺寸
             height, width = img.shape[:2]
             
-            # 检测人脸
-            faces = self.detect_faces(img)
-            
-            if not faces:
-                return {
-                    'success': True, 
-                    'faces': [], 
-                    'total_faces': 0,
-                    'message': '未检测到人脸',
-                    'image_size': [width, height]
-                }
-            
             face_embeddings = []
             
             # 直接使用InsightFace获取人脸和特征
             try:
                 if self.app is not None:
+                    logger.info("开始使用InsightFace进行人脸检测和特征提取")
                     # 直接获取所有人脸和特征
                     faces_with_features = self.app.get(img)
+                    logger.info(f"InsightFace检测到 {len(faces_with_features)} 个人脸")
                     
-                    for face_result in faces_with_features:
+                    for i, face_result in enumerate(faces_with_features):
+                        logger.info(f"处理第 {i+1} 个人脸")
                         # 应用检测阈值过滤
                         detection_threshold = getattr(config, 'DETECTION_THRESHOLD', 0.5)
+                        logger.info(f"检测置信度: {face_result.det_score}, 阈值: {detection_threshold}")
+                        
                         if face_result.det_score < detection_threshold:
+                            logger.info(f"人脸 {i+1} 置信度过低，跳过")
                             continue
                         
                         # 构建人脸信息
-                        face_info = {
-                            'bbox': face_result.bbox.astype(int).tolist(),
-                            'confidence': float(face_result.det_score),
-                            'quality': float(face_result.det_score),  # 使用检测置信度作为质量分数
-                            'embedding': face_result.normed_embedding.tolist()  # 使用标准化的特征向量
-                        }
-                        
-                        face_embeddings.append(face_info)
-                        
-                else:
-                    # DeepFace备选方案
-                    logger.warning("InsightFace不可用，使用DeepFace备选方案")
-                    # 使用原来的detect_faces方法
-                    faces = self.detect_faces(img)
-                    
-                    for face in faces:
                         try:
-                            bbox = face['bbox']
-                            x1, y1, x2, y2 = [int(coord) for coord in bbox]
+                            bbox = face_result.bbox.astype(int).tolist()
+                            confidence = float(face_result.det_score)
+                            embedding = face_result.normed_embedding.tolist()
                             
-                            # 提取人脸区域
-                            face_crop = img[y1:y2, x1:x2]
-                            if face_crop.size == 0:
-                                continue
-                                
-                            # 保存临时人脸图片
-                            import tempfile
-                            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
-                                cv2.imwrite(temp_file.name, face_crop)
-                                
-                                # 使用 DeepFace 提取特征
-                                result = DeepFace.represent(
-                                    img_path=temp_file.name,
-                                    model_name=self.current_deepface_model,
-                                    enforce_detection=False
-                                )
-                                embedding = result[0]['embedding']
-                                
-                                # 清理临时文件
-                                os.unlink(temp_file.name)
+                            logger.info(f"人脸 {i+1}: bbox={bbox}, confidence={confidence}, embedding_len={len(embedding)}")
                             
-                            # 构建人脸信息
                             face_info = {
-                                'bbox': [x1, y1, x2, y2],
-                                'confidence': float(face.get('det_score', 0.9)),
-                                'quality': float(face.get('quality', 0.8)),
-                                'embedding': embedding
+                                'bbox': bbox,
+                                'confidence': confidence,
+                                'quality': confidence,  # 使用检测置信度作为质量分数
+                                'embedding': embedding  # 使用标准化的特征向量
                             }
                             
                             face_embeddings.append(face_info)
+                            logger.info(f"成功添加人脸 {i+1} 的特征信息")
                             
-                        except Exception as e:
-                            logger.warning(f"DeepFace提取人脸特征失败: {str(e)}")
+                        except Exception as inner_e:
+                            logger.error(f"构建人脸信息失败: {inner_e}")
+                            import traceback
+                            logger.error(f"错误详情: {traceback.format_exc()}")
                             continue
+                        
+                else:
+                    return {'success': False, 'error': 'InsightFace模型未初始化'}
             
             except Exception as e:
                 logger.error(f"人脸检测和特征提取失败: {str(e)}")
+                import traceback
+                logger.error(f"错误详情: {traceback.format_exc()}")
                 return {'success': False, 'error': f'特征提取失败: {str(e)}'}
             
             return {
