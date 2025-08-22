@@ -401,7 +401,8 @@ class AdvancedFaceRecognitionService:
                         'model': f"advanced_{self.model_name}"
                     }
                 
-                self._face_cache[person_id]['embeddings'].append(features)
+                # 将特征向量和人脸ID一起添加到缓存
+                self._face_cache[person_id]['embeddings'].append((features, face_encoding.id))
                 
                 logger.info(f"成功入库人脸特征: {name} (人员ID: {person_id}, 特征ID: {face_encoding.id})")
                 
@@ -560,12 +561,12 @@ class AdvancedFaceRecognitionService:
                     if person.id not in self._face_cache:
                         self._face_cache[person.id] = {
                             'name': person.name,
-                            'embeddings': [],  # 初始化为空列表
+                            'embeddings': [],  # 存储 (特征向量, 人脸ID) 元组
                             'model': 'advanced_buffalo_l'
                         }
                     
-                    # 将特征向量添加到列表中
-                    self._face_cache[person.id]['embeddings'].append(features)
+                    # 将特征向量和对应的人脸ID一起存储
+                    self._face_cache[person.id]['embeddings'].append((features, encoding.id))
                 
                 logger.info(f"加载了 {len(self._face_cache)} 个人员的人脸特征缓存")
         
@@ -700,15 +701,17 @@ class AdvancedFaceRecognitionService:
                 # 在已知人脸中查找匹配
                 best_match = None
                 best_similarity = 0
+                matched_face_encoding_id = None
                 
                 for person_id, cached_data in self._face_cache.items():
-                    for cached_embedding in cached_data['embeddings']:
+                    for cached_embedding, face_encoding_id in cached_data['embeddings']:
                         # 计算余弦相似度
                         similarity = float(np.dot(face_embedding, cached_embedding) / 
                                          (np.linalg.norm(face_embedding) * np.linalg.norm(cached_embedding)))
                         
                         if similarity > best_similarity:
                             best_similarity = similarity
+                            matched_face_encoding_id = face_encoding_id
                             best_match = {
                                 'person_id': person_id,
                                 'name': cached_data['name'],
@@ -716,7 +719,8 @@ class AdvancedFaceRecognitionService:
                                 'distance': 1 - similarity,
                                 'model': f"InsightFace_{self.model_name}",
                                 'bbox': bbox,
-                                'quality': face.get('det_score', 0.9)
+                                'quality': face.get('det_score', 0.9),
+                                'face_encoding_id': face_encoding_id  # 添加匹配的人脸ID
                             }
                 
                 # 记录调试信息
@@ -741,7 +745,8 @@ class AdvancedFaceRecognitionService:
                         'distance': 1 - (best_similarity if best_match else 0.0),
                         'model': f"InsightFace_{self.model_name}",
                         'bbox': bbox,
-                        'quality': face.get('det_score', 0.9)
+                        'quality': face.get('det_score', 0.9),
+                        'face_encoding_id': matched_face_encoding_id if matched_face_encoding_id else None  # 即使未识别也返回最佳匹配的人脸ID
                     })
             
             processing_time = (datetime.now() - start_time).total_seconds()

@@ -1,5 +1,39 @@
 # 人脸识别系统 API 接口文档
 
+## 人脸识别接口
+
+### 1. 人脸识别接口
+
+**接口地址:** `POST /api/recognize`
+
+**功能描述:** 上传图像进行人脸识别，返回匹配的人员信息和具体的人脸特征ID
+
+**请求参数:**
+- `file` (必需): 待识别的图像文件
+
+**响应示例:**
+```json
+{
+    "success": true,
+    "matches": [
+        {
+            "person_id": 123,
+            "face_encoding_id": 456,
+            "name": "张三",
+            "match_score": 95.5,
+            "distance": 0.045,
+            "model": "InsightFace_buffalo_l",
+            "bbox": [100, 150, 200, 250],
+            "quality": 0.92
+        }
+    ],
+    "total_faces": 1,
+    "message": "识别完成，检测到 1 个人脸，识别出 1 个已知人员"
+}
+```
+
+**重要更新:** 现在识别接口会返回 `face_encoding_id` 字段，表示匹配的具体人脸特征ID，可用于后续的人脸管理操作。
+
 ## 人脸入库接口
 
 ### 1. 标准入库接口
@@ -122,13 +156,13 @@
 
 ### 2. 通过人员ID和人脸ID删除
 
-**接口地址:** `DELETE /api/person/{person_id}/faces/{face_id}`
+**接口地址:** `DELETE /api/person/{person_id}/faces/{face_encoding_id}`
 
 **功能描述:** 删除指定人员的某张人脸照片
 
 **路径参数:**
 - `person_id`: 人员ID
-- `face_id`: 人脸编码ID
+- `face_encoding_id`: 人脸编码ID
 
 **响应示例:**
 ```json
@@ -217,9 +251,9 @@ def delete_face(face_encoding_id):
         print(f"删除失败: {result.get('detail', '未知错误')}")
 
 # 使用示例
-face_id = enroll_person()
-if face_id:
-    delete_face(face_id)
+face_encoding_id = enroll_person()
+if face_encoding_id:
+    delete_face(face_encoding_id)
 ```
 
 ### cURL 示例

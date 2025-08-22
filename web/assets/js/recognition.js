@@ -253,7 +253,7 @@ class FaceRecognition {
                         <div class="badge bg-primary me-2">#${index}</div>
                         <div>
                             <h6 class="mb-1 text-primary fw-bold">${match.name}</h6>
-                            <small class="text-muted">ID: ${match.person_id}</small>
+                            <small class="text-muted">人员ID: ${match.person_id}${match.face_encoding_id ? ` | 人脸ID: ${match.face_encoding_id}` : ''}</small>
                         </div>
                     </div>
                     <span class="match-score ${scoreClass}">

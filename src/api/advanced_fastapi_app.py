@@ -48,6 +48,7 @@ class FaceMatch(BaseModel):
     model: str
     bbox: List[int] = Field(description="人脸边界框 [x1, y1, x2, y2]")
     quality: float
+    face_encoding_id: Optional[int] = Field(None, description="匹配的人脸特征ID")  # 新增字段
     age: Optional[int] = None
     gender: Optional[str] = None
     emotion: Optional[str] = None
@@ -547,7 +548,8 @@ def create_app() -> FastAPI:
                             distance=match['distance'],
                             model=match['model'],
                             bbox=match['bbox'],
-                            quality=match['quality']
+                            quality=match['quality'],
+                            face_encoding_id=match.get('face_encoding_id')  # 添加人脸ID字段
                         )
                         for match in result['matches']
                     ]
@@ -952,8 +954,8 @@ def create_app() -> FastAPI:
             logger.error(f"获取人员人脸列表失败: {str(e)}")
             raise HTTPException(status_code=500, detail="获取人员人脸列表失败")
 
-    @app.api_route("/api/face/{face_id}/image", methods=["GET", "HEAD"])
-    async def get_face_image(face_id: int, request: Request, service = Depends(get_face_service)):
+    @app.api_route("/api/face/{face_encoding_id}/image", methods=["GET", "HEAD"])
+    async def get_face_image(face_encoding_id: int, request: Request, service = Depends(get_face_service)):
         """
         🖼️ 获取人脸图片
         
@@ -962,7 +964,7 @@ def create_app() -> FastAPI:
         try:
             with service.db_manager.get_session() as session:
                 repo = service.db_manager.get_face_encoding_repository(session)
-                encoding = repo.get_by_id(face_id)
+                encoding = repo.get_by_id(face_encoding_id)
                 if not encoding:
                     raise HTTPException(status_code=404, detail="未找到指定人脸编码")
                 
@@ -993,15 +995,6 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.error(f"获取人脸图片失败: {str(e)}")
             raise HTTPException(status_code=500, detail="获取人脸图片失败")
-    
-    @app.get("/api/face_image/{face_id}")
-    async def get_face_image_legacy(face_id: int, service = Depends(get_face_service)):
-        """
-        🖼️ 获取人脸图片（兼容接口）
-        
-        返回指定人脸编码的图片数据
-        """
-        return await get_face_image(face_id, service)
 
     @app.put("/api/person/{person_id}")
     async def update_person(person_id: int, person_data: PersonUpdate, service = Depends(get_face_service)):
@@ -1220,8 +1213,8 @@ def create_app() -> FastAPI:
             logger.error(f"删除人脸编码失败: {str(e)}")
             raise HTTPException(status_code=500, detail="删除人脸编码失败")
 
-    @app.delete("/api/person/{person_id}/faces/{face_id}")
-    async def delete_person_face(person_id: int, face_id: int, service = Depends(get_face_service)):
+    @app.delete("/api/person/{person_id}/faces/{face_encoding_id}")
+    async def delete_person_face(person_id: int, face_encoding_id: int, service = Depends(get_face_service)):
         """
         🗑️ 删除指定人员的指定人脸
         
@@ -1241,7 +1234,7 @@ def create_app() -> FastAPI:
                 
                 # 验证人脸编码是否存在且属于该人员
                 face_encoding = session.query(FaceEncoding).filter(
-                    FaceEncoding.id == face_id,
+                    FaceEncoding.id == face_encoding_id,
                     FaceEncoding.person_id == person_id
                 ).first()
                 
