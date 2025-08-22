@@ -92,6 +92,23 @@ class AttributeAnalysisResponse(BaseModel):
     total_faces: int
     error: Optional[str] = None
 
+class FaceEmbedding(BaseModel):
+    """人脸特征向量模型"""
+    bbox: List[int] = Field(description="人脸边界框 [x1, y1, x2, y2]")
+    confidence: float = Field(description="人脸检测置信度")
+    quality: float = Field(description="人脸质量分数")
+    embedding: List[float] = Field(description="512维人脸特征向量")
+
+class EmbeddingExtractionResponse(BaseModel):
+    """人脸特征提取响应模型"""
+    success: bool
+    faces: Optional[List[FaceEmbedding]] = None
+    total_faces: Optional[int] = None
+    processing_time: Optional[float] = None
+    model_info: Optional[str] = None
+    image_size: Optional[List[int]] = None  # [width, height]
+    error: Optional[str] = None
+
 def create_app() -> FastAPI:
     """创建 FastAPI 应用"""
     app = FastAPI(
@@ -310,7 +327,7 @@ def create_app() -> FastAPI:
                         processing_time=float(processing_time),
                         feature_dim=int(result.get('feature_dim', 0)) if result.get('feature_dim') else None,
                         embeddings_count=1,
-                        face_encoding=result.get('face_encoding'),  # 返回人脸编码向量
+                        # face_encoding=result.get('face_encoding'),  # 返回人脸编码向量
                         # 简化版本不返回图片数据
                         visualized_image=None,
                         face_details=None
@@ -329,6 +346,82 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.error(f"入库接口错误: {str(e)}")
             return EnrollmentResponse(
+                success=False,
+                error=f"服务器内部错误: {str(e)}"
+            )
+
+    @app.post("/api/extract_embeddings", response_model=EmbeddingExtractionResponse)
+    async def extract_face_embeddings(
+        file: UploadFile = File(..., description="人脸图像文件"),
+        service = Depends(get_face_service)
+    ):
+        """
+        🔍 人脸特征向量提取接口
+        
+        专门用于提取人脸特征向量，不进行身份识别
+        返回图像中所有检测到人脸的512维特征向量
+        适用于外部系统进行相似度计算或其他机器学习任务
+        """
+        try:
+            # 验证文件类型
+            if file.content_type and not file.content_type.startswith('image/'):
+                raise HTTPException(status_code=400, detail="只支持图像文件")
+
+            # 保存临时文件
+            upload_config = get_upload_config()
+            
+            # 检查文件大小
+            content = await file.read()
+            file_size = len(content)
+            
+            max_size = 10 * 1024 * 1024  # 10MB 默认值
+            if upload_config and isinstance(upload_config, dict):
+                max_size = upload_config.get('MAX_FILE_SIZE', max_size)
+            
+            # 确保 max_size 是整数
+            if isinstance(max_size, (int, float)):
+                if file_size > max_size:
+                    raise HTTPException(status_code=400, detail="文件太大")
+            else:
+                # 如果配置有问题，使用默认值
+                if file_size > 10 * 1024 * 1024:
+                    raise HTTPException(status_code=400, detail="文件太大")
+
+            # 保存临时文件
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+            temp_file.write(content)
+            temp_file.close()
+
+            try:
+                # 调用服务进行特征提取
+                import time
+                start_time = time.time()
+                result = service.extract_face_embeddings(temp_file.name)
+                processing_time = time.time() - start_time
+                
+                if result['success']:
+                    return EmbeddingExtractionResponse(
+                        success=True,
+                        faces=result.get('faces', []),
+                        total_faces=result.get('total_faces', 0),
+                        processing_time=float(processing_time),
+                        model_info=result.get('model_info'),
+                        image_size=result.get('image_size')
+                    )
+                else:
+                    return EmbeddingExtractionResponse(
+                        success=False,
+                        error=result.get('error', '未知错误')
+                    )
+            finally:
+                # 清理临时文件
+                os.unlink(temp_file.name)
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"人脸特征提取接口错误: {str(e)}")
+            return EmbeddingExtractionResponse(
                 success=False,
                 error=f"服务器内部错误: {str(e)}"
             )
