@@ -412,7 +412,8 @@ class AdvancedFaceRecognitionService:
                     'face_encoding_id': face_encoding.id,
                     'quality_score': face['quality'],
                     'feature_dim': len(features),
-                    'faces_detected': 1
+                    'faces_detected': 1,
+                    'face_encoding': features.tolist()  # 将numpy数组转换为Python列表
                 }
             except Exception as db_error:
                 logger.error(f"数据库操作失败: {str(db_error)}")

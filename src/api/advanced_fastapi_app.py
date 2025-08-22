@@ -71,6 +71,7 @@ class EnrollmentResponse(BaseModel):
     processing_time: Optional[float] = None
     feature_dim: Optional[int] = None
     embeddings_count: Optional[int] = None
+    face_encoding: Optional[List[float]] = None  # 人脸编码向量
     visualized_image: Optional[str] = None  # Base64 编码的检测可视化图像
     face_details: Optional[List[Dict]] = None  # 人脸详细信息列表
     error: Optional[str] = None
@@ -309,6 +310,7 @@ def create_app() -> FastAPI:
                         processing_time=float(processing_time),
                         feature_dim=int(result.get('feature_dim', 0)) if result.get('feature_dim') else None,
                         embeddings_count=1,
+                        face_encoding=result.get('face_encoding'),  # 返回人脸编码向量
                         # 简化版本不返回图片数据
                         visualized_image=None,
                         face_details=None
