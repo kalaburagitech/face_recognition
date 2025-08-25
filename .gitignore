@@ -90,6 +90,7 @@ data/database/
 data/uploads/
 data/test_images/
 results/
+tmp-face-system/
 
 # Models (too large for git)
 models/

@@ -1425,7 +1425,17 @@ def create_app() -> FastAPI:
                             error_count += 1
                             continue
                         
-                        # 使用第一个检测到的人脸
+                        # 检查是否检测到多张人脸
+                        if len(detected_faces) > 1:
+                            results.append({
+                                'file_name': face_file.filename,
+                                'success': False,
+                                'error': f'检测到多张人脸({len(detected_faces)}张)，请提供只包含一张人脸的照片'
+                            })
+                            error_count += 1
+                            continue
+                        
+                        # 使用检测到的人脸
                         detected_face = detected_faces[0]
                         encoding = detected_face.get('embedding')
                         if encoding is None:
@@ -1436,6 +1446,98 @@ def create_app() -> FastAPI:
                             })
                             error_count += 1
                             continue
+                        
+                        # 检查相似性 - 避免重复添加相似人脸
+                        try:
+                            # 检查与当前人员已有人脸的相似性
+                            with service.db_manager.get_session() as check_session:
+                                from ..models import FaceEncoding as FaceEncodingModel
+                                existing_faces = check_session.query(FaceEncodingModel).filter(
+                                    FaceEncodingModel.person_id == person_id
+                                ).all()
+                                
+                                duplicate_threshold = config.get('face_recognition.duplicate_threshold', 0.93)
+                                
+                                for existing_face in existing_faces:
+                                    if existing_face.encoding is not None:
+                                        # 反序列化已有特征向量
+                                        try:
+                                            if isinstance(existing_face.encoding, (bytes, str)):
+                                                if isinstance(existing_face.encoding, str):
+                                                    existing_encoding = np.frombuffer(
+                                                        base64.b64decode(existing_face.encoding), 
+                                                        dtype=np.float32
+                                                    )
+                                                else:
+                                                    existing_encoding = pickle.loads(existing_face.encoding)
+                                            else:
+                                                existing_encoding = existing_face.encoding
+                                            
+                                            # 计算余弦相似度
+                                            similarity = float(np.dot(encoding, existing_encoding) / 
+                                                             (np.linalg.norm(encoding) * np.linalg.norm(existing_encoding)))
+                                            
+                                            if similarity > duplicate_threshold:
+                                                results.append({
+                                                    'file_name': face_file.filename,
+                                                    'success': False,
+                                                    'error': f'该人脸与已有人脸过于相似 (相似度: {similarity*100:.1f}%，阈值: {duplicate_threshold*100:.1f}%)'
+                                                })
+                                                error_count += 1
+                                                raise Exception("重复人脸")  # 跳出当前文件处理
+                                        except Exception as similarity_error:
+                                            if "重复人脸" in str(similarity_error):
+                                                raise  # 重新抛出重复人脸错误
+                                            logger.warning(f"相似性检测失败: {str(similarity_error)}")
+                                            continue
+                                
+                                # 检查与其他人员人脸的相似性
+                                other_faces = check_session.query(FaceEncodingModel).filter(
+                                    FaceEncodingModel.person_id != person_id
+                                ).all()
+                                
+                                for other_face in other_faces:
+                                    if other_face.encoding is not None:
+                                        try:
+                                            if isinstance(other_face.encoding, (bytes, str)):
+                                                if isinstance(other_face.encoding, str):
+                                                    other_encoding = np.frombuffer(
+                                                        base64.b64decode(other_face.encoding), 
+                                                        dtype=np.float32
+                                                    )
+                                                else:
+                                                    other_encoding = pickle.loads(other_face.encoding)
+                                            else:
+                                                other_encoding = other_face.encoding
+                                            
+                                            # 计算余弦相似度
+                                            similarity = float(np.dot(encoding, other_encoding) / 
+                                                             (np.linalg.norm(encoding) * np.linalg.norm(other_encoding)))
+                                            
+                                            if similarity > duplicate_threshold:
+                                                # 获取其他人员信息
+                                                other_person = check_session.query(Person).filter(
+                                                    Person.id == other_face.person_id
+                                                ).first()
+                                                other_name = other_person.name if other_person else "未知人员"
+                                                
+                                                results.append({
+                                                    'file_name': face_file.filename,
+                                                    'success': False,
+                                                    'error': f'该人脸与其他人员过于相似：{other_name} (相似度: {similarity*100:.1f}%，阈值: {duplicate_threshold*100:.1f}%)'
+                                                })
+                                                error_count += 1
+                                                raise Exception("重复人脸")  # 跳出当前文件处理
+                                        except Exception as similarity_error:
+                                            if "重复人脸" in str(similarity_error):
+                                                raise  # 重新抛出重复人脸错误
+                                            logger.warning(f"跨人员相似性检测失败: {str(similarity_error)}")
+                                            continue
+                        
+                        except Exception as check_error:
+                            if "重复人脸" in str(check_error):
+                                continue  # 跳过当前文件，继续处理下一个
+                            logger.warning(f"相似性检查失败: {str(check_error)}")
                         
                         # 读取图像数据用于存储
                         with open(temp_file.name, 'rb') as img_file:
@@ -1456,7 +1558,9 @@ def create_app() -> FastAPI:
                             'file_name': face_file.filename,
                             'success': True,
                             'face_encoding_id': face_encoding.id,  # 统一使用face_encoding_id字段名
-                            'quality_score': detected_face.get('quality', 0)
+                            'quality_score': detected_face.get('quality', 0),
+                            'confidence': detected_face.get('det_score', 1.0),
+                            'bbox': detected_face.get('bbox', [])
                         })
                         success_count += 1
                     finally:
