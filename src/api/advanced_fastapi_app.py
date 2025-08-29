@@ -14,6 +14,8 @@ import numpy as np
 import uuid
 import logging
 import asyncio
+import base64
+import pickle
 from pathlib import Path
 import tempfile
 import shutil
@@ -24,7 +26,7 @@ import sys
 # 添加项目根目录到Python路径
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from ..services.advanced_face_service import get_advanced_face_service
+from ..services.service_factory import get_face_service
 from ..utils.config import config, get_upload_config
 from src.utils.enhanced_visualization import EnhancedFaceVisualizer
 from src.utils.font_manager import get_font_manager
@@ -138,8 +140,8 @@ def create_app() -> FastAPI:
             app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
     # 获取服务实例
-    def get_face_service():
-        return get_advanced_face_service()
+    def get_face_service_instance():
+        return get_face_service()
     
     # 创建全局可视化器实例
     visualizer = EnhancedFaceVisualizer()
@@ -1719,6 +1721,99 @@ def create_app() -> FastAPI:
                 "RESTful API"
             ]
         }
+
+    @app.get("/api/sync/status")
+    async def sync_status():
+        """
+        🔄 获取多Worker同步状态
+        
+        显示缓存同步状态和版本信息
+        """
+        try:
+            face_service = get_face_service_instance()
+            
+            # 检查是否支持同步状态
+            if hasattr(face_service, 'get_sync_status'):
+                sync_info = face_service.get_sync_status()
+                return {
+                    "success": True,
+                    "sync_enabled": True,
+                    "sync_info": sync_info
+                }
+            else:
+                return {
+                    "success": True,
+                    "sync_enabled": False,
+                    "message": "当前服务模式不支持多Worker同步",
+                    "service_type": type(face_service).__name__
+                }
+        except Exception as e:
+            logger.error(f"获取同步状态失败: {e}")
+            raise HTTPException(status_code=500, detail=f"获取同步状态失败: {str(e)}")
+
+    @app.post("/api/sync/refresh")
+    async def force_sync_refresh():
+        """
+        🔄 强制刷新缓存同步
+        
+        手动触发缓存刷新，用于调试或紧急情况
+        """
+        try:
+            face_service = get_face_service_instance()
+            
+            # 检查是否支持强制刷新
+            if hasattr(face_service, 'force_cache_refresh'):
+                result = face_service.force_cache_refresh()
+                return result
+            else:
+                return {
+                    "success": False,
+                    "error": "当前服务模式不支持强制缓存刷新",
+                    "service_type": type(face_service).__name__
+                }
+        except Exception as e:
+            logger.error(f"强制刷新缓存失败: {e}")
+            raise HTTPException(status_code=500, detail=f"强制刷新缓存失败: {str(e)}")
+
+    @app.get("/api/cache/info")
+    async def cache_info():
+        """
+        📊 获取缓存信息
+        
+        显示当前缓存状态和统计信息
+        """
+        try:
+            face_service = get_face_service_instance()
+            
+            # 基础缓存信息
+            cache_data = {
+                "success": True,
+                "cache_size": len(getattr(face_service, '_face_cache', {})),
+                "service_type": type(face_service).__name__,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # 如果是内存缓存，显示详细信息
+            if hasattr(face_service, '_face_cache'):
+                cache = face_service._face_cache
+                cache_data.update({
+                    "persons": list(cache.keys()),
+                    "total_embeddings": sum(len(data.get('embeddings', [])) for data in cache.values()),
+                    "person_details": {
+                        str(person_id): {
+                            "name": data.get('name', 'Unknown'),
+                            "embeddings_count": len(data.get('embeddings', [])),
+                            "model": data.get('model', 'Unknown')
+                        }
+                        for person_id, data in cache.items()
+                    }
+                })
+            
+            return cache_data
+            
+        except Exception as e:
+            logger.error(f"获取缓存信息失败: {e}")
+            raise HTTPException(status_code=500, detail=f"获取缓存信息失败: {str(e)}")
 
     return app
 

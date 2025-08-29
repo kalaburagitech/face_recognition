@@ -34,7 +34,8 @@
       "tiff",
       "gif",
       "webp",
-      "avif"
+      "avif",
+      "heic"
     ],
     "upload_folder": "data/uploads"
   },
