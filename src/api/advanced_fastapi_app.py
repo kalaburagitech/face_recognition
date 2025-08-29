@@ -26,10 +26,15 @@ import sys
 # 添加项目根目录到Python路径
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from ..services.service_factory import get_face_service
+from ..services.advanced_face_service import get_advanced_face_service
 from ..utils.config import config, get_upload_config
 from src.utils.enhanced_visualization import EnhancedFaceVisualizer
 from src.utils.font_manager import get_font_manager
+
+# 创建服务别名以保持兼容性
+def get_face_service():
+    """获取人脸识别服务实例"""
+    return get_advanced_face_service()
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +146,7 @@ def create_app() -> FastAPI:
 
     # 获取服务实例
     def get_face_service_instance():
-        return get_face_service()
+        return get_advanced_face_service()
     
     # 创建全局可视化器实例
     visualizer = EnhancedFaceVisualizer()
