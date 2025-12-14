@@ -1,112 +1,160 @@
 """
-优化后的数据库模型
-采用Repository模式和数据库连接池优化
+PostgreSQL + pgvector Database Models for Face Recognition
+Optimized for multi-client API deployment with region-based filtering
 """
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, LargeBinary, Float, Index, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, relationship, scoped_session
-from sqlalchemy.pool import StaticPool
-from datetime import datetime
-import pickle
-import numpy as np
-from typing import List, Optional, Dict, Any, Tuple
-from contextlib import contextmanager
+import os
 import logging
-from pathlib import Path
-from abc import ABC, abstractmethod
+from typing import Optional, List, Dict, Any, Tuple
+from datetime import datetime
+from contextlib import contextmanager
+
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, LargeBinary, ForeignKey, Index, Text, text
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship, Session
+from sqlalchemy.pool import QueuePool
+from pgvector.sqlalchemy import Vector
+import numpy as np
+import pickle
+
+from ..utils.config import config
 
 logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
 
-# ==================== 数据库模型 ====================
+# ==================== Database Models ====================
 
 class TimestampMixin:
-    """时间戳混入类"""
+    """Timestamp mix-in class"""
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
+
 class Person(Base, TimestampMixin):
-    """
-    优化后的人员信息表
-    - 添加了索引优化查询性能
-    - 增加了数据验证
-    """
+    """Person table with region and client support for multi-tenant API"""
     __tablename__ = 'persons'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(100), nullable=False, index=True)  # 添加索引
-    description = Column(String(500))
+    name = Column(String(255), nullable=False, index=True)
+    region = Column(String(50), nullable=False, index=True)  # Region: ka, ap, tn
+    emp_id = Column(String(100), nullable=False, unique=True, index=True)  # Employee ID
+    emp_rank = Column(String(100), nullable=False, index=True)  # Employee Rank
+    client_id = Column(String(100), nullable=True, index=True)  # For multi-tenant support
+    description = Column(Text, nullable=True)  # Optional, for backward compatibility
     
-    # 添加索引以优化查询
+    # Relationship to face encodings
+    face_encodings = relationship('FaceEncoding', back_populates='person', cascade='all, delete-orphan')
+    
+    # Composite indexes for fast region + client filtering
     __table_args__ = (
-        Index('idx_person_name_created', 'name', 'created_at'),
+        Index('idx_person_region_client', 'region', 'client_id'),
+        Index('idx_person_name_region', 'name', 'region'),
     )
     
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
+        """Convert to dictionary"""
         return {
             'id': self.id,
             'name': self.name,
+            'region': self.region,
+            'emp_id': self.emp_id,
+            'emp_rank': self.emp_rank,
+            'client_id': self.client_id,
             'description': self.description,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
-    def __repr__(self) -> str:
-        return f"<Person(id={self.id}, name='{self.name}')>"
+    def __repr__(self):
+        return f"<Person(id={self.id}, name='{self.name}', region='{self.region}')>"
+
+
+class Attendance(Base, TimestampMixin):
+    """Attendance records table"""
+    __tablename__ = 'attendance'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    person_id = Column(Integer, ForeignKey('persons.id', ondelete='CASCADE'), nullable=False, index=True)
+    date = Column(DateTime, nullable=False, index=True)
+    status = Column(String(20), default='present', nullable=False)  # present/absent
+    marked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationship - passive_deletes tells SQLAlchemy to let the database handle CASCADE
+    person = relationship('Person', backref='attendance_records', passive_deletes=True)
+    
+    # Composite index for fast date + person queries
+    __table_args__ = (
+        Index('idx_attendance_date_person', 'date', 'person_id'),
+        Index('idx_attendance_date', 'date'),
+    )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            'id': self.id,
+            'person_id': self.person_id,
+            'date': self.date.isoformat() if self.date else None,
+            'status': self.status,
+            'marked_at': self.marked_at.isoformat() if self.marked_at else None
+        }
 
 
 class FaceEncoding(Base, TimestampMixin):
-    """
-    优化后的人脸特征向量表
-    - 改进了数据存储方式
-    - 添加了更多的索引
-    """
+    """Face encoding table using pgvector for similarity search"""
     __tablename__ = 'face_encodings'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    person_id = Column(Integer, nullable=False, index=True)  # 外键索引
-    encoding = Column(LargeBinary, nullable=False)  # 序列化的特征向量
-    image_path = Column(String(500))
-    image_data = Column(LargeBinary)  # 图片二进制数据
-    face_bbox = Column(String(200))  # 人脸边界框 [x1,y1,x2,y2]
-    confidence = Column(Float, default=1.0, nullable=False)
-    quality_score = Column(Float, default=1.0, nullable=False)
+    person_id = Column(Integer, ForeignKey('persons.id', ondelete='CASCADE'), nullable=False, index=True)
     
-    # 添加复合索引优化查询
+    # Vector embedding (512 dimensions for InsightFace)
+    embedding = Column(Vector(512), nullable=False)
+    
+    # Metadata
+    image_path = Column(String(500), nullable=True)
+    image_data = Column(LargeBinary, nullable=True)  # Store actual image
+    face_bbox = Column(String(100), nullable=True)  # [x1, y1, x2, y2]
+    confidence = Column(Float, default=0.0)
+    quality_score = Column(Float, default=0.0)
+    
+    # Relationship
+    person = relationship('Person', back_populates='face_encodings')
+    
+    # HNSW index for ultra-fast vector similarity search
     __table_args__ = (
-        Index('idx_face_person_quality', 'person_id', 'quality_score'),
-        Index('idx_face_created', 'created_at'),
+        Index('idx_embedding_hnsw', 'embedding', 
+              postgresql_using='hnsw', 
+              postgresql_with={'m': 16, 'ef_construction': 64}, 
+              postgresql_ops={'embedding': 'vector_cosine_ops'}),
     )
     
-    def set_encoding(self, encoding_array: np.ndarray) -> None:
-        """设置人脸特征向量"""
-        if not isinstance(encoding_array, np.ndarray):
-            raise ValueError("encoding_array must be a numpy array")
-        self.encoding = pickle.dumps(encoding_array.astype(np.float32))
+    def __repr__(self):
+        return f"<FaceEncoding(id={self.id}, person_id={self.person_id})>"
     
     def get_encoding(self) -> np.ndarray:
-        """获取人脸特征向量"""
-        try:
-            return pickle.loads(self.encoding)
-        except Exception as e:
-            logger.error(f"解析人脸特征向量失败: {e}")
-            raise ValueError(f"Invalid encoding data: {e}")
+        """Get embedding as numpy array"""
+        if isinstance(self.embedding, np.ndarray):
+            return self.embedding
+        # pgvector returns list, convert to numpy
+        return np.array(self.embedding, dtype=np.float32)
     
-    def set_image_data(self, image_binary: bytes) -> None:
-        """设置图片二进制数据"""
-        if not isinstance(image_binary, bytes):
-            raise ValueError("image_binary must be bytes")
-        self.image_data = image_binary
+    def set_encoding(self, encoding_array: np.ndarray) -> None:
+        """Set face feature vector (for compatibility)"""
+        if not isinstance(encoding_array, np.ndarray):
+            raise ValueError("encoding_array must be a numpy array")
+        # Convert to list for pgvector
+        self.embedding = encoding_array.tolist()
     
     def get_image_data(self) -> Optional[bytes]:
-        """获取图片二进制数据"""
+        """Get stored image data"""
         return self.image_data
     
+    def set_image_data(self, image_data: bytes) -> None:
+        """Set image data"""
+        self.image_data = image_data
+    
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
+        """Convert to dictionary"""
         return {
             'id': self.id,
             'person_id': self.person_id,
@@ -115,512 +163,487 @@ class FaceEncoding(Base, TimestampMixin):
             'confidence': self.confidence,
             'quality_score': self.quality_score,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'has_image_data': self.image_data is not None,
-            'encoding_size': len(self.encoding) if self.encoding else 0
+            'has_image_data': self.image_data is not None
         }
-    
-    def __repr__(self) -> str:
-        return f"<FaceEncoding(id={self.id}, person_id={self.person_id}, quality={self.quality_score:.2f})>"
-
-# ==================== Repository 接口 ====================
-
-class BaseRepository(ABC):
-    """基础仓库接口"""
-    
-    def __init__(self, session: Session):
-        self.session = session
-    
-    @abstractmethod
-    def create(self, **kwargs):
-        """创建实体"""
-        pass
-    
-    @abstractmethod
-    def get_by_id(self, entity_id: int):
-        """根据ID获取实体"""
-        pass
-    
-    @abstractmethod
-    def update(self, entity_id: int, **kwargs):
-        """更新实体"""
-        pass
-    
-    @abstractmethod
-    def delete(self, entity_id: int):
-        """删除实体"""
-        pass
 
 
-class PersonRepository(BaseRepository):
-    """人员仓库"""
-    
-    def create(self, name: str, description: Optional[str] = None) -> Person:
-        """创建人员"""
-        person = Person(name=name.strip(), description=description)
-        self.session.add(person)
-        self.session.flush()  # 获取ID但不提交
-        return person
-    
-    def get_by_id(self, person_id: int) -> Optional[Person]:
-        """根据ID获取人员"""
-        return self.session.query(Person).filter_by(id=person_id).first()
-    
-    def get_by_name(self, name: str) -> Optional[Person]:
-        """根据姓名获取人员"""
-        return self.session.query(Person).filter_by(name=name.strip()).first()
-    
-    def get_all(self, limit: Optional[int] = None, offset: int = 0) -> List[Person]:
-        """获取所有人员"""
-        query = self.session.query(Person).order_by(Person.created_at.desc())
-        if limit:
-            query = query.limit(limit).offset(offset)
-        return query.all()
-    
-    def search_by_name(self, name_pattern: str, limit: int = 50) -> List[Person]:
-        """按姓名模糊搜索"""
-        return (self.session.query(Person)
-                .filter(Person.name.like(f'%{name_pattern}%'))
-                .order_by(Person.name)
-                .limit(limit)
-                .all())
-    
-    def update(self, person_id: int, name: Optional[str] = None, 
-               description: Optional[str] = None) -> Optional[Person]:
-        """更新人员信息"""
-        person = self.get_by_id(person_id)
-        if not person:
-            return None
-        
-        if name is not None:
-            person.name = name.strip()
-        if description is not None:
-            person.description = description
-        
-        person.updated_at = datetime.utcnow()
-        return person
-    
-    def delete(self, person_id: int) -> bool:
-        """删除人员"""
-        person = self.get_by_id(person_id)
-        if person:
-            self.session.delete(person)
-            return True
-        return False
-    
-    def count(self) -> int:
-        """获取人员总数"""
-        return self.session.query(Person).count()
+# ==================== Database Manager ====================
 
-
-class FaceEncodingRepository(BaseRepository):
-    """人脸编码仓库"""
+class DatabaseManager:
+    """Database manager for PostgreSQL + pgvector"""
     
-    def create(self, person_id: int, encoding: np.ndarray, 
-               image_path: Optional[str] = None, image_data: Optional[bytes] = None,
-               face_bbox: Optional[str] = None, confidence: float = 1.0,
-               quality_score: float = 1.0) -> FaceEncoding:
-        """创建人脸编码"""
-        face_encoding = FaceEncoding(
-            person_id=person_id,
-            image_path=image_path,
-            face_bbox=face_bbox,
-            confidence=confidence,
-            quality_score=quality_score
-        )
-        
-        face_encoding.set_encoding(encoding)
-        if image_data:
-            face_encoding.set_image_data(image_data)
-        
-        self.session.add(face_encoding)
-        self.session.flush()
-        return face_encoding
-    
-    def get_by_id(self, encoding_id: int) -> Optional[FaceEncoding]:
-        """根据ID获取人脸编码"""
-        return self.session.query(FaceEncoding).filter_by(id=encoding_id).first()
-    
-    def get_by_person_id(self, person_id: int) -> List[FaceEncoding]:
-        """获取指定人员的所有人脸编码"""
-        return (self.session.query(FaceEncoding)
-                .filter_by(person_id=person_id)
-                .order_by(FaceEncoding.quality_score.desc())
-                .all())
-    
-    def get_all_encodings(self) -> List[Tuple[FaceEncoding, Person]]:
-        """获取所有编码及对应人员信息"""
-        return (self.session.query(FaceEncoding, Person)
-                .join(Person, FaceEncoding.person_id == Person.id)
-                .order_by(FaceEncoding.created_at.desc())
-                .all())
-    
-    def update(self, encoding_id: int, **kwargs) -> Optional[FaceEncoding]:
-        """更新人脸编码"""
-        encoding = self.get_by_id(encoding_id)
-        if not encoding:
-            return None
-        
-        for key, value in kwargs.items():
-            if hasattr(encoding, key):
-                setattr(encoding, key, value)
-        
-        return encoding
-    
-    def delete(self, encoding_id: int) -> bool:
-        """删除人脸编码"""
-        encoding = self.get_by_id(encoding_id)
-        if encoding:
-            self.session.delete(encoding)
-            return True
-        return False
-    
-    def delete_by_person_id(self, person_id: int) -> int:
-        """删除指定人员的所有人脸编码"""
-        deleted_count = (self.session.query(FaceEncoding)
-                        .filter_by(person_id=person_id)
-                        .delete())
-        return deleted_count
-    
-    def count(self) -> int:
-        """获取编码总数"""
-        return self.session.query(FaceEncoding).count()
-    
-    def count_by_person_id(self, person_id: int) -> int:
-        """获取指定人员的编码数量"""
-        return self.session.query(FaceEncoding).filter_by(person_id=person_id).count()
-
-
-# ==================== 优化的数据库管理器 ====================
-
-class OptimizedDatabaseManager:
-    """
-    优化的数据库管理器
-    
-    特性:
-    - 连接池管理
-    - Repository 模式
-    - 事务管理
-    - 错误处理
-    - 性能监控
-    """
-    
-    def __init__(self, db_path: str = "data/database/face_recognition.db", 
-                 pool_size: int = 5, max_overflow: int = 10):
+    def __init__(self, db_url: Optional[str] = None):
         """
-        初始化数据库管理器
+        Initialize database connection
         
         Args:
-            db_path: 数据库文件路径
-            pool_size: 连接池大小
-            max_overflow: 最大溢出连接数
+            db_url: PostgreSQL connection URL. If None, reads from config.
         """
-        self.db_path = Path(db_path)
-        self._ensure_db_directory()
+        if db_url is None:
+            db_url = config.get('database.url', 'postgresql://postgres:postgres@localhost:5432/face_recognition')
         
-        # 创建引擎（针对SQLite优化）
+        self.db_url = db_url
+        
+        # Create engine with connection pooling
+        pool_size = config.get('database.pool_size', 20)
+        max_overflow = config.get('database.max_overflow', 40)
+        pool_timeout = config.get('database.pool_timeout', 30)
+        pool_recycle = config.get('database.pool_recycle', 3600)
+        
         self.engine = create_engine(
-            f'sqlite:///{self.db_path}',
-            poolclass=StaticPool,
-            connect_args={
-                'check_same_thread': False,
-                'timeout': 30
-            },
-            echo=False  # 生产环境中设置为False
+            db_url,
+            poolclass=QueuePool,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_timeout=pool_timeout,
+            pool_recycle=pool_recycle,
+            echo=False  # Set to True for SQL debugging
         )
         
-        # 优化SQLite设置
-        self._optimize_sqlite()
+        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         
-        # 创建表
-        Base.metadata.create_all(self.engine)
+        logger.info(f"PostgreSQL connection established: {db_url.split('@')[1] if '@' in db_url else 'localhost'}")
         
-        # 创建会话工厂
-        self.SessionLocal = scoped_session(
-            sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        )
-        
-        logger.info(f"数据库初始化完成: {self.db_path}")
+        # Create tables and enable pgvector
+        self._initialize_database()
     
-    def _ensure_db_directory(self):
-        """确保数据库目录存在"""
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    def _optimize_sqlite(self):
-        """优化SQLite设置"""
-        with self.engine.connect() as conn:
-            # 设置SQLite优化参数
-            conn.execute(text("PRAGMA journal_mode=WAL"))  # 写前日志模式
-            conn.execute(text("PRAGMA synchronous=NORMAL"))  # 平衡性能和安全
-            conn.execute(text("PRAGMA cache_size=10000"))  # 增加缓存
-            conn.execute(text("PRAGMA temp_store=MEMORY"))  # 临时存储在内存
-            conn.execute(text("PRAGMA mmap_size=268435456"))  # 256MB内存映射
-    
+    def _initialize_database(self):
+        """Create tables and enable pgvector extension"""
+        try:
+            # Enable pgvector extension
+            with self.engine.connect() as conn:
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                conn.commit()
+                logger.info("✓ pgvector extension enabled")
+            
+            # Create all tables
+            Base.metadata.create_all(bind=self.engine)
+            logger.info("✓ Database tables created/verified")
+            
+        except Exception as e:
+            logger.error(f"Database initialization failed: {e}")
+            raise
     
     @contextmanager
-    def get_session(self):
-        """获取数据库会话（上下文管理器）"""
+    def get_session(self) -> Session:
+        """Context manager for database sessions"""
         session = self.SessionLocal()
         try:
             yield session
             session.commit()
         except Exception as e:
             session.rollback()
-            logger.error(f"数据库操作失败: {e}")
+            logger.error(f"Session error: {e}")
             raise
         finally:
             session.close()
     
-    def get_person_repository(self, session: Session) -> PersonRepository:
-        """获取人员仓库"""
-        return PersonRepository(session)
+    # ==================== Person Methods ====================
     
-    def get_face_encoding_repository(self, session: Session) -> FaceEncodingRepository:
-        """获取人脸编码仓库"""
-        return FaceEncodingRepository(session)
-    
-    # ==================== 便捷方法（向后兼容） ====================
-    
-    def create_person(self, name: str, description: Optional[str] = None) -> Person:
-        """创建人员"""
+    def create_person(self, name: str, region: str, emp_id: str, emp_rank: str,
+                     description: Optional[str] = None, client_id: Optional[str] = None) -> Person:
+        """
+        Create a new person
+        
+        Args:
+            name: Person's name
+            region: Region identifier (ka, ap, tn)
+            emp_id: Employee ID (unique)
+            emp_rank: Employee rank/position
+            description: Optional description
+            client_id: Optional client identifier for multi-tenant
+        
+        Returns:
+            Person object
+        """
         with self.get_session() as session:
-            repo = self.get_person_repository(session)
-            person = repo.create(name, description)
-            # 手动刷新以获取ID，并返回可独立使用的对象
-            session.commit()
-            session.refresh(person)
-            # 创建一个新的独立对象以避免Session绑定问题
-            return Person(
-                id=person.id,
-                name=person.name,
-                description=person.description,
-                created_at=person.created_at,
-                updated_at=person.updated_at
+            person = Person(
+                name=name,
+                region=region,
+                emp_id=emp_id,
+                emp_rank=emp_rank,
+                description=description,
+                client_id=client_id
             )
+            session.add(person)
+            session.flush()
+            session.refresh(person)
+            
+            # Capture values before session closes
+            person_id = person.id
+            person_name = person.name
+            person_region = person.region
+            person_emp_id = person.emp_id
+            person_emp_rank = person.emp_rank
+            person_description = person.description
+            person_client_id = person.client_id
+            person_created_at = person.created_at
+            person_updated_at = person.updated_at
+            
+            logger.info(f"Created person: {name} (Emp ID: {emp_id}) in region {region} (DB ID: {person_id})")
+        
+        # Return a detached copy with all attributes set
+        detached_person = Person(
+            id=person_id,
+            name=person_name,
+            region=person_region,
+            emp_id=person_emp_id,
+            emp_rank=person_emp_rank,
+            description=person_description,
+            client_id=person_client_id
+        )
+        detached_person.created_at = person_created_at
+        detached_person.updated_at = person_updated_at
+        return detached_person
     
-    def get_person_by_name(self, name: str) -> Optional[Person]:
-        """根据姓名获取人员"""
+    def get_person_by_name(self, name: str, region: Optional[str] = None, 
+                          client_id: Optional[str] = None) -> Optional[Person]:
+        """Get person by name, optionally filtered by region and client"""
         with self.get_session() as session:
-            repo = self.get_person_repository(session)
-            person = repo.get_by_name(name)
+            query = session.query(Person).filter(Person.name == name)
+            
+            if region:
+                query = query.filter(Person.region == region)
+            if client_id:
+                query = query.filter(Person.client_id == client_id)
+            
+            person = query.first()
             if person:
-                # 创建Session-independent对象
-                from sqlalchemy.orm import make_transient
-                session.expunge(person)
-                make_transient(person)
-                return person
-            return None
+                session.expunge(person)  # Detach from session
+            return person
     
     def get_person_by_id(self, person_id: int) -> Optional[Person]:
-        """根据ID获取人员"""
+        """Get person by ID"""
         with self.get_session() as session:
-            repo = self.get_person_repository(session)
-            person = repo.get_by_id(person_id)
+            person = session.query(Person).filter(Person.id == person_id).first()
             if person:
-                # 创建Session-independent对象
-                from sqlalchemy.orm import make_transient
                 session.expunge(person)
-                make_transient(person)
-                return person
-            return None
+            return person
+    
+    def get_all_persons(self, region: Optional[str] = None, client_id: Optional[str] = None) -> List[Person]:
+        """Get all persons, optionally filtered by region and client"""
+        with self.get_session() as session:
+            query = session.query(Person)
+            
+            if region:
+                query = query.filter(Person.region == region)
+            if client_id:
+                query = query.filter(Person.client_id == client_id)
+            
+            persons = query.order_by(Person.created_at.desc()).all()
+            for person in persons:
+                session.expunge(person)
+            return persons
+    
+    
+    def delete_person(self, person_id: int) -> bool:
+        """Delete person and all their face encodings and attendance records"""
+        with self.get_session() as session:
+            # Use raw SQL to avoid ORM relationship issues
+            # Delete attendance records first
+            session.execute(text("DELETE FROM attendance WHERE person_id = :pid"), {"pid": person_id})
+            # Delete face encodings
+            session.execute(text("DELETE FROM face_encodings WHERE person_id = :pid"), {"pid": person_id})
+            # Delete person
+            result = session.execute(text("DELETE FROM persons WHERE id = :pid"), {"pid": person_id})
+            
+            if result.rowcount > 0:
+                logger.info(f"Deleted person ID {person_id} and all related records")
+                return True
+            return False
+    
+    # ==================== Face Encoding Methods ====================
     
     def add_face_encoding(self, person_id: int, encoding: np.ndarray, 
-                         image_path: Optional[str] = None, image_data: Optional[bytes] = None,
-                         face_bbox: Optional[str] = None, confidence: float = 1.0,
-                         quality_score: float = 1.0) -> FaceEncoding:
-        """添加人脸编码"""
+                         image_path: Optional[str] = None,
+                         image_data: Optional[bytes] = None,
+                         face_bbox: Optional[str] = None,
+                         confidence: float = 0.0,
+                         quality_score: float = 0.0) -> FaceEncoding:
+        """
+        Add face encoding with vector embedding
+        
+        Args:
+            person_id: Person ID
+            encoding: Face embedding vector (numpy array)
+            image_path: Optional image path
+            image_data: Optional raw image data
+            face_bbox: Optional bounding box string
+            confidence: Detection confidence
+            quality_score: Quality score
+        
+        Returns:
+            FaceEncoding object
+        """
         with self.get_session() as session:
-            repo = self.get_face_encoding_repository(session)
-            face_encoding = repo.create(
+            # Convert numpy array to list for pgvector
+            embedding_list = encoding.tolist() if isinstance(encoding, np.ndarray) else encoding
+            
+            face_encoding = FaceEncoding(
                 person_id=person_id,
-                encoding=encoding,
+                embedding=embedding_list,
                 image_path=image_path,
                 image_data=image_data,
                 face_bbox=face_bbox,
                 confidence=confidence,
                 quality_score=quality_score
             )
-            session.commit()
+            session.add(face_encoding)
+            session.flush()
             session.refresh(face_encoding)
-            # 创建一个新的独立对象以避免Session绑定问题
-            return FaceEncoding(
-                id=face_encoding.id,
-                person_id=face_encoding.person_id,
-                encoding=face_encoding.encoding,
-                image_path=face_encoding.image_path,
-                image_data=face_encoding.image_data,
-                face_bbox=face_encoding.face_bbox,
-                confidence=face_encoding.confidence,
-                quality_score=face_encoding.quality_score,
-                created_at=face_encoding.created_at,
-                updated_at=face_encoding.updated_at
-            )
+            logger.info(f"Added face encoding for person_id={person_id}")
+            session.expunge(face_encoding)
+            return face_encoding
     
-    def get_all_persons(self) -> List[Person]:
-        """获取所有人员"""
-        with self.get_session() as session:
-            repo = self.get_person_repository(session)
-            return repo.get_all()
+    # ==================== Vector Search Method (MAIN FEATURE) ====================
     
-    def delete_person(self, person_id: int) -> bool:
-        """删除人员及其所有人脸编码"""
+    def find_similar_faces(self, embedding: np.ndarray, region: str, 
+                          client_id: Optional[str] = None,
+                          threshold: float = 0.3,
+                          limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Find similar faces using pgvector cosine similarity
+        **This is the key method that replaces Python loop matching**
+        
+        Args:
+            embedding: Query face embedding
+            region: Region to search in (A, B, C, etc.)
+            client_id: Optional client filter
+            threshold: Similarity threshold (0-1)
+            limit: Maximum results to return
+        
+        Returns:
+            List of matches with person info and similarity scores
+        """
         with self.get_session() as session:
-            # 先删除人脸编码
-            face_repo = self.get_face_encoding_repository(session)
-            face_repo.delete_by_person_id(person_id)
+            # Convert embedding to list for pgvector
+            embedding_list = embedding.tolist() if isinstance(embedding, np.ndarray) else embedding
             
-            # 再删除人员
-            person_repo = self.get_person_repository(session)
-            return person_repo.delete(person_id)
+            # Build query with region filtering + vector similarity
+            query = session.query(
+                FaceEncoding,
+                Person,
+                FaceEncoding.embedding.cosine_distance(embedding_list).label('distance')
+            ).join(Person, FaceEncoding.person_id == Person.id)
+            
+            # Filter by region
+            query = query.filter(Person.region == region)
+            
+            # Optional client filter
+            if client_id:
+                query = query.filter(Person.client_id == client_id)
+            
+            # Calculate similarity (1 - cosine_distance) and filter
+            # pgvector cosine_distance returns 0-2, where 0 = identical
+            # We want similarity > threshold, so distance < (1 - threshold)
+            max_distance = 1.0 - threshold
+            query = query.filter(FaceEncoding.embedding.cosine_distance(embedding_list) < max_distance)
+            
+            # Order by similarity (smallest distance = highest similarity)
+            query = query.order_by('distance').limit(limit)
+            
+            results = []
+            for face_encoding, person, distance in query.all():
+                similarity = 1.0 - distance  # Convert distance back to similarity
+                results.append({
+                    'person_id': person.id,
+                    'name': person.name,
+                    'region': person.region,
+                    'match_score': similarity * 100,  # Percentage
+                    'distance': float(distance),
+                    'face_encoding_id': face_encoding.id,
+                    'quality': face_encoding.quality_score,
+                    'confidence': face_encoding.confidence
+                })
+            
+            logger.info(f"Found {len(results)} matches in region '{region}' above threshold {threshold}")
+            return results
     
-    def get_statistics(self) -> Dict[str, int]:
-        """获取数据库统计信息"""
+    # ==================== Statistics ====================
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get database statistics"""
         with self.get_session() as session:
-            person_repo = self.get_person_repository(session)
-            face_repo = self.get_face_encoding_repository(session)
+            total_persons = session.query(Person).count()
+            total_encodings = session.query(FaceEncoding).count()
+            
+            # Count by region
+            region_counts = {}
+            regions = session.query(Person.region).distinct().all()
+            for (region,) in regions:
+                count = session.query(Person).filter(Person.region == region).count()
+                region_counts[region] = count
             
             return {
-                'total_persons': person_repo.count(),
-                'total_encodings': face_repo.count()
+                'total_persons': total_persons,
+                'total_encodings': total_encodings,
+                'avg_photos_per_person': round(total_encodings / total_persons, 1) if total_persons > 0 else 0,
+                'region_counts': region_counts
             }
     
-    def cleanup_orphaned_encodings(self) -> int:
-        """清理孤立的人脸编码"""
+    # ==================== Backward Compatibility Methods ====================
+    
+    def get_face_encodings(self, person_id: Optional[int] = None) -> List[FaceEncoding]:
+        """Get face encodings (backward compatible)"""
         with self.get_session() as session:
-            # 删除没有对应人员的人脸编码
-            result = session.execute(text("""
-                DELETE FROM face_encodings 
-                WHERE person_id NOT IN (SELECT id FROM persons)
-            """))
-            deleted_count = result.rowcount
-            
-            if deleted_count > 0:
-                logger.info(f"清理了 {deleted_count} 条孤立的人脸编码")
-            
-            return deleted_count
-    
-    def vacuum_database(self):
-        """压缩数据库（释放空间）"""
-        with self.engine.connect() as conn:
-            conn.execute(text("VACUUM"))
-        logger.info("数据库压缩完成")
-    
-    # ==================== 向后兼容的方法 ====================
-    
-    def add_person(self, name: str, description: str = None) -> Person:
-        """添加人员（向后兼容）"""
-        return self.create_person(name, description)
-    
-    def get_person(self, person_id: int) -> Optional[Person]:
-        """获取人员信息（向后兼容）"""
-        return self.get_person_by_id(person_id)
-    
-    def update_person(self, person_id: int, name: str = None, description: str = None) -> bool:
-        """更新人员信息（向后兼容）"""
-        with self.get_session() as session:
-            repo = self.get_person_repository(session)
-            result = repo.update(person_id, name, description)
-            return result is not None
-    
-    def get_face_encodings(self, person_id: int = None) -> List[FaceEncoding]:
-        """获取人脸编码（向后兼容）"""
-        with self.get_session() as session:
-            repo = self.get_face_encoding_repository(session)
             if person_id is not None:
-                return repo.get_by_person_id(person_id)
+                encodings = session.query(FaceEncoding).filter(FaceEncoding.person_id == person_id).all()
             else:
-                # 返回所有编码
-                encodings_with_persons = repo.get_all_encodings()
-                return [encoding for encoding, person in encodings_with_persons]
+                encodings = session.query(FaceEncoding).all()
+            
+            for encoding in encodings:
+                session.expunge(encoding)
+            return encodings
     
     def get_face_encodings_by_person(self, person_id: int) -> List[FaceEncoding]:
-        """根据人员ID获取人脸编码"""
+        """Get face encodings by person ID"""
+        return self.get_face_encodings(person_id=person_id)
+    
+    def get_face_encoding_by_id(self, encoding_id: int) -> Optional[FaceEncoding]:
+        """Get face encoding by ID"""
         with self.get_session() as session:
-            repo = self.get_face_encoding_repository(session)
-            encodings = repo.get_by_person_id(person_id)
-            # 创建独立的对象列表以避免Session绑定问题
-            independent_encodings = []
-            for encoding in encodings:
-                independent_encoding = FaceEncoding(
-                    id=encoding.id,
-                    person_id=encoding.person_id,
-                    encoding=encoding.encoding,
-                    image_path=encoding.image_path,
-                    image_data=encoding.image_data,
-                    face_bbox=encoding.face_bbox,
-                    confidence=encoding.confidence,
-                    quality_score=encoding.quality_score,
-                    created_at=encoding.created_at,
-                    updated_at=encoding.updated_at
-                )
-                independent_encodings.append(independent_encoding)
-            return independent_encodings
+            encoding = session.query(FaceEncoding).filter(FaceEncoding.id == encoding_id).first()
+            if encoding:
+                session.expunge(encoding)
+            return encoding
+    
+    def get_face_encoding_repository(self, session):
+        """Get face encoding repository (for backward compatibility)"""
+        # This is a simple wrapper that returns self since we have the methods directly
+        return self
     
     def delete_face_encoding(self, encoding_id: int) -> bool:
-        """删除人脸编码（向后兼容）"""
+        """Delete a face encoding by ID"""
         with self.get_session() as session:
-            repo = self.get_face_encoding_repository(session)
-            return repo.delete(encoding_id)
+            encoding = session.query(FaceEncoding).filter(FaceEncoding.id == encoding_id).first()
+            if encoding:
+                session.delete(encoding)
+                logger.info(f"Deleted face encoding ID {encoding_id}")
+                return True
+            return False
     
     def get_all_encodings_with_persons(self) -> List[Tuple[Person, FaceEncoding]]:
-        """获取所有人脸编码及对应的人员信息（向后兼容）"""
+        """Get all encodings with person info (backward compatible)"""
         with self.get_session() as session:
-            repo = self.get_face_encoding_repository(session)
-            encodings_with_persons = repo.get_all_encodings()
-            # 调整返回的元组顺序以保持向后兼容
-            return [(person, encoding) for encoding, person in encodings_with_persons]
+            results = session.query(Person, FaceEncoding).join(
+                FaceEncoding, Person.id == FaceEncoding.person_id
+            ).all()
+            
+            detached_results = []
+            for person, encoding in results:
+                session.expunge(person)
+                session.expunge(encoding)
+                detached_results.append((person, encoding))
+            
+            return detached_results
     
-    def search_person_by_name(self, name: str) -> List[Person]:
-        """按姓名搜索人员（向后兼容）"""
+    # ==================== Attendance Methods ====================
+    
+    def mark_attendance(self, person_id: int, date: Optional[datetime] = None, status: str = 'present') -> 'Attendance':
+        """Mark attendance for a person"""
+        if date is None:
+            date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        
         with self.get_session() as session:
-            repo = self.get_person_repository(session)
-            return repo.search_by_name(name)
+            # Check if attendance already exists for this person on this date
+            existing = session.query(Attendance).filter(
+                Attendance.person_id == person_id,
+                Attendance.date == date
+            ).first()
+            
+            if existing:
+                # Update existing attendance
+                existing.status = status
+                existing.marked_at = datetime.utcnow()
+                session.flush()
+                session.refresh(existing)
+                session.expunge(existing)
+                logger.info(f"Updated attendance for person_id={person_id} on {date.date()}")
+                return existing
+            else:
+                # Create new attendance record
+                attendance = Attendance(
+                    person_id=person_id,
+                    date=date,
+                    status=status,
+                    marked_at=datetime.utcnow()
+                )
+                session.add(attendance)
+                session.flush()
+                session.refresh(attendance)
+                session.expunge(attendance)
+                logger.info(f"Marked attendance for person_id={person_id} on {date.date()}")
+                return attendance
     
-    def backup_database(self, backup_path: str) -> bool:
-        """备份数据库（向后兼容）"""
-        try:
-            import shutil
-            shutil.copy2(str(self.db_path), backup_path)
-            logger.info(f"数据库备份完成: {backup_path}")
-            return True
-        except Exception as e:
-            logger.error(f"数据库备份失败: {e}")
-            return False
+    def get_attendance_by_date(self, date: datetime, region: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get attendance records for a specific date with person details"""
+        with self.get_session() as session:
+            query = session.query(Attendance, Person).join(
+                Person, Attendance.person_id == Person.id
+            ).filter(Attendance.date == date)
+            
+            if region:
+                query = query.filter(Person.region == region)
+            
+            results = []
+            for attendance, person in query.all():
+                results.append({
+                    'attendance_id': attendance.id,
+                    'person_id': person.id,
+                    'name': person.name,
+                    'emp_id': person.emp_id,
+                    'emp_rank': person.emp_rank,
+                    'region': person.region,
+                    'status': attendance.status,
+                    'marked_at': attendance.marked_at.isoformat() if attendance.marked_at else None,
+                    'date': attendance.date.isoformat() if attendance.date else None
+                })
+            
+            return results
     
-    def restore_database(self, backup_path: str) -> bool:
-        """从备份恢复数据库（向后兼容）"""
-        try:
-            import shutil
-            shutil.copy2(backup_path, str(self.db_path))
-            # 重新初始化引擎
-            self.engine = create_engine(
-                f'sqlite:///{self.db_path}',
-                poolclass=StaticPool,
-                connect_args={
-                    'check_same_thread': False,
-                    'timeout': 30
-                },
-                echo=False
-            )
-            self.SessionLocal = scoped_session(
-                sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-            )
-            logger.info(f"数据库恢复完成: {backup_path}")
-            return True
-        except Exception as e:
-            logger.error(f"数据库恢复失败: {e}")
-            return False
+    def get_all_persons_with_attendance(self, date: datetime, region: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all persons with their attendance status for a specific date"""
+        with self.get_session() as session:
+            # Get all persons in the region
+            query = session.query(Person)
+            if region:
+                query = query.filter(Person.region == region)
+            
+            persons = query.all()
+            
+            results = []
+            for person in persons:
+                # Check if attendance exists for this person on this date
+                attendance = session.query(Attendance).filter(
+                    Attendance.person_id == person.id,
+                    Attendance.date == date
+                ).first()
+                
+                results.append({
+                    'person_id': person.id,
+                    'name': person.name,
+                    'emp_id': person.emp_id,
+                    'emp_rank': person.emp_rank,
+                    'region': person.region,
+                    'status': attendance.status if attendance else 'absent',
+                    'marked_at': attendance.marked_at.isoformat() if attendance and attendance.marked_at else None,
+                    'date': date.isoformat()
+                })
+            
+            return results
 
 
-# 向后兼容的全局变量
-DatabaseManager = OptimizedDatabaseManager
+# ==================== Global Singleton ====================
 
-# 全局数据库管理器实例
+# Global database manager instance
 _database_manager = None
 
-def get_database_manager() -> OptimizedDatabaseManager:
-    """获取数据库管理器单例"""
+# Backward compatibility alias
+OptimizedDatabaseManager = DatabaseManager
+
+def get_database_manager() -> DatabaseManager:
+    """Get singleton database manager instance"""
     global _database_manager
     if _database_manager is None:
-        from ..utils.config import config
-        _database_manager = OptimizedDatabaseManager(config.DATABASE_PATH)
+        _database_manager = DatabaseManager()
     return _database_manager

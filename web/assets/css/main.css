@@ -38,7 +38,7 @@ body {
     min-height: 100vh;
 }
 
-/* 改进的导航栏样式 */
+/* Improved navigation bar style */
 .navbar {
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(20px);
@@ -72,7 +72,7 @@ body {
     font-size: 1.6rem;
 }
 
-/* 统计分析页面专用样式 */
+/* Special style for statistical analysis page */
 .analytics-card {
     background: white;
     border-radius: 16px;
@@ -265,7 +265,7 @@ body {
     font-size: 0.875rem;
 }
 
-/* 响应式调整 */
+/* Responsive adjustments */
 @media (max-width: 768px) {
     .analytics-card {
         padding: 16px;
@@ -305,7 +305,7 @@ body {
     }
 }
 
-/* 动画效果 */
+/* Animation effects */
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }
@@ -315,14 +315,14 @@ body {
     animation: pulse 1.5s ease-in-out infinite;
 }
 
-/* 改进的按钮样式 */
+/* Improved button styles */
 .analytics-content .btn {
     border-radius: 10px;
     font-weight: 500;
     transition: all 0.2s ease;
 }
 
-/* Tab 导航优化 - 修复可读性问题 */
+/* Tab Navigation optimization - Fix readability issues */
 .nav-tabs {
     border-bottom: 2px solid var(--border-light);
     margin-bottom: 2rem;
@@ -362,7 +362,7 @@ body {
     display: none;
 }
 
-/* Tab内容区域 */
+/* Tabcontent area */
 .tab-content {
     background: white;
     border-radius: 0 16px 16px 16px;
@@ -372,7 +372,7 @@ body {
     border: 1px solid var(--border-light);
 }
 
-/* 表单控件改进 */
+/* Form control improvements */
 .form-control, .form-select {
     border-radius: 10px;
     border: 1.5px solid var(--border-medium);
@@ -414,7 +414,7 @@ body {
     box-shadow: var(--shadow-md);
 }
 
-/* 按钮组改进 */
+/* Button group improvements */
 .btn-group .btn {
     border-radius: 8px;
     margin: 0 2px;
@@ -428,7 +428,7 @@ body {
     margin-right: 0;
 }
 
-/* 加载状态 */
+/* Loading status */
 .loading {
     position: relative;
     pointer-events: none;
@@ -463,7 +463,7 @@ body {
     100% { transform: rotate(360deg); }
 }
 
-/* 人员管理页面样式 */
+/* Personnel management page style */
 .person-card {
     transition: all 0.3s ease;
     border: 1px solid var(--border-light);
@@ -504,7 +504,7 @@ body {
     object-fit: cover;
 }
 
-/* Toast 通知优化 */
+/* Toast Notification optimization */
 .toast {
     border-radius: 12px;
     border: none;
@@ -575,7 +575,7 @@ body {
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
-/* 确保button类型的nav-link正常工作 */
+/* make surebuttontypenav-linkworking normally */
 button.nav-link {
     display: inline-flex;
     align-items: center;
@@ -587,7 +587,7 @@ button.nav-link:focus {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
 }
 
-/* 改进的卡片样式 */
+/* Improved card styles */
 .card {
     background: var(--bg-primary);
     border: 1px solid var(--border-light);
@@ -624,7 +624,7 @@ button.nav-link:focus {
     padding: 1.5rem;
 }
 
-/* 美化的上传区域 */
+/* Beautified upload area */
 .upload-zone {
     border: 3px dashed var(--border-medium);
     border-radius: 16px;
@@ -701,7 +701,7 @@ button.nav-link:focus {
     font-size: 0.875rem;
 }
 
-/* 改进的空状态样式 */
+/* Improved empty state styling */
 .empty-state {
     text-align: center;
     padding: 3rem 2rem;
@@ -727,7 +727,7 @@ button.nav-link:focus {
     font-size: 0.9rem;
 }
 
-/* 改进的按钮样式 */
+/* Improved button styles */
 .btn {
     border-radius: 12px;
     font-weight: 500;
@@ -776,7 +776,7 @@ button.nav-link:focus {
     box-shadow: 0 6px 20px rgba(5, 150, 105, 0.4);
 }
 
-/* 结果卡片样式 */
+/* Result card style */
 .result-card {
     background: var(--bg-secondary);
     border-radius: 12px;
@@ -813,7 +813,7 @@ button.nav-link:focus {
     color: white;
 }
 
-/* 统计卡片样式 */
+/* Statistics card style */
 .stat-card {
     background: linear-gradient(135deg, var(--bg-primary), var(--bg-secondary));
     border-radius: 16px;
@@ -859,7 +859,7 @@ button.nav-link:focus {
     font-weight: 500;
 }
 
-/* 改进的表格样式 */
+/* Improved table styles */
 .table {
     border-radius: 12px;
     overflow: hidden;
@@ -883,7 +883,7 @@ button.nav-link:focus {
     transform: scale(1.01);
 }
 
-/* 人员卡片样式 */
+/* Personnel card style */
 .person-card {
     background: var(--bg-primary);
     border-radius: 16px;
@@ -947,7 +947,7 @@ button.nav-link:focus {
     font-size: 0.875rem;
 }
 
-/* Toast 通知样式 */
+/* Toast notification style */
 .toast-container {
     z-index: 2000;
 }
@@ -979,7 +979,7 @@ button.nav-link:focus {
     color: white;
 }
 
-/* 加载状态样式 */
+/* Loading state style */
 .loading-overlay {
     position: absolute;
     top: 0;
@@ -1008,7 +1008,7 @@ button.nav-link:focus {
     100% { transform: rotate(360deg); }
 }
 
-/* 响应式设计 */
+/* Responsive design */
 @media (max-width: 768px) {
     .navbar-brand {
         font-size: 1.25rem;
@@ -1066,7 +1066,7 @@ button.nav-link:focus {
     }
 }
 
-/* 滚动条样式 */
+/* Scroll bar style */
 ::-webkit-scrollbar {
     width: 8px;
 }
@@ -1084,7 +1084,7 @@ button.nav-link:focus {
     background: var(--text-muted);
 }
 
-/* 动画效果 */
+/* Animation effects */
 .fade-in {
     animation: fadeIn 0.5s ease-in;
 }
@@ -1103,7 +1103,7 @@ button.nav-link:focus {
     to { transform: translateY(0); opacity: 1; }
 }
 
-/* 焦点和无障碍 */
+/* Focus and accessibility */
 .btn:focus,
 .form-control:focus,
 .nav-link:focus {
@@ -1111,7 +1111,7 @@ button.nav-link:focus {
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
 }
 
-/* 打印样式 */
+/* print style */
 @media print {
     .navbar,
     .btn,
@@ -1123,4 +1123,5 @@ button.nav-link:focus {
         box-shadow: none;
         border: 1px solid #000;
     }
+}
 }

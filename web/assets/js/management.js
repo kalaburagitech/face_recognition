@@ -1,4 +1,4 @@
-// 人员管理模块
+// Personnel management module
 class PersonManagement {
     constructor() {
         this.allPersons = [];
@@ -8,12 +8,12 @@ class PersonManagement {
         this.viewMode = 'card'; // 'card' or 'list'
         this.sortBy = 'created_at'; // 'created_at', 'name', 'face_count'
         this.sortOrder = 'desc'; // 'asc' or 'desc'
-        this.bulkSelectionMode = false; // 批量选择模式
+        this.bulkSelectionMode = false; // Batch selection mode
         this.recentOperations = JSON.parse(localStorage.getItem('recentOperations') || '[]');
         
-        // 分页相关属性
+        // Pagination related properties
         this.currentPage = 1;
-        this.pageSize = parseInt(localStorage.getItem('personManagement_pageSize')) || 20; // 从localStorage加载用户偏好
+        this.pageSize = parseInt(localStorage.getItem('personManagement_pageSize')) || 20; // fromlocalStorageLoad user preferences
         this.totalPages = 1;
         
         this.init();
@@ -25,7 +25,7 @@ class PersonManagement {
     }
 
     bindEvents() {
-        // 搜索
+        // search
         const searchInput = document.getElementById('searchPerson');
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
@@ -33,7 +33,7 @@ class PersonManagement {
             });
         }
 
-        // 视图模式切换
+        // View mode switch
         const cardViewBtn = document.getElementById('cardView');
         const listViewBtn = document.getElementById('listView');
         
@@ -51,13 +51,13 @@ class PersonManagement {
             });
         }
 
-        // 刷新按钮
+        // refresh button
         const refreshBtn = document.querySelector('[onclick="refreshPersonList()"]');
         if (refreshBtn) {
             refreshBtn.onclick = () => this.loadPersons();
         }
 
-        // 排序按钮
+        // sort button
         const sortBtn = document.querySelector('[onclick="showSortOptions()"]');
         if (sortBtn) {
             sortBtn.onclick = () => this.showSortOptions();
@@ -66,10 +66,10 @@ class PersonManagement {
 
     async loadPersons() {
         try {
-            // 显示加载状态
+            // show loading status
             this.showLoading(true);
             
-            // 尝试从真实API加载数据
+            // try from realityAPILoad data
             let data;
             try {
                 const response = await fetch('/api/persons');
@@ -79,30 +79,30 @@ class PersonManagement {
                     throw new Error(`HTTP ${response.status}`);
                 }
             } catch (apiError) {
-                console.error('无法获取人员数据:', apiError);
-                // 显示错误而不是使用模拟数据
+                console.error('Unable to get person data:', apiError);
+                // Show errors instead of using mock data
                 data = [];
-                this.showError('无法获取人员数据，请检查后端服务是否正常运行');
+                this.showError('Unable to get person data，Please check if the backend service is running normally');
             }
             
             this.allPersons = data.persons || data || [];
             this.filteredPersons = [...this.allPersons];
-            this.sortPersons(); // 添加排序
-            this.updatePagination(); // 添加分页更新
+            this.sortPersons(); // Add sort
+            this.updatePagination(); // Add paginated updates
             this.displayPersons();
             this.updateStatistics();
-            this.updateRecentOperations(); // 更新最近操作显示
+            this.updateRecentOperations(); // Update recent operations display
             
-            // 更新计数
+            // update count
             const countElement = document.querySelector('.person-count');
             if (countElement) {
-                countElement.textContent = `${this.allPersons.length} 人`;
+                countElement.textContent = `${this.allPersons.length} people`;
                 countElement.className = 'badge bg-primary';
             }
 
         } catch (error) {
             console.error('Load persons error:', error);
-            this.showMessage(`加载人员列表失败: ${error.message}`, 'error');
+            this.showMessage(`Failed to load personnel list: ${error.message}`, 'error');
             this.displayError(error.message);
         } finally {
             this.showLoading(false);
@@ -111,12 +111,12 @@ class PersonManagement {
 
     async updateStatistics() {
         try {
-            // 获取实时统计数据
+            // Get real-time statistics
             const response = await fetch('/api/statistics');
             if (response.ok) {
                 const stats = await response.json();
                 
-                // 更新快速统计
+                // Update quick statistics
                 const totalPersonsCount = document.getElementById('totalPersonsCount');
                 const totalFacesCount = document.getElementById('totalFacesCount');
                 
@@ -128,7 +128,7 @@ class PersonManagement {
                     totalFacesCount.textContent = stats.total_encodings || 0;
                 }
             } else {
-                // 降级到本地计算 - 只显示真实数据
+                // Downgrade to local computing - Only show real data
                 const totalPersonsCount = document.getElementById('totalPersonsCount');
                 const totalFacesCount = document.getElementById('totalFacesCount');
                 
@@ -137,13 +137,13 @@ class PersonManagement {
                 }
                 
                 if (totalFacesCount) {
-                    // 如果没有API数据，显示为0（因为没有真实的人脸数据）
+                    // if notAPIdata，displayed as0（Because there is no real face data）
                     totalFacesCount.textContent = 0;
                 }
             }
         } catch (error) {
-            console.error('更新统计失败:', error);
-            // 使用本地数据降级
+            console.error('Failed to update statistics:', error);
+            // Downgrade using local data
             const totalPersonsCount = document.getElementById('totalPersonsCount');
             if (totalPersonsCount) {
                 totalPersonsCount.textContent = this.allPersons.length;
@@ -163,8 +163,8 @@ class PersonManagement {
             );
         }
         
-        this.sortPersons(); // 重新排序
-        this.updatePagination(); // 更新分页
+        this.sortPersons(); // Reorder
+        this.updatePagination(); // Update pagination
         this.displayPersons();
     }
 
@@ -196,16 +196,16 @@ class PersonManagement {
         });
     }
 
-    // 分页相关方法
+    // Paging related methods
     updatePagination() {
         this.totalPages = Math.ceil(this.filteredPersons.length / this.pageSize);
         
-        // 如果当前页面超出范围，回到第一页
+        // If the current page is out of range，Return to first page
         if (this.currentPage > this.totalPages) {
             this.currentPage = 1;
         }
         
-        // 确保至少有1页
+        // Make sure there are at least1Page
         if (this.totalPages === 0) {
             this.totalPages = 1;
         }
@@ -226,7 +226,7 @@ class PersonManagement {
         this.displayPersons();
         this.renderPaginationControls();
         
-        // 滚动到人员列表顶部
+        // Scroll to top of people list
         const container = document.getElementById('personsList');
         if (container) {
             container.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -246,10 +246,10 @@ class PersonManagement {
     }
 
     renderPaginationControls() {
-        // 查找或创建分页容器
+        // Find or create a paging container
         let paginationContainer = document.getElementById('personsPagination');
         if (!paginationContainer) {
-            // 在人员列表卡片的 card-body 后面添加分页控件
+            // on people list card card-body Add paging controls later
             const personsCard = document.getElementById('personsList')?.closest('.card');
             if (personsCard) {
                 paginationContainer = document.createElement('div');
@@ -261,7 +261,7 @@ class PersonManagement {
         
         if (!paginationContainer) return;
 
-        // 如果只有一页或没有数据，隐藏分页控件
+        // If there is only one page or no data，Hide paging controls
         if (this.totalPages <= 1) {
             paginationContainer.style.display = 'none';
             return;
@@ -276,18 +276,18 @@ class PersonManagement {
             <div class="row align-items-center">
                 <div class="col-md-4">
                     <div class="d-flex align-items-center">
-                        <span class="small text-muted me-2">每页显示:</span>
+                        <span class="small text-muted me-2">Show per page:</span>
                         <select class="form-select form-select-sm" style="width: 80px;" onchange="window.personManagement.changePageSize(this.value)">
                             <option value="10" ${this.pageSize === 10 ? 'selected' : ''}>10</option>
                             <option value="20" ${this.pageSize === 20 ? 'selected' : ''}>20</option>
                             <option value="50" ${this.pageSize === 50 ? 'selected' : ''}>50</option>
                             <option value="100" ${this.pageSize === 100 ? 'selected' : ''}>100</option>
                         </select>
-                        <span class="small text-muted ms-2">项</span>
+                        <span class="small text-muted ms-2">item</span>
                     </div>
                 </div>
                 <div class="col-md-4 text-center">
-                    <nav aria-label="人员列表分页">
+                    <nav aria-label="Person list pagination">
                         <ul class="pagination pagination-sm mb-0 justify-content-center">
                             <li class="page-item ${this.currentPage === 1 ? 'disabled' : ''}">
                                 <button class="page-link" onclick="window.personManagement.previousPage()" 
@@ -307,8 +307,8 @@ class PersonManagement {
                 </div>
                 <div class="col-md-4 text-end">
                     <div class="small text-muted">
-                        显示第 ${startItem}-${endItem} 项，共 ${this.filteredPersons.length} 项
-                        <br>第 ${this.currentPage} / ${this.totalPages} 页
+                        Showing the ${startItem}-${endItem} item，common ${this.filteredPersons.length} item
+                        <br>No. ${this.currentPage} / ${this.totalPages} Page
                     </div>
                 </div>
             </div>
@@ -317,14 +317,14 @@ class PersonManagement {
 
     changePageSize(newSize) {
         this.pageSize = parseInt(newSize);
-        this.currentPage = 1; // 回到第一页
+        this.currentPage = 1; // Return to first page
         this.updatePagination();
         this.displayPersons();
         
-        // 保存用户偏好
+        // Save user preferences
         localStorage.setItem('personManagement_pageSize', this.pageSize);
         
-        this.showMessage(`每页显示 ${this.pageSize} 项`, 'info');
+        this.showMessage(`Show per page ${this.pageSize} item`, 'info');
     }
 
     generatePageNumbers() {
@@ -335,12 +335,12 @@ class PersonManagement {
         let startPage = Math.max(1, this.currentPage - halfVisible);
         let endPage = Math.min(this.totalPages, startPage + maxVisiblePages - 1);
         
-        // 调整开始页面，确保显示足够的页码
+        // Adjust the start page，Make sure enough page numbers are shown
         if (endPage - startPage + 1 < maxVisiblePages) {
             startPage = Math.max(1, endPage - maxVisiblePages + 1);
         }
         
-        // 如果开始页面不是1，显示第一页和省略号
+        // If the start page is not1，Show first page and ellipses
         if (startPage > 1) {
             html += `
                 <li class="page-item">
@@ -352,7 +352,7 @@ class PersonManagement {
             }
         }
         
-        // 显示页码
+        // Show page number
         for (let i = startPage; i <= endPage; i++) {
             html += `
                 <li class="page-item ${i === this.currentPage ? 'active' : ''}">
@@ -361,7 +361,7 @@ class PersonManagement {
             `;
         }
         
-        // 如果结束页面不是最后一页，显示省略号和最后一页
+        // If the end page is not the last page，Show ellipsis and last page
         if (endPage < this.totalPages) {
             if (endPage < this.totalPages - 1) {
                 html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
@@ -377,7 +377,7 @@ class PersonManagement {
     }
 
     showSortOptions() {
-        // 移除已存在的排序对话框
+        // Remove existing sort dialog
         const existingModal = document.getElementById('sortOptionsModal');
         if (existingModal) {
             existingModal.remove();
@@ -391,53 +391,53 @@ class PersonManagement {
                 <div class="modal-content border-0 shadow">
                     <div class="modal-header bg-light border-0">
                         <h6 class="modal-title">
-                            <i class="bi bi-sort-down me-2"></i>排序选项
+                            <i class="bi bi-sort-down me-2"></i>Sorting options
                         </h6>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4">
                         <div class="mb-3">
-                            <label class="form-label">排序方式</label>
+                            <label class="form-label">sort by</label>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="sortBy" value="created_at" id="sortByDate" ${this.sortBy === 'created_at' ? 'checked' : ''}>
                                 <label class="form-check-label" for="sortByDate">
-                                    <i class="bi bi-calendar3 me-2"></i>注册时间
+                                    <i class="bi bi-calendar3 me-2"></i>Registration time
                                 </label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="sortBy" value="name" id="sortByName" ${this.sortBy === 'name' ? 'checked' : ''}>
                                 <label class="form-check-label" for="sortByName">
-                                    <i class="bi bi-person me-2"></i>姓名
+                                    <i class="bi bi-person me-2"></i>Name
                                 </label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="sortBy" value="face_count" id="sortByFaceCount" ${this.sortBy === 'face_count' ? 'checked' : ''}>
                                 <label class="form-check-label" for="sortByFaceCount">
-                                    <i class="bi bi-images me-2"></i>照片数量
+                                    <i class="bi bi-images me-2"></i>Number of photos
                                 </label>
                             </div>
                         </div>
                         
                         <div class="mb-3">
-                            <label class="form-label">排序顺序</label>
+                            <label class="form-label">sort order</label>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="sortOrder" value="desc" id="sortOrderDesc" ${this.sortOrder === 'desc' ? 'checked' : ''}>
                                 <label class="form-check-label" for="sortOrderDesc">
-                                    <i class="bi bi-sort-down me-2"></i>降序（高到低）
+                                    <i class="bi bi-sort-down me-2"></i>descending order（high to low）
                                 </label>
                             </div>
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="sortOrder" value="asc" id="sortOrderAsc" ${this.sortOrder === 'asc' ? 'checked' : ''}>
                                 <label class="form-check-label" for="sortOrderAsc">
-                                    <i class="bi bi-sort-up me-2"></i>升序（低到高）
+                                    <i class="bi bi-sort-up me-2"></i>Ascending order（low to high）
                                 </label>
                             </div>
                         </div>
                     </div>
                     <div class="modal-footer border-0">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-primary" onclick="window.personManagement.applySorting()">
-                            <i class="bi bi-check-lg me-1"></i>应用排序
+                            <i class="bi bi-check-lg me-1"></i>Apply sorting
                         </button>
                     </div>
                 </div>
@@ -468,12 +468,12 @@ class PersonManagement {
             this.sortOrder = sortOrderElements[0].value;
         }
         
-        this.sortPersons(); // 重新排序
-        this.updatePagination(); // 更新分页
+        this.sortPersons(); // Reorder
+        this.updatePagination(); // Update pagination
         this.displayPersons();
-        this.showMessage('排序已应用', 'success');
+        this.showMessage('Sorting applied', 'success');
         
-        // 关闭模态框
+        // Close modal box
         const modal = bootstrap.Modal.getInstance(document.getElementById('sortOptionsModal'));
         if (modal) {
             modal.hide();
@@ -484,18 +484,18 @@ class PersonManagement {
         const container = document.getElementById('personsList');
         if (!container) return;
 
-        // 获取当前页面的人员数据
+        // Get the personnel data of the current page
         const currentPagePersons = this.getCurrentPagePersons();
 
         if (this.filteredPersons.length === 0) {
             container.innerHTML = `
                 <div class="empty-state text-center p-5">
                     <i class="bi bi-people text-muted" style="font-size: 3rem;"></i>
-                    <h6 class="mt-3">暂无人员数据</h6>
-                    <p class="text-muted mb-0">请先注册人员信息</p>
+                    <h6 class="mt-3">No personnel data yet</h6>
+                    <p class="text-muted mb-0">Please register personnel information first</p>
                 </div>
             `;
-            // 隐藏分页控件
+            // Hide paging controls
             this.renderPaginationControls();
             return;
         }
@@ -506,7 +506,7 @@ class PersonManagement {
             this.displayListView(container, currentPagePersons);
         }
         
-        // 更新分页控件
+        // Update paging controls
         this.renderPaginationControls();
     }
 
@@ -531,14 +531,14 @@ class PersonManagement {
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li><a class="dropdown-item" href="#" onclick="window.personManagement.showPersonDetails(${person.id})">
-                                        <i class="bi bi-eye me-2"></i>查看详情
+                                        <i class="bi bi-eye me-2"></i>check the details
                                     </a></li>
                                     <li><a class="dropdown-item" href="#" onclick="window.personManagement.editPersonModal(${person.id})">
-                                        <i class="bi bi-pencil me-2"></i>编辑信息
+                                        <i class="bi bi-pencil me-2"></i>Edit information
                                     </a></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li><a class="dropdown-item text-danger" href="#" onclick="window.personManagement.deletePerson(${person.id})">
-                                        <i class="bi bi-trash me-2"></i>删除
+                                        <i class="bi bi-trash me-2"></i>delete
                                     </a></li>
                                 </ul>
                             </div>
@@ -548,7 +548,7 @@ class PersonManagement {
                             <div class="position-relative d-inline-block">
                                 ${this.getPersonAvatar(person)}
                                 <span class="position-absolute bottom-0 end-0 bg-success border border-2 border-white rounded-circle" 
-                                      style="width: 16px; height: 16px;" title="已注册"></span>
+                                      style="width: 16px; height: 16px;" title="Registered"></span>
                             </div>
                         </div>
                         
@@ -566,27 +566,27 @@ class PersonManagement {
                                         <i class="bi bi-camera-fill text-primary me-1"></i>
                                         <span class="fw-medium">${person.encodings_count || 0}</span>
                                     </div>
-                                    <small class="text-muted">照片</small>
+                                    <small class="text-muted">photo</small>
                                 </div>
                                 <div class="col-6">
                                     <div class="d-flex align-items-center justify-content-center">
                                         <i class="bi bi-calendar3 text-success me-1"></i>
                                         <span class="fw-medium">${this.formatDate(person.created_at)}</span>
                                     </div>
-                                    <small class="text-muted">注册</small>
+                                    <small class="text-muted">register</small>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="card-footer bg-transparent border-top-0 pt-0 pb-3">
                         <div class="btn-group w-100" role="group">
-                            <button class="btn btn-outline-primary btn-sm" onclick="window.personManagement.showPersonDetails(${person.id})" title="查看详情">
+                            <button class="btn btn-outline-primary btn-sm" onclick="window.personManagement.showPersonDetails(${person.id})" title="check the details">
                                 <i class="bi bi-eye"></i>
                             </button>
-                            <button class="btn btn-outline-secondary btn-sm" onclick="window.personManagement.editPersonModal(${person.id})" title="编辑">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="window.personManagement.editPersonModal(${person.id})" title="edit">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <button class="btn btn-outline-danger btn-sm" onclick="window.personManagement.deletePerson(${person.id})" title="删除">
+                            <button class="btn btn-outline-danger btn-sm" onclick="window.personManagement.deletePerson(${person.id})" title="delete">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </div>
@@ -599,9 +599,9 @@ class PersonManagement {
     }
 
     getPersonAvatar(person) {
-        // 如果有人脸图片，显示真实头像
+        // If there is a face picture，Show real avatar
         if (person.face_image_url) {
-            // 添加时间戳防止缓存问题
+            // Add timestamp to prevent caching issues
             const imageUrl = person.face_image_url + (person.face_image_url.includes('?') ? '&' : '?') + 't=' + Date.now();
             return `
                 <img src="${imageUrl}" 
@@ -609,17 +609,17 @@ class PersonManagement {
                      style="width: 72px; height: 72px; border: 3px solid var(--bs-primary);"
                      alt="${person.name}"
                      onclick="window.personManagement.showPersonDetails(${person.id})"
-                     title="点击查看详情"
+                     title="Click to view details"
                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                 <div class="bg-primary bg-gradient rounded-circle d-none align-items-center justify-content-center cursor-pointer" 
                      style="width: 72px; height: 72px;"
                      onclick="window.personManagement.showPersonDetails(${person.id})"
-                     title="点击查看详情">
+                     title="Click to view details">
                     <i class="bi bi-person-fill text-white fs-3"></i>
                 </div>
             `;
         } else {
-            // 使用默认头像，根据姓名生成颜色
+            // Use default avatar，Generate color based on name
             const colors = [
                 'bg-primary', 'bg-success', 'bg-info', 'bg-warning', 
                 'bg-danger', 'bg-secondary', 'bg-dark'
@@ -631,7 +631,7 @@ class PersonManagement {
                 <div class="${bgColor} bg-gradient rounded-circle d-flex align-items-center justify-content-center cursor-pointer" 
                      style="width: 72px; height: 72px;"
                      onclick="window.personManagement.showPersonDetails(${person.id})"
-                     title="点击查看详情">
+                     title="Click to view details">
                     <span class="text-white fw-bold fs-4">${person.name.charAt(0)}</span>
                 </div>
             `;
@@ -639,15 +639,15 @@ class PersonManagement {
     }
 
     formatDate(dateString) {
-        if (!dateString) return '未知';
+        if (!dateString) return 'unknown';
         const date = new Date(dateString);
         const now = new Date();
         const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
         
-        if (diffDays === 0) return '今天';
-        if (diffDays === 1) return '昨天';
-        if (diffDays < 7) return `${diffDays}天前`;
-        if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前`;
+        if (diffDays === 0) return 'today';
+        if (diffDays === 1) return 'yesterday';
+        if (diffDays < 7) return `${diffDays}days ago`;
+        if (diffDays < 30) return `${Math.floor(diffDays / 7)}weeks ago`;
         return date.toLocaleDateString('zh-CN');
     }
 
@@ -687,13 +687,13 @@ class PersonManagement {
                 </td>
                 <td>
                     <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="window.personManagement.showPersonDetails(${person.id})" title="查看详情">
+                        <button class="btn btn-outline-primary" onclick="window.personManagement.showPersonDetails(${person.id})" title="check the details">
                             <i class="bi bi-eye"></i>
                         </button>
-                        <button class="btn btn-outline-secondary" onclick="window.personManagement.editPersonModal(${person.id})" title="编辑">
+                        <button class="btn btn-outline-secondary" onclick="window.personManagement.editPersonModal(${person.id})" title="edit">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-outline-danger" onclick="window.personManagement.deletePerson(${person.id})" title="删除">
+                        <button class="btn btn-outline-danger" onclick="window.personManagement.deletePerson(${person.id})" title="delete">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
@@ -712,11 +712,11 @@ class PersonManagement {
                                            onchange="window.personManagement.toggleSelectAll()">
                                 </div>
                             </th>
-                            <th>人员信息</th>
-                            <th>描述</th>
-                            <th>照片数</th>
-                            <th>注册时间</th>
-                            <th width="120">操作</th>
+                            <th>Personnel information</th>
+                            <th>describe</th>
+                            <th>Number of photos</th>
+                            <th>Registration time</th>
+                            <th width="120">operate</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -728,9 +728,9 @@ class PersonManagement {
     }
 
     getPersonAvatarSmall(person) {
-        // 列表视图的小头像
+        // List view avatar
         if (person.face_image_url) {
-            // 添加时间戳防止缓存问题
+            // Add timestamp to prevent caching issues
             const imageUrl = person.face_image_url + (person.face_image_url.includes('?') ? '&' : '?') + 't=' + Date.now();
             return `
                 <img src="${imageUrl}" 
@@ -738,12 +738,12 @@ class PersonManagement {
                      style="width: 48px; height: 48px; border: 2px solid var(--bs-primary);"
                      alt="${person.name}"
                      onclick="window.personManagement.showPersonDetails(${person.id})"
-                     title="点击查看详情"
+                     title="Click to view details"
                      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                 <div class="bg-primary bg-gradient rounded-circle d-none align-items-center justify-content-center cursor-pointer" 
                      style="width: 48px; height: 48px;"
                      onclick="window.personManagement.showPersonDetails(${person.id})"
-                     title="点击查看详情">
+                     title="Click to view details">
                     <span class="text-white fw-bold">${person.name.charAt(0)}</span>
                 </div>
             `;
@@ -759,7 +759,7 @@ class PersonManagement {
                 <div class="${bgColor} bg-gradient rounded-circle d-flex align-items-center justify-content-center cursor-pointer" 
                      style="width: 48px; height: 48px;"
                      onclick="window.personManagement.showPersonDetails(${person.id})"
-                     title="点击查看详情">
+                     title="Click to view details">
                     <span class="text-white fw-bold">${person.name.charAt(0)}</span>
                 </div>
             `;
@@ -783,7 +783,7 @@ class PersonManagement {
             this.selectedPersons.clear();
         }
         
-        // 更新所有复选框状态
+        // Update all checkbox states
         this.filteredPersons.forEach(person => {
             const checkbox1 = document.getElementById(`person_${person.id}`);
             const checkbox2 = document.getElementById(`person_list_${person.id}`);
@@ -801,12 +801,12 @@ class PersonManagement {
         
         if (bulkDeleteBtn) {
             bulkDeleteBtn.disabled = !hasSelection;
-            bulkDeleteBtn.innerHTML = `<i class="bi bi-trash me-1"></i>批量删除 (${this.selectedPersons.size})`;
+            bulkDeleteBtn.innerHTML = `<i class="bi bi-trash me-1"></i>Batch delete (${this.selectedPersons.size})`;
         }
         
         if (bulkExportBtn) {
             bulkExportBtn.disabled = !hasSelection;
-            bulkExportBtn.innerHTML = `<i class="bi bi-download me-1"></i>导出数据 (${this.selectedPersons.size})`;
+            bulkExportBtn.innerHTML = `<i class="bi bi-download me-1"></i>Export data (${this.selectedPersons.size})`;
         }
     }
 
@@ -814,29 +814,29 @@ class PersonManagement {
         try {
             const person = this.allPersons.find(p => p.id === personId);
             if (!person) {
-                this.showMessage('人员信息不存在', 'error');
+                this.showMessage('Personnel information does not exist', 'error');
                 return;
             }
 
             this.currentPerson = person;
             
-            // 创建优雅的详情模态框
+            // Create an elegant details modal
             this.createPersonDetailModal(person);
 
         } catch (error) {
             console.error('Show person details error:', error);
-            this.showMessage(`获取人员详情失败: ${error.message}`, 'error');
+            this.showMessage(`Failed to obtain person details: ${error.message}`, 'error');
         }
     }
 
     async createPersonDetailModal(person) {
-        // 移除已存在的模态框
+        // Remove existing modal box
         const existingModal = document.getElementById('personDetailModal');
         if (existingModal) {
             existingModal.remove();
         }
 
-        // 先生成人脸画廊
+        // Mr Adult Face Gallery
         const faceGallery = await this.generateFaceGallery(person);
 
         const modal = document.createElement('div');
@@ -852,7 +852,7 @@ class PersonManagement {
                             </div>
                             <div>
                                 <h5 class="modal-title mb-0">${person.name}</h5>
-                                <small class="opacity-75">人员详细信息</small>
+                                <small class="opacity-75">Person details</small>
                             </div>
                         </div>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -863,14 +863,14 @@ class PersonManagement {
                                 <div class="position-relative d-inline-block">
                                     ${this.getPersonAvatar(person)}
                                     <span class="position-absolute bottom-0 end-0 bg-success border border-2 border-white rounded-circle" 
-                                          style="width: 20px; height: 20px;" title="已注册"></span>
+                                          style="width: 20px; height: 20px;" title="Registered"></span>
                                 </div>
                                 <div class="mt-3">
                                     <button class="btn btn-outline-primary btn-sm me-2" onclick="window.personManagement.editPersonModal(${person.id})">
-                                        <i class="bi bi-pencil me-1"></i>编辑
+                                        <i class="bi bi-pencil me-1"></i>edit
                                     </button>
                                     <button class="btn btn-outline-danger btn-sm" onclick="window.personManagement.deletePersonConfirm(${person.id})">
-                                        <i class="bi bi-trash me-1"></i>删除
+                                        <i class="bi bi-trash me-1"></i>delete
                                     </button>
                                 </div>
                             </div>
@@ -878,33 +878,33 @@ class PersonManagement {
                                 <div class="row g-3">
                                     <div class="col-sm-6">
                                         <div class="info-card">
-                                            <div class="info-label">人员ID</div>
+                                            <div class="info-label">personnelID</div>
                                             <div class="info-value">${person.id}</div>
                                         </div>
                                     </div>
                                     <div class="col-sm-6">
                                         <div class="info-card">
-                                            <div class="info-label">姓名</div>
+                                            <div class="info-label">Name</div>
                                             <div class="info-value">${person.name}</div>
                                         </div>
                                     </div>
                                     <div class="col-12">
                                         <div class="info-card">
-                                            <div class="info-label">描述</div>
-                                            <div class="info-value">${person.description || '暂无描述'}</div>
+                                            <div class="info-label">describe</div>
+                                            <div class="info-value">${person.description || 'No description yet'}</div>
                                         </div>
                                     </div>
                                     <div class="col-sm-6">
                                         <div class="info-card">
-                                            <div class="info-label">照片数量</div>
+                                            <div class="info-label">Number of photos</div>
                                             <div class="info-value">
-                                                <span class="badge bg-primary">${person.face_count || person.encodings_count || 0} 张</span>
+                                                <span class="badge bg-primary">${person.face_count || person.encodings_count || 0} open</span>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="col-sm-6">
                                         <div class="info-card">
-                                            <div class="info-label">注册时间</div>
+                                            <div class="info-label">Registration time</div>
                                             <div class="info-value">${this.formatDate(person.created_at)}</div>
                                         </div>
                                     </div>
@@ -912,7 +912,7 @@ class PersonManagement {
                                 
                                 <div class="mt-4">
                                     <h6 class="text-muted mb-3">
-                                        <i class="bi bi-images me-2"></i>人脸照片
+                                        <i class="bi bi-images me-2"></i>face photo
                                     </h6>
                                     <div class="face-gallery">
                                         ${faceGallery}
@@ -922,9 +922,9 @@ class PersonManagement {
                         </div>
                     </div>
                     <div class="modal-footer border-0 bg-light">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">closure</button>
                         <button type="button" class="btn btn-primary" onclick="window.personManagement.editPersonModal(${person.id})">
-                            <i class="bi bi-pencil me-1"></i>编辑信息
+                            <i class="bi bi-pencil me-1"></i>Edit information
                         </button>
                     </div>
                 </div>
@@ -944,16 +944,16 @@ class PersonManagement {
     }
 
     async generateFaceGallery(person) {
-        // 尝试获取真实的人脸照片
+        // Try to get real photos of faces
         let faceImages = [];
         
         try {
-            // 首先尝试从专门的人脸API获取
+            // First try to start with specialized facesAPIGet
             const response = await fetch(`/api/person/${person.id}/faces`);
             if (response.ok) {
                 const data = await response.json();
                 if (data.success && data.face_encodings && data.face_encodings.length > 0) {
-                    // 将face_encodings转换为前端需要的格式
+                    // Willface_encodingsConvert to the format required by the front end
                     faceImages = data.face_encodings.map((encoding, index) => ({
                         id: encoding.id || `face_${person.id}_${index}`,
                         image_url: (encoding.has_image_data && encoding.id) ? `/api/face/${encoding.id}/image` : null,
@@ -965,20 +965,20 @@ class PersonManagement {
                 }
             }
         } catch (error) {
-            console.warn('无法从专门API获取人脸照片:', error);
+            console.warn('cannot be specializedAPIGet face photos:', error);
         }
 
-        // 如果仍然没有照片，返回空状态但包含添加按钮
+        // If there are still no photos，Returns empty state but contains add button
         if (faceImages.length === 0) {
             return `
                 <div class="text-center p-4">
                     <div class="text-muted mb-3">
                         <i class="bi bi-images" style="font-size: 3rem; opacity: 0.5;"></i>
-                        <p class="mt-2 mb-0">暂无人脸照片</p>
-                        <small class="text-muted">添加人脸照片以提高识别准确率</small>
+                        <p class="mt-2 mb-0">No face photos yet</p>
+                        <small class="text-muted">Add face photos to improve recognition accuracy</small>
                     </div>
                     <button class="btn btn-primary btn-sm" onclick="window.personManagement.addMoreFaces(${person.id})">
-                        <i class="bi bi-plus-circle me-1"></i>添加人脸照片
+                        <i class="bi bi-plus-circle me-1"></i>Add a face photo
                     </button>
                 </div>
             `;
@@ -986,7 +986,7 @@ class PersonManagement {
 
         let gallery = '<div class="row g-2">';
         
-        // 最多显示9张照片
+        // Show most9photo
         const displayCount = Math.min(faceImages.length, 9);
         
         for (let i = 0; i < displayCount; i++) {
@@ -997,7 +997,7 @@ class PersonManagement {
                     <div class="face-thumbnail position-relative">
                         <div class="face-image-container" onclick="window.personManagement.viewFaceImage('${face.id}', '${face.image_url || ''}', '${person.name}', ${i + 1})" style="cursor: pointer;">
                             ${face.image_url && face.has_image ? 
-                                `<img src="${face.image_url}?t=${Date.now()}" class="img-fluid rounded" alt="人脸照片 ${i+1}" style="width: 100%; height: 80px; object-fit: cover;"
+                                `<img src="${face.image_url}?t=${Date.now()}" class="img-fluid rounded" alt="face photo ${i+1}" style="width: 100%; height: 80px; object-fit: cover;"
                                       onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                                  <div class="bg-light rounded d-flex align-items-center justify-content-center face-placeholder" style="width: 100%; height: 80px; display: none;">
                                      <i class="bi bi-person-circle text-muted"></i>
@@ -1005,7 +1005,7 @@ class PersonManagement {
                                 `<div class="bg-light rounded d-flex align-items-center justify-content-center face-placeholder" style="width: 100%; height: 80px;">
                                     <div class="text-center">
                                         <i class="bi bi-person-circle text-muted" style="font-size: 2rem;"></i>
-                                        <div class="small text-muted mt-1">特征数据</div>
+                                        <div class="small text-muted mt-1">Feature data</div>
                                     </div>
                                 </div>`
                             }
@@ -1014,14 +1014,14 @@ class PersonManagement {
                             <div class="btn-group-vertical" role="group">
                                 <button class="btn btn-sm btn-outline-danger btn-action" 
                                         onclick="event.stopPropagation(); window.personManagement.deleteFaceImage(${person.id}, '${face.id}', ${i})"
-                                        title="删除此照片">
+                                        title="Delete this photo">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </div>
                         </div>
                         <div class="face-info position-absolute bottom-0 start-0 end-0 p-1">
                             <small class="text-white bg-dark bg-opacity-75 rounded px-1">
-                                ${face.quality_score ? `质量: ${(face.quality_score * 100).toFixed(0)}%` : `照片 ${i+1}`}
+                                ${face.quality_score ? `quality: ${(face.quality_score * 100).toFixed(0)}%` : `photo ${i+1}`}
                             </small>
                         </div>
                     </div>
@@ -1029,14 +1029,14 @@ class PersonManagement {
             `;
         }
         
-        // 如果还有更多照片，显示省略提示
+        // If there are more photos，Show omitted hints
         if (faceImages.length > displayCount) {
             gallery += `
                 <div class="col-4">
                     <div class="face-thumbnail bg-light rounded d-flex align-items-center justify-content-center face-placeholder">
                         <div class="text-center">
                             <i class="bi bi-three-dots text-muted"></i>
-                            <div class="small text-muted">还有${faceImages.length - displayCount}张</div>
+                            <div class="small text-muted">besides${faceImages.length - displayCount}open</div>
                         </div>
                     </div>
                 </div>
@@ -1045,18 +1045,18 @@ class PersonManagement {
         
         gallery += '</div>';
         
-        // 添加说明和操作按钮
+        // Add descriptions and action buttons
         gallery += `
             <div class="mt-3">
                 <div class="text-center mb-2">
                     <small class="text-muted">
                         <i class="bi bi-info-circle me-1"></i>
-                        共 ${faceImages.length} 张人脸照片
+                        common ${faceImages.length} face photo
                     </small>
                 </div>
                 <div class="text-center">
                     <button class="btn btn-outline-primary btn-sm" onclick="window.personManagement.addMoreFaces(${person.id})">
-                        <i class="bi bi-plus-circle me-1"></i>人脸入库
+                        <i class="bi bi-plus-circle me-1"></i>Face storage
                     </button>
                 </div>
             </div>
@@ -1065,14 +1065,14 @@ class PersonManagement {
         return gallery;
     }
 
-    // 查看人脸照片大图
+    // View large image of face photo
     viewFaceImage(faceId, imageUrl, personName, faceNumber) {
         if (!imageUrl) {
-            this.showMessage('该人脸特征没有关联的图片数据', 'info');
+            this.showMessage('This facial feature has no associated image data', 'info');
             return;
         }
 
-        // 创建图片查看模态框
+        // Create image viewing modal box
         const modal = document.createElement('div');
         modal.className = 'modal fade';
         modal.id = 'faceImageModal';
@@ -1081,26 +1081,26 @@ class PersonManagement {
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
-                            <i class="bi bi-image me-2"></i>${personName || '人员'} - 照片 ${faceNumber || ''}
+                            <i class="bi bi-image me-2"></i>${personName || 'personnel'} - photo ${faceNumber || ''}
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body text-center p-4">
                         <div class="position-relative d-inline-block">
-                            <img src="${imageUrl}" class="img-fluid rounded shadow" alt="人脸照片" style="max-height: 500px; max-width: 100%;"
+                            <img src="${imageUrl}" class="img-fluid rounded shadow" alt="face photo" style="max-height: 500px; max-width: 100%;"
                                  onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                             <div class="alert alert-warning" style="display: none;">
                                 <i class="bi bi-exclamation-triangle me-2"></i>
-                                图片加载失败，可能图片数据已损坏或丢失
+                                Image loading failed，The image data may be corrupted or lost
                             </div>
                         </div>
                         <div class="mt-3 text-muted small">
-                            <p class="mb-1">点击照片外区域或按ESC键关闭</p>
+                            <p class="mb-1">Click outside the photo or pressESCkey off</p>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                            <i class="bi bi-x me-1"></i>关闭
+                            <i class="bi bi-x me-1"></i>closure
                         </button>
                     </div>
                 </div>
@@ -1117,7 +1117,7 @@ class PersonManagement {
                 document.body.removeChild(modal);
             });
 
-            // 点击图片外区域关闭模态框
+            // Click outside the image to close the modal box
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
                     bootstrapModal.hide();
@@ -1126,11 +1126,11 @@ class PersonManagement {
         }
     }
 
-    // 删除单张人脸照片
+    // Delete a single face photo
     async deleteFaceImage(personId, faceId, faceIndex) {
         const person = this.allPersons.find(p => p.id === personId);
         if (!person) {
-            this.showMessage('人员信息不存在', 'error');
+            this.showMessage('Personnel information does not exist', 'error');
             return;
         }
 
@@ -1138,7 +1138,7 @@ class PersonManagement {
         if (!confirmed) return;
 
         try {
-            // 调用真实API删除单张照片
+            // call trueAPIDelete a single photo
             const response = await fetch(`/api/person/${personId}/faces/${faceId}`, {
                 method: 'DELETE'
             });
@@ -1148,47 +1148,47 @@ class PersonManagement {
                 const data = await response.json();
                 success = data.success;
                 if (!success) {
-                    throw new Error(data.message || '删除失败');
+                    throw new Error(data.message || 'Delete failed');
                 }
             } else {
                 throw new Error(`HTTP ${response.status}`);
             }
 
             if (success) {
-                // 更新人员的人脸数量
+                // Update the number of faces of people
                 const currentCount = person.face_count || person.encodings_count || 0;
                 if (currentCount > 0) {
                     person.face_count = currentCount - 1;
                     person.encodings_count = currentCount - 1;
                 }
 
-                this.showMessage('照片删除成功', 'success');
-                this.addRecentOperation('删除照片', `删除了 ${person.name} 的一张人脸照片`);
+                this.showMessage('Photo deleted successfully', 'success');
+                this.addRecentOperation('Delete photo', `deleted ${person.name} A photo of a face`);
                 
-                // 重新加载人员数据以获取最新信息
+                // Reload people data to get the latest information
                 await this.loadPersons();
                 
-                // 刷新详情页面的照片展示
+                // Refresh the photo display on the details page
                 const detailModal = document.getElementById('personDetailModal');
                 if (detailModal) {
                     await this.refreshPersonDetails(personId);
                 }
                 
-                // 刷新主列表显示
+                // Refresh main list display
                 this.displayPersons();
                 this.updateStatistics();
             }
 
         } catch (error) {
             console.error('Delete face error:', error);
-            this.showMessage(`删除失败: ${error.message}`, 'error');
+            this.showMessage(`Delete failed: ${error.message}`, 'error');
         }
     }
 
-    // 显示删除单张照片的确认对话框
+    // Show confirmation dialog for deleting a single photo
     showDeleteFaceConfirmDialog(person, faceIndex) {
         return new Promise((resolve) => {
-            // 创建确认对话框
+            // Create confirmation dialog
             const modal = document.createElement('div');
             modal.className = 'modal fade';
             modal.id = 'deleteFaceConfirmModal';
@@ -1197,7 +1197,7 @@ class PersonManagement {
                     <div class="modal-content border-0 shadow-lg">
                         <div class="modal-header bg-danger text-white border-0">
                             <h5 class="modal-title">
-                                <i class="bi bi-exclamation-triangle me-2"></i>确认删除照片
+                                <i class="bi bi-exclamation-triangle me-2"></i>Confirm photo deletion
                             </h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
@@ -1206,24 +1206,24 @@ class PersonManagement {
                                 <div class="text-warning mb-2">
                                     <i class="bi bi-image" style="font-size: 2rem;"></i>
                                 </div>
-                                <h6>删除人脸照片</h6>
-                                <p class="text-muted">确定要删除 <strong>${person.name}</strong> 的这张照片吗？</p>
+                                <h6>Delete face photo</h6>
+                                <p class="text-muted">Confirm to delete <strong>${person.name}</strong> This photo of？</p>
                             </div>
                             
                             <div class="alert alert-warning">
                                 <i class="bi bi-info-circle me-2"></i>
                                 <small>
-                                    删除后该照片将无法恢复，可能会影响识别准确性。
-                                    建议保留多张不同角度的照片以提高识别效果。
+                                    Once deleted, the photo cannot be recovered，May affect recognition accuracy。
+                                    It is recommended to keep multiple photos from different angles to improve the recognition effect。
                                 </small>
                             </div>
                         </div>
                         <div class="modal-footer border-0">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                <i class="bi bi-x me-1"></i>取消
+                                <i class="bi bi-x me-1"></i>Cancel
                             </button>
                             <button type="button" class="btn btn-danger" id="confirmDeleteFace">
-                                <i class="bi bi-trash me-1"></i>确认删除
+                                <i class="bi bi-trash me-1"></i>Confirm deletion
                             </button>
                         </div>
                     </div>
@@ -1236,33 +1236,33 @@ class PersonManagement {
                 const bootstrapModal = new bootstrap.Modal(modal);
                 bootstrapModal.show();
 
-                // 确认按钮事件
+                // Confirm button event
                 const confirmBtn = modal.querySelector('#confirmDeleteFace');
                 confirmBtn.addEventListener('click', () => {
                     bootstrapModal.hide();
                     resolve(true);
                 });
 
-                // 模态框关闭事件
+                // Modal box close event
                 modal.addEventListener('hidden.bs.modal', () => {
                     document.body.removeChild(modal);
                     resolve(false);
                 });
             } else {
-                resolve(confirm(`确定要删除 "${person.name}" 的这张照片吗？`));
+                resolve(confirm(`Confirm to delete "${person.name}" This photo of？`));
             }
         });
     }
 
-    // 添加更多照片
+    // Add more photos
     addMoreFaces(personId) {
         const person = this.allPersons.find(p => p.id === personId);
         if (!person) {
-            this.showMessage('人员信息不存在', 'error');
+            this.showMessage('Personnel information does not exist', 'error');
             return;
         }
 
-        // 创建上传照片模态框
+        // Create upload photo modal box
         const modal = document.createElement('div');
         modal.className = 'modal fade';
         modal.id = 'addFacesModal';
@@ -1271,30 +1271,30 @@ class PersonManagement {
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
-                            <i class="bi bi-person-plus-fill me-2"></i>为 ${person.name} 添加人脸照片
+                            <i class="bi bi-person-plus-fill me-2"></i>for ${person.name} Add a face photo
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle me-2"></i>
-                            <strong>人脸入库说明：</strong>上传的照片将进行人脸识别分析并存储到数据库中，用于后续的人脸识别比对。
+                            <strong>Face storage instructions：</strong>Uploaded photos will be analyzed for face recognition and stored in the database，Used for subsequent face recognition comparison。
                         </div>
                         <div class="upload-area border-2 border-dashed border-primary rounded p-4 text-center mb-3" style="cursor: pointer;" onclick="document.getElementById('addFacesInput').click()">
                             <i class="bi bi-cloud-upload text-primary mb-2" style="font-size: 2rem;"></i>
-                            <h6>点击选择或拖拽照片到此处</h6>
-                            <p class="text-muted small mb-2">支持 JPG、PNG 格式，单张不超过 5MB</p>
+                            <h6>Click to select or drag photos here</h6>
+                            <p class="text-muted small mb-2">support JPG、PNG Format，No more than one sheet 5MB</p>
                             <input type="file" class="d-none" id="addFacesInput" multiple accept="image/*">
                         </div>
                         <div id="addFacesPreview" class="d-none">
-                            <h6 class="small text-muted mb-2">预览:</h6>
+                            <h6 class="small text-muted mb-2">Preview:</h6>
                             <div id="addFacesImages" class="row g-2"></div>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-primary" id="uploadFacesBtn" disabled>
-                            <i class="bi bi-database-add me-1"></i>开始入库
+                            <i class="bi bi-database-add me-1"></i>Start warehousing
                         </button>
                     </div>
                 </div>
@@ -1307,7 +1307,7 @@ class PersonManagement {
             const bootstrapModal = new bootstrap.Modal(modal);
             bootstrapModal.show();
             
-            // 文件选择处理
+            // File selection processing
             const fileInput = modal.querySelector('#addFacesInput');
             const uploadBtn = modal.querySelector('#uploadFacesBtn');
             const uploadArea = modal.querySelector('.upload-area');
@@ -1317,7 +1317,7 @@ class PersonManagement {
                 uploadBtn.disabled = e.target.files.length === 0;
             });
 
-            // 拖拽上传事件
+            // Drag and drop upload event
             uploadArea.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 uploadArea.classList.add('border-success');
@@ -1337,20 +1337,20 @@ class PersonManagement {
                 
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
-                    // 模拟文件输入选择
+                    // Simulate file input selection
                     const dt = new DataTransfer();
                     for (let i = 0; i < files.length; i++) {
                         dt.items.add(files[i]);
                     }
                     fileInput.files = dt.files;
                     
-                    // 触发change事件
+                    // triggerchangeevent
                     this.handleAddFacesFiles(files, modal);
                     uploadBtn.disabled = files.length === 0;
                 }
             });
 
-            // 上传按钮事件
+            // Upload button event
             uploadBtn.addEventListener('click', () => {
                 this.uploadAdditionalFaces(personId, fileInput.files, modal);
             });
@@ -1361,7 +1361,7 @@ class PersonManagement {
         }
     }
 
-    // 处理添加照片的文件
+    // Process files with added photos
     handleAddFacesFiles(files, modal) {
         const preview = modal.querySelector('#addFacesPreview');
         const container = modal.querySelector('#addFacesImages');
@@ -1382,7 +1382,7 @@ class PersonManagement {
                     <div class="position-relative">
                         <img src="${e.target.result}" class="img-fluid rounded" style="height: 80px; object-fit: cover; width: 100%;">
                         <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" 
-                                onclick="this.parentElement.parentElement.remove()" title="移除">
+                                onclick="this.parentElement.parentElement.remove()" title="Remove">
                             <i class="bi bi-x"></i>
                         </button>
                     </div>
@@ -1395,17 +1395,17 @@ class PersonManagement {
         preview.classList.remove('d-none');
     }
 
-    // 上传额外的人脸照片
+    // Upload additional photos of faces
     async uploadAdditionalFaces(personId, files, modal) {
         if (files.length === 0) return;
 
         const uploadBtn = modal.querySelector('#uploadFacesBtn');
         const originalText = uploadBtn.innerHTML;
-        uploadBtn.innerHTML = '<i class="bi bi-spinner bi-spin me-1"></i>入库中...';
+        uploadBtn.innerHTML = '<i class="bi bi-spinner bi-spin me-1"></i>In stock...';
         uploadBtn.disabled = true;
 
         try {
-            // 调用真实的API来上传照片
+            // call realAPIto upload photos
             const formData = new FormData();
             for (let i = 0; i < files.length; i++) {
                 formData.append('faces', files[i]);
@@ -1417,28 +1417,28 @@ class PersonManagement {
             });
 
             if (!response.ok) {
-                throw new Error(`上传失败: HTTP ${response.status}`);
+                throw new Error(`Upload failed: HTTP ${response.status}`);
             }
 
             const result = await response.json();
             if (!result.success) {
-                throw new Error(result.message || '上传失败');
+                throw new Error(result.message || 'Upload failed');
             }
 
             const person = this.allPersons.find(p => p.id === personId);
-            this.showMessage(`成功入库 ${result.count || files.length} 张人脸照片`, 'success');
-            this.addRecentOperation('人脸入库', `为 ${person ? person.name : '人员'} 入库了 ${result.count || files.length} 张人脸照片`);
+            this.showMessage(`Successfully put into storage ${result.count || files.length} face photo`, 'success');
+            this.addRecentOperation('Face storage', `for ${person ? person.name : 'personnel'} In stock ${result.count || files.length} face photo`);
 
-            // 重新加载人员数据以获取最新信息
+            // Reload people data to get the latest information
             await this.loadPersons();
             
-            // 刷新详情页面
+            // Refresh details page
             const detailModal = document.getElementById('personDetailModal');
             if (detailModal && person) {
                 this.refreshPersonDetails(personId);
             }
 
-            // 关闭模态框
+            // Close modal box
             const bootstrapModal = bootstrap.Modal.getInstance(modal);
             if (bootstrapModal) {
                 bootstrapModal.hide();
@@ -1446,67 +1446,67 @@ class PersonManagement {
 
         } catch (error) {
             console.error('Upload additional faces error:', error);
-            this.showMessage(`人脸入库失败: ${error.message}`, 'error');
+            this.showMessage(`Face storage failed: ${error.message}`, 'error');
         } finally {
             uploadBtn.innerHTML = originalText;
             uploadBtn.disabled = false;
         }
     }
 
-    // 刷新人员详情页面
+    // Refresh the personnel details page
     async refreshPersonDetails(personId) {
         const detailModal = document.getElementById('personDetailModal');
         if (!detailModal) return;
 
-        // 重新获取最新的人员数据
+        // Retrieve the latest personnel data
         const person = this.allPersons.find(p => p.id === personId);
         if (!person) return;
 
-        // 更新照片区域
+        // Update photo area
         const faceGallery = detailModal.querySelector('.face-gallery');
         if (faceGallery) {
             faceGallery.innerHTML = await this.generateFaceGallery(person);
         }
 
-        // 更新照片数量显示
+        // Update photo quantity display
         const faceCountElements = detailModal.querySelectorAll('.badge');
         faceCountElements.forEach(element => {
-            if (element.textContent.includes('张')) {
-                element.textContent = `${person.face_count || person.encodings_count || 0} 张`;
+            if (element.textContent.includes('open')) {
+                element.textContent = `${person.face_count || person.encodings_count || 0} open`;
             }
         });
         
-        // 更新详情页面中的照片数量信息
+        // Update photo quantity information in details page
         const infoCards = detailModal.querySelectorAll('.info-card');
         infoCards.forEach(card => {
             const label = card.querySelector('.info-label');
-            if (label && label.textContent.includes('照片数量')) {
+            if (label && label.textContent.includes('Number of photos')) {
                 const valueElement = card.querySelector('.info-value .badge');
                 if (valueElement) {
-                    valueElement.textContent = `${person.face_count || person.encodings_count || 0} 张`;
+                    valueElement.textContent = `${person.face_count || person.encodings_count || 0} open`;
                 }
             }
         });
     }
 
-    // 批量操作相关方法
+    // Methods related to batch operations
     enableBulkSelection() {
         this.bulkSelectionMode = true;
-        // 刷新显示以显示复选框
+        // Refresh display to show checkbox
         this.displayPersons();
     }
 
     disableBulkSelection() {
         this.bulkSelectionMode = false;
         this.selectedPersons = new Set();
-        // 刷新显示以隐藏复选框
+        // Refresh display to hide checkbox
         this.displayPersons();
         this.updateBulkOperationButtons();
     }
 
     clearAllSelections() {
         this.selectedPersons.clear();
-        // 更新所有复选框状态
+        // Update all checkbox states
         const checkboxes = document.querySelectorAll('.person-checkbox');
         checkboxes.forEach(checkbox => {
             checkbox.checked = false;
@@ -1518,7 +1518,7 @@ class PersonManagement {
         const selectedCount = this.selectedPersons.size;
         const countElement = document.getElementById('selectedCount');
         if (countElement) {
-            countElement.textContent = `(已选择 ${selectedCount} 项)`;
+            countElement.textContent = `(Selected ${selectedCount} item)`;
         }
 
         const exportBtn = document.getElementById('bulkExportBtn');
@@ -1541,19 +1541,19 @@ class PersonManagement {
         this.updateBulkOperationButtons();
     }
 
-    // 实现selectAllPersons功能
+    // accomplishselectAllPersonsFunction
     selectAllPersons() {
-        // 全选当前筛选的人员
+        // Select all currently filtered people
         this.filteredPersons.forEach(person => {
             this.selectedPersons.add(person.id);
         });
         
-        // 更新所有复选框状态
+        // Update all checkbox states
         this.updateAllCheckboxes();
         this.updateBulkOperationButtons();
     }
 
-    // 更新所有复选框状态
+    // Update all checkbox states
     updateAllCheckboxes() {
         this.filteredPersons.forEach(person => {
             const checkboxes = document.querySelectorAll(`input[data-person-id="${person.id}"]`);
@@ -1563,29 +1563,29 @@ class PersonManagement {
         });
     }
 
-    // 实现批量删除功能
+    // Implement batch deletion function
     async bulkDeletePersons() {
         if (this.selectedPersons.size === 0) {
-            this.showMessage('请先选择要删除的人员', 'warning');
+            this.showMessage('Please select the person you want to delete first', 'warning');
             return;
         }
 
         const selectedPersonsArray = Array.from(this.selectedPersons);
         const selectedPersonsData = selectedPersonsArray.map(id => 
             this.allPersons.find(p => p.id === id)
-        ).filter(p => p); // 过滤掉undefined
+        ).filter(p => p); // filter outundefined
 
-        // 显示批量删除确认对话框
+        // Display batch deletion confirmation dialog box
         const confirmed = await this.showBulkDeleteConfirmDialog(selectedPersonsData);
         if (!confirmed) return;
 
-        // 执行批量删除
+        // Perform batch deletion
         let successCount = 0;
         let failCount = 0;
 
         for (const person of selectedPersonsData) {
             try {
-                // 调用真实API删除人员
+                // call trueAPIDelete people
                 const response = await fetch(`/api/person/${person.id}`, {
                     method: 'DELETE'
                 });
@@ -1595,45 +1595,45 @@ class PersonManagement {
                     if (data.success) {
                         successCount++;
                     } else {
-                        throw new Error(data.message || '删除操作失败');
+                        throw new Error(data.message || 'Delete operation failed');
                     }
                 } else {
                     throw new Error(`HTTP ${response.status}`);
                 }
             } catch (error) {
                 failCount++;
-                console.error(`删除人员 ${person.name} 失败:`, error);
+                console.error(`Delete people ${person.name} fail:`, error);
             }
         }
 
-        // 从本地数据中移除成功删除的人员
+        // Remove successfully deleted people from local data
         if (successCount > 0) {
             const successfullyDeletedIds = selectedPersonsArray.slice(0, successCount);
             this.allPersons = this.allPersons.filter(p => !successfullyDeletedIds.includes(p.id));
             this.filteredPersons = this.filteredPersons.filter(p => !successfullyDeletedIds.includes(p.id));
         }
         
-        // 清空选择
+        // Clear selection
         this.selectedPersons.clear();
 
-        // 显示结果
+        // Show results
         if (successCount > 0) {
-            this.showMessage(`成功删除 ${successCount} 个人员${failCount > 0 ? `，${failCount} 个失败` : ''}`, successCount === selectedPersonsData.length ? 'success' : 'warning');
-            this.addRecentOperation('批量删除', `批量删除了 ${successCount} 个人员`);
+            this.showMessage(`successfully deleted ${successCount} personal personnel${failCount > 0 ? `，${failCount} a failure` : ''}`, successCount === selectedPersonsData.length ? 'success' : 'warning');
+            this.addRecentOperation('Batch delete', `Deleted in batches ${successCount} personal personnel`);
         } else {
-            this.showMessage('批量删除失败', 'error');
+            this.showMessage('Batch deletion failed', 'error');
         }
 
-        // 刷新显示
+        // refresh display
         this.displayPersons();
         this.updateStatistics();
         this.updateBulkOperationButtons();
     }
 
-    // 实现批量导出功能
+    // Implement batch export function
     async exportSelectedPersons() {
         if (this.selectedPersons.size === 0) {
-            this.showMessage('请先选择要导出的人员', 'warning');
+            this.showMessage('Please select the person you want to export first', 'warning');
             return;
         }
 
@@ -1643,7 +1643,7 @@ class PersonManagement {
         ).filter(p => p);
 
         try {
-            // 准备导出数据
+            // Prepare to export data
             const exportData = {
                 export_time: new Date().toISOString(),
                 export_count: selectedPersonsData.length,
@@ -1657,30 +1657,30 @@ class PersonManagement {
                 }))
             };
 
-            // 创建并下载JSON文件
+            // Create and downloadJSONdocument
             const jsonString = JSON.stringify(exportData, null, 2);
             const blob = new Blob([jsonString], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             
             const a = document.createElement('a');
             a.href = url;
-            a.download = `人员数据导出_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}_${selectedPersonsData.length}人.json`;
+            a.download = `Personnel data export_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}_${selectedPersonsData.length}people.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             
             URL.revokeObjectURL(url);
 
-            this.showMessage(`成功导出 ${selectedPersonsData.length} 个人员的数据`, 'success');
-            this.addRecentOperation('数据导出', `导出了 ${selectedPersonsData.length} 个人员的数据`);
+            this.showMessage(`Exported successfully ${selectedPersonsData.length} personal data`, 'success');
+            this.addRecentOperation('Data export', `Exported ${selectedPersonsData.length} personal data`);
 
         } catch (error) {
             console.error('Export error:', error);
-            this.showMessage(`导出失败: ${error.message}`, 'error');
+            this.showMessage(`Export failed: ${error.message}`, 'error');
         }
     }
 
-    // 显示批量删除确认对话框
+    // Display batch deletion confirmation dialog box
     showBulkDeleteConfirmDialog(persons) {
         return new Promise((resolve) => {
             const modal = document.createElement('div');
@@ -1696,23 +1696,23 @@ class PersonManagement {
                     <div class="modal-content border-0 shadow-lg">
                         <div class="modal-header bg-danger text-white border-0">
                             <h5 class="modal-title">
-                                <i class="bi bi-exclamation-triangle me-2"></i>确认批量删除
+                                <i class="bi bi-exclamation-triangle me-2"></i>Confirm batch deletion
                             </h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body p-4">
                             <div class="alert alert-danger">
                                 <i class="bi bi-exclamation-triangle me-2"></i>
-                                <strong>警告：</strong>您即将删除 <strong>${persons.length}</strong> 个人员的所有信息，包括：
+                                <strong>warn：</strong>You are about to delete <strong>${persons.length}</strong> All information about a person，include：
                                 <ul class="mt-2 mb-0">
-                                    <li>所有人员基本信息</li>
-                                    <li>共计 <strong>${totalFaces}</strong> 张人脸照片</li>
-                                    <li>相关的识别记录</li>
+                                    <li>Basic information of all personnel</li>
+                                    <li>total <strong>${totalFaces}</strong> face photo</li>
+                                    <li>Relevant identification records</li>
                                 </ul>
                             </div>
                             
                             <div class="mb-3">
-                                <h6>将要删除的人员：</h6>
+                                <h6>Person to be deleted：</h6>
                                 <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
                                     ${persons.map(person => `
                                         <div class="d-flex align-items-center mb-2">
@@ -1721,7 +1721,7 @@ class PersonManagement {
                                             </div>
                                             <div>
                                                 <div class="fw-medium">${person.name}</div>
-                                                <small class="text-muted">ID: ${person.id} | ${person.face_count || person.encodings_count || 0} 张照片</small>
+                                                <small class="text-muted">ID: ${person.id} | ${person.face_count || person.encodings_count || 0} photo</small>
                                             </div>
                                         </div>
                                     `).join('')}
@@ -1730,15 +1730,15 @@ class PersonManagement {
                             
                             <div class="alert alert-warning">
                                 <i class="bi bi-info-circle me-2"></i>
-                                <strong>注意：</strong>此操作不可撤销，请确认后再继续。
+                                <strong>Notice：</strong>This action is irreversible，Please confirm before continuing。
                             </div>
                         </div>
                         <div class="modal-footer border-0">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                <i class="bi bi-x me-1"></i>取消
+                                <i class="bi bi-x me-1"></i>Cancel
                             </button>
                             <button type="button" class="btn btn-danger" id="confirmBulkDelete">
-                                <i class="bi bi-trash me-1"></i>确认删除 ${persons.length} 个人员
+                                <i class="bi bi-trash me-1"></i>Confirm deletion ${persons.length} personal personnel
                             </button>
                         </div>
                     </div>
@@ -1751,20 +1751,20 @@ class PersonManagement {
                 const bootstrapModal = new bootstrap.Modal(modal);
                 bootstrapModal.show();
 
-                // 确认按钮事件
+                // Confirm button event
                 const confirmBtn = modal.querySelector('#confirmBulkDelete');
                 confirmBtn.addEventListener('click', () => {
                     bootstrapModal.hide();
                     resolve(true);
                 });
 
-                // 模态框关闭事件
+                // Modal box close event
                 modal.addEventListener('hidden.bs.modal', () => {
                     document.body.removeChild(modal);
                     resolve(false);
                 });
             } else {
-                resolve(confirm(`确定要删除这 ${persons.length} 个人员吗？`));
+                resolve(confirm(`Are you sure you want to delete this ${persons.length} Personnel?？`));
             }
         });
     }
@@ -1772,16 +1772,16 @@ class PersonManagement {
     async deletePerson(personId) {
         const person = this.allPersons.find(p => p.id === personId);
         if (!person) {
-            this.showMessage('人员信息不存在', 'error');
+            this.showMessage('Personnel information does not exist', 'error');
             return;
         }
 
-        // 创建优雅的确认对话框
+        // Create elegant confirmation dialogs
         const result = await this.showDeleteConfirmDialog(person);
         if (!result) return;
 
         try {
-            // 调用真实API删除人员
+            // call trueAPIDelete people
             const response = await fetch(`/api/person/${personId}`, {
                 method: 'DELETE'
             });
@@ -1789,18 +1789,18 @@ class PersonManagement {
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
-                    // 从本地数据中移除
+                    // Remove from local data
                     this.allPersons = this.allPersons.filter(p => p.id !== personId);
                     this.filteredPersons = this.filteredPersons.filter(p => p.id !== personId);
                     this.selectedPersons.delete(personId);
                     
-                    this.showMessage(`人员 "${person.name}" 已成功删除`, 'success');
+                    this.showMessage(`personnel "${person.name}" Deleted successfully`, 'success');
                     this.displayPersons();
                     this.updateStatistics();
                     this.updateBulkOperationButtons();
-                    this.addRecentOperation('删除人员', `删除了人员: ${person.name}`);
+                    this.addRecentOperation('Delete people', `Removed person: ${person.name}`);
                 } else {
-                    throw new Error(data.message || '删除操作失败');
+                    throw new Error(data.message || 'Delete operation failed');
                 }
             } else {
                 throw new Error(`HTTP ${response.status}`);
@@ -1808,13 +1808,13 @@ class PersonManagement {
 
         } catch (error) {
             console.error('Delete person error:', error);
-            this.showMessage(`删除失败: ${error.message}`, 'error');
+            this.showMessage(`Delete failed: ${error.message}`, 'error');
         }
     }
 
     showDeleteConfirmDialog(person) {
         return new Promise((resolve) => {
-            // 移除已存在的确认对话框
+            // Remove existing confirmation dialog
             const existingModal = document.getElementById('deleteConfirmModal');
             if (existingModal) {
                 existingModal.remove();
@@ -1828,7 +1828,7 @@ class PersonManagement {
                     <div class="modal-content border-0 shadow-lg">
                         <div class="modal-header bg-danger text-white border-0">
                             <h5 class="modal-title">
-                                <i class="bi bi-exclamation-triangle-fill me-2"></i>确认删除
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm deletion
                             </h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
@@ -1841,28 +1841,28 @@ class PersonManagement {
                             
                             <div class="alert alert-warning border-0 bg-warning bg-opacity-10">
                                 <i class="bi bi-exclamation-triangle text-warning me-2"></i>
-                                <strong>此操作无法撤销！</strong>
+                                <strong>This action cannot be undone！</strong>
                             </div>
                             
                             <p class="text-center mb-4">
-                                您确定要删除人员 <strong class="text-danger">"${person.name}"</strong> 吗？
+                                Are you sure you want to delete the person <strong class="text-danger">"${person.name}"</strong> ?？
                             </p>
                             
                             <div class="bg-light rounded p-3 mb-3">
-                                <h6 class="text-muted mb-2">将被删除的数据：</h6>
+                                <h6 class="text-muted mb-2">Data to be deleted：</h6>
                                 <ul class="list-unstyled mb-0 small">
-                                    <li><i class="bi bi-person text-primary me-2"></i>人员基本信息</li>
-                                    <li><i class="bi bi-images text-success me-2"></i>${person.face_count || person.encodings_count || 0} 张人脸照片</li>
-                                    <li><i class="bi bi-clock-history text-info me-2"></i>所有相关识别记录</li>
+                                    <li><i class="bi bi-person text-primary me-2"></i>Basic information of personnel</li>
+                                    <li><i class="bi bi-images text-success me-2"></i>${person.face_count || person.encodings_count || 0} face photo</li>
+                                    <li><i class="bi bi-clock-history text-info me-2"></i>All relevant identification records</li>
                                 </ul>
                             </div>
                         </div>
                         <div class="modal-footer border-0 bg-light">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                <i class="bi bi-x-lg me-1"></i>取消
+                                <i class="bi bi-x-lg me-1"></i>Cancel
                             </button>
                             <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
-                                <i class="bi bi-trash me-1"></i>确认删除
+                                <i class="bi bi-trash me-1"></i>Confirm deletion
                             </button>
                         </div>
                     </div>
@@ -1896,12 +1896,12 @@ class PersonManagement {
 
     async bulkDeletePersons() {
         if (this.selectedPersons.size === 0) {
-            this.showMessage('请先选择要删除的人员', 'warning');
+            this.showMessage('Please select the person you want to delete first', 'warning');
             return;
         }
 
         const selectedCount = this.selectedPersons.size;
-        if (!confirm(`确定要删除选中的 ${selectedCount} 个人员吗？此操作不可恢复。`)) {
+        if (!confirm(`Are you sure you want to delete the selected ${selectedCount} Personnel?？This operation is irreversible。`)) {
             return;
         }
 
@@ -1911,7 +1911,7 @@ class PersonManagement {
 
             for (const personId of selectedIds) {
                 try {
-                    // 调用真实API删除人员
+                    // call trueAPIDelete people
                     const response = await fetch(`/api/person/${personId}`, {
                         method: 'DELETE'
                     });
@@ -1922,30 +1922,30 @@ class PersonManagement {
                         }
                     }
                 } catch (apiError) {
-                    console.error(`删除人员 ${personId} 失败:`, apiError);
+                    console.error(`Delete people ${personId} fail:`, apiError);
                 }
             }
 
-            // 从本地数据中移除
+            // Remove from local data
             this.allPersons = this.allPersons.filter(p => !this.selectedPersons.has(p.id));
             this.filteredPersons = this.filteredPersons.filter(p => !this.selectedPersons.has(p.id));
             this.selectedPersons.clear();
 
-            this.showMessage(`成功删除 ${successCount} 个人员`, 'success');
+            this.showMessage(`successfully deleted ${successCount} personal personnel`, 'success');
             this.displayPersons();
             this.updateStatistics();
             this.updateBulkOperationButtons();
-            this.addRecentOperation('批量删除', `批量删除了 ${successCount} 个人员`);
+            this.addRecentOperation('Batch delete', `Deleted in batches ${successCount} personal personnel`);
 
         } catch (error) {
             console.error('Bulk delete error:', error);
-            this.showMessage(`批量删除失败: ${error.message}`, 'error');
+            this.showMessage(`Batch deletion failed: ${error.message}`, 'error');
         }
     }
 
     async exportSelectedPersons() {
         if (this.selectedPersons.size === 0) {
-            this.showMessage('请先选择要导出的人员', 'warning');
+            this.showMessage('Please select the person you want to export first', 'warning');
             return;
         }
 
@@ -1977,22 +1977,22 @@ class PersonManagement {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            this.showMessage(`成功导出 ${selectedPersons.length} 个人员数据`, 'success');
+            this.showMessage(`Exported successfully ${selectedPersons.length} personal data`, 'success');
 
         } catch (error) {
             console.error('Export persons error:', error);
-            this.showMessage(`导出失败: ${error.message}`, 'error');
+            this.showMessage(`Export failed: ${error.message}`, 'error');
         }
     }
 
     editPersonModal(personId) {
         const person = this.allPersons.find(p => p.id === personId);
         if (!person) {
-            this.showMessage('人员信息不存在', 'error');
+            this.showMessage('Personnel information does not exist', 'error');
             return;
         }
 
-        // 移除已存在的编辑模态框
+        // Remove existing edit modal box
         const existingModal = document.getElementById('editPersonModal');
         if (existingModal) {
             existingModal.remove();
@@ -2006,7 +2006,7 @@ class PersonManagement {
                 <div class="modal-content border-0 shadow-lg">
                     <div class="modal-header bg-gradient-secondary text-white border-0">
                         <h5 class="modal-title">
-                            <i class="bi bi-pencil-square me-2"></i>编辑人员信息
+                            <i class="bi bi-pencil-square me-2"></i>Editor information
                         </h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
@@ -2020,7 +2020,7 @@ class PersonManagement {
                             
                             <div class="mb-3">
                                 <label for="editPersonName" class="form-label">
-                                    <i class="bi bi-person me-1"></i>姓名 <span class="text-danger">*</span>
+                                    <i class="bi bi-person me-1"></i>Name <span class="text-danger">*</span>
                                 </label>
                                 <input type="text" class="form-control" id="editPersonName" 
                                        value="${person.name}" required maxlength="100">
@@ -2028,26 +2028,26 @@ class PersonManagement {
                             
                             <div class="mb-3">
                                 <label for="editPersonDesc" class="form-label">
-                                    <i class="bi bi-card-text me-1"></i>描述
+                                    <i class="bi bi-card-text me-1"></i>describe
                                 </label>
                                 <textarea class="form-control" id="editPersonDesc" rows="3" 
-                                          maxlength="500" placeholder="输入人员描述...">${person.description || ''}</textarea>
-                                <div class="form-text">最多500个字符</div>
+                                          maxlength="500" placeholder="Enter person description...">${person.description || ''}</textarea>
+                                <div class="form-text">most500characters</div>
                             </div>
                             
                             <div class="mb-3">
                                 <label class="form-label">
-                                    <i class="bi bi-info-circle me-1"></i>基本信息
+                                    <i class="bi bi-info-circle me-1"></i>Basic information
                                 </label>
                                 <div class="bg-light rounded p-3">
                                     <div class="row">
                                         <div class="col-6">
-                                            <small class="text-muted">人员ID:</small><br>
+                                            <small class="text-muted">personnelID:</small><br>
                                             <strong>${person.id}</strong>
                                         </div>
                                         <div class="col-6">
-                                            <small class="text-muted">照片数:</small><br>
-                                            <strong>${person.face_count || person.encodings_count || 0} 张</strong>
+                                            <small class="text-muted">Number of photos:</small><br>
+                                            <strong>${person.face_count || person.encodings_count || 0} open</strong>
                                         </div>
                                     </div>
                                 </div>
@@ -2055,9 +2055,9 @@ class PersonManagement {
                         </form>
                     </div>
                     <div class="modal-footer border-0">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-primary" onclick="window.personManagement.savePersonEdit(${person.id})">
-                            <i class="bi bi-check-lg me-1"></i>保存更改
+                            <i class="bi bi-check-lg me-1"></i>Save changes
                         </button>
                     </div>
                 </div>
@@ -2081,7 +2081,7 @@ class PersonManagement {
         const descInput = document.getElementById('editPersonDesc');
         
         if (!nameInput || !descInput) {
-            this.showMessage('表单元素不存在', 'error');
+            this.showMessage('Form element does not exist', 'error');
             return;
         }
 
@@ -2089,13 +2089,13 @@ class PersonManagement {
         const newDesc = descInput.value.trim();
 
         if (!newName) {
-            this.showMessage('姓名不能为空', 'warning');
+            this.showMessage('Name cannot be empty', 'warning');
             nameInput.focus();
             return;
         }
 
         try {
-            // 调用真实API更新人员信息
+            // call trueAPIUpdate personnel information
             const response = await fetch(`/api/person/${personId}`, {
                 method: 'PUT',
                 headers: {
@@ -2110,7 +2110,7 @@ class PersonManagement {
             if (response.ok) {
                 const data = await response.json();
                 if (data.success) {
-                    // 更新本地数据
+                    // Update local data
                     const person = this.allPersons.find(p => p.id === personId);
                     if (person) {
                         const oldName = person.name;
@@ -2118,17 +2118,17 @@ class PersonManagement {
                         person.description = newDesc;
                         
                         this.displayPersons();
-                        this.showMessage('人员信息已更新', 'success');
-                        this.addRecentOperation('编辑人员', `将 "${oldName}" 的信息更新为 "${newName}"`);
+                        this.showMessage('Personnel information has been updated', 'success');
+                        this.addRecentOperation('Editorial Staff', `Will "${oldName}" information updated to "${newName}"`);
                         
-                        // 关闭模态框
+                        // Close modal box
                         const modal = bootstrap.Modal.getInstance(document.getElementById('editPersonModal'));
                         if (modal) {
                             modal.hide();
                         }
                     }
                 } else {
-                    throw new Error(data.message || '更新失败');
+                    throw new Error(data.message || 'Update failed');
                 }
             } else {
                 throw new Error(`HTTP ${response.status}`);
@@ -2136,24 +2136,24 @@ class PersonManagement {
             
         } catch (error) {
             console.error('Save person edit error:', error);
-            this.showMessage(`更新失败: ${error.message}`, 'error');
+            this.showMessage(`Update failed: ${error.message}`, 'error');
         }
     }
 
     async deletePersonConfirm(personId) {
         const person = this.allPersons.find(p => p.id === personId);
         if (!person) {
-            this.showMessage('人员信息不存在', 'error');
+            this.showMessage('Personnel information does not exist', 'error');
             return;
         }
 
-        // 关闭详情模态框
+        // Close the details modal box
         const detailModal = bootstrap.Modal.getInstance(document.getElementById('personDetailModal'));
         if (detailModal) {
             detailModal.hide();
         }
 
-        // 延迟显示优雅的确认对话框
+        // Delay in showing elegant confirmation dialog
         setTimeout(async () => {
             const confirmed = await this.showDeleteConfirmDialog(person);
             if (confirmed) {
@@ -2163,20 +2163,20 @@ class PersonManagement {
     }
 
     showMessage(message, type = 'info') {
-        // 显示消息通知
+        // Show message notification
         console.log(`[${type.toUpperCase()}] ${message}`);
         
-        // 如果有 ToastManager，使用它
+        // if there is ToastManager，use it
         if (window.ToastManager) {
             window.ToastManager.show(message, type);
         } else {
-            // 否则使用简单的 alert
+            // Otherwise use simple alert
             if (type === 'error') {
-                alert('错误: ' + message);
+                alert('mistake: ' + message);
             } else if (type === 'warning') {
-                alert('警告: ' + message);
+                alert('warn: ' + message);
             } else if (type === 'success') {
-                alert('成功: ' + message);
+                alert('success: ' + message);
             }
         }
     }
@@ -2190,9 +2190,9 @@ class PersonManagement {
                 <div class="d-flex justify-content-center p-5">
                     <div class="text-center">
                         <div class="spinner-border text-primary mb-3" role="status">
-                            <span class="visually-hidden">加载中...</span>
+                            <span class="visually-hidden">loading...</span>
                         </div>
-                        <p class="text-muted">正在加载人员数据...</p>
+                        <p class="text-muted">Loading personnel data...</p>
                     </div>
                 </div>
             `;
@@ -2205,11 +2205,11 @@ class PersonManagement {
             container.innerHTML = `
                 <div class="alert alert-danger">
                     <i class="bi bi-exclamation-triangle me-2"></i>
-                    <strong>加载失败</strong>
+                    <strong>Loading failed</strong>
                     <br><small>${message}</small>
                     <div class="mt-2">
                         <button class="btn btn-sm btn-outline-danger" onclick="personManagement.loadPersons()">
-                            重试
+                            Try again
                         </button>
                     </div>
                 </div>
@@ -2222,7 +2222,7 @@ class PersonManagement {
         this.showMessage(message, 'error');
     }
 
-    // 最近操作相关方法
+    // Methods related to recent operations
     addRecentOperation(action, details) {
         const operation = {
             id: Date.now(),
@@ -2231,18 +2231,18 @@ class PersonManagement {
             timestamp: new Date().toISOString()
         };
         
-        // 添加到最近操作列表前面
+        // Add to front of recent actions list
         this.recentOperations.unshift(operation);
         
-        // 只保留最近20条操作记录
+        // Keep only the most recent20Operation records
         if (this.recentOperations.length > 20) {
             this.recentOperations = this.recentOperations.slice(0, 20);
         }
         
-        // 保存到localStorage
+        // save tolocalStorage
         localStorage.setItem('recentOperations', JSON.stringify(this.recentOperations));
         
-        // 更新显示
+        // Update display
         this.updateRecentOperations();
     }
 
@@ -2251,7 +2251,7 @@ class PersonManagement {
         if (!container) return;
         
         if (this.recentOperations.length === 0) {
-            container.innerHTML = '<small class="text-muted">暂无操作记录</small>';
+            container.innerHTML = '<small class="text-muted">No operation record yet</small>';
             return;
         }
         
@@ -2274,7 +2274,7 @@ class PersonManagement {
             container.innerHTML += `
                 <div class="text-center">
                     <button class="btn btn-link btn-sm p-0" onclick="window.personManagement.showAllOperations()">
-                        查看全部 ${this.recentOperations.length} 条记录
+                        View all ${this.recentOperations.length} records
                     </button>
                 </div>
             `;
@@ -2283,12 +2283,12 @@ class PersonManagement {
 
     getOperationIcon(action) {
         const icons = {
-            '删除人员': 'trash',
-            '编辑人员': 'pencil',
-            '添加人员': 'person-plus',
-            '批量删除': 'trash-fill',
-            '导出数据': 'download',
-            '刷新数据': 'arrow-clockwise'
+            'Delete people': 'trash',
+            'Editorial Staff': 'pencil',
+            'Add people': 'person-plus',
+            'Batch delete': 'trash-fill',
+            'Export data': 'download',
+            'Refresh data': 'arrow-clockwise'
         };
         return icons[action] || 'info-circle';
     }
@@ -2298,20 +2298,20 @@ class PersonManagement {
         const time = new Date(timestamp);
         const diffMinutes = Math.floor((now - time) / (1000 * 60));
         
-        if (diffMinutes < 1) return '刚刚';
-        if (diffMinutes < 60) return `${diffMinutes}分钟前`;
+        if (diffMinutes < 1) return 'just';
+        if (diffMinutes < 60) return `${diffMinutes}minutes ago`;
         
         const diffHours = Math.floor(diffMinutes / 60);
-        if (diffHours < 24) return `${diffHours}小时前`;
+        if (diffHours < 24) return `${diffHours}hours ago`;
         
         const diffDays = Math.floor(diffHours / 24);
-        if (diffDays < 7) return `${diffDays}天前`;
+        if (diffDays < 7) return `${diffDays}days ago`;
         
         return time.toLocaleDateString('zh-CN');
     }
 
     showAllOperations() {
-        // 创建完整操作记录对话框
+        // Create complete operation record dialog box
         const existingModal = document.getElementById('operationsHistoryModal');
         if (existingModal) {
             existingModal.remove();
@@ -2325,7 +2325,7 @@ class PersonManagement {
                 <div class="modal-content border-0 shadow">
                     <div class="modal-header bg-light border-0">
                         <h5 class="modal-title">
-                            <i class="bi bi-clock-history me-2"></i>操作历史记录
+                            <i class="bi bi-clock-history me-2"></i>Operation history
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
@@ -2349,9 +2349,9 @@ class PersonManagement {
                     </div>
                     <div class="modal-footer border-0">
                         <button type="button" class="btn btn-outline-danger btn-sm" onclick="window.personManagement.clearOperationHistory()">
-                            <i class="bi bi-trash me-1"></i>清空记录
+                            <i class="bi bi-trash me-1"></i>clear record
                         </button>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">closure</button>
                     </div>
                 </div>
             </div>
@@ -2370,13 +2370,13 @@ class PersonManagement {
     }
 
     clearOperationHistory() {
-        if (confirm('确定要清空所有操作记录吗？')) {
+        if (confirm('Are you sure you want to clear all operation records?？')) {
             this.recentOperations = [];
             localStorage.removeItem('recentOperations');
             this.updateRecentOperations();
-            this.showMessage('操作记录已清空', 'success');
+            this.showMessage('Operation record has been cleared', 'success');
             
-            // 关闭模态框
+            // Close modal box
             const modal = bootstrap.Modal.getInstance(document.getElementById('operationsHistoryModal'));
             if (modal) {
                 modal.hide();
@@ -2384,9 +2384,9 @@ class PersonManagement {
         }
     }
 
-    // 批量人脸入库功能
+    // Batch face storage function
     showBatchFaceEnrollmentModal() {
-        // 移除已存在的模态框
+        // Remove existing modal box
         const existingModal = document.getElementById('batchFaceEnrollmentModal');
         if (existingModal) {
             existingModal.remove();
@@ -2400,37 +2400,37 @@ class PersonManagement {
                 <div class="modal-content border-0 shadow-lg">
                     <div class="modal-header bg-primary text-white border-0">
                         <h5 class="modal-title">
-                            <i class="bi bi-person-plus-fill me-2"></i>批量人脸入库
+                            <i class="bi bi-person-plus-fill me-2"></i>Batch face storage
                         </h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4">
                         <div class="alert alert-info border-0">
                             <i class="bi bi-info-circle me-2"></i>
-                            <strong>批量人脸入库说明：</strong><br>
-                            • 支持上传多张人脸照片，系统会自动识别人脸并入库<br>
-                            • 可以为现有人员添加更多人脸照片，或创建新人员<br>
-                            • 支持从文件名自动提取人员姓名<br>
-                            • 每张照片最大5MB，支持JPG、PNG格式
+                            <strong>Instructions for batch face storage：</strong><br>
+                            • Support uploading multiple face photos，The system will automatically recognize faces and store them in the database<br>
+                            • Can add more face photos for existing people，or create new person<br>
+                            • Supports automatic extraction of person names from file names<br>
+                            • maximum per photo5MB，supportJPG、PNGFormat
                         </div>
 
                         <div class="mb-4">
                             <label class="form-label fw-bold">
-                                <i class="bi bi-upload me-1"></i>选择人脸照片
+                                <i class="bi bi-upload me-1"></i>Select face photo
                             </label>
                             <div class="upload-area border-2 border-dashed border-primary rounded p-4 text-center mb-3" 
                                  id="batchUploadArea" onclick="document.getElementById('batchFaceFiles').click()">
                                 <i class="bi bi-cloud-upload text-primary mb-2" style="font-size: 3rem;"></i>
-                                <h6 class="text-primary">点击选择或拖拽照片到此处</h6>
-                                <p class="text-muted small mb-0">支持多选，系统将从文件名自动提取人员姓名</p>
+                                <h6 class="text-primary">Click to select or drag photos here</h6>
+                                <p class="text-muted small mb-0">Support multiple selection，The system will automatically extract the person's name from the file name</p>
                                 <input type="file" class="d-none" id="batchFaceFiles" multiple accept="image/*">
                             </div>
                             
                             <div id="batchFacePreview" class="d-none">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="small text-muted mb-0">预览 (<span id="previewCount">0</span> 张照片)：</h6>
+                                    <h6 class="small text-muted mb-0">Preview (<span id="previewCount">0</span> photo)：</h6>
                                     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="this.parentElement.parentElement.parentElement.querySelector('#batchFaceFiles').click()">
-                                        <i class="bi bi-plus me-1"></i>添加更多
+                                        <i class="bi bi-plus me-1"></i>add more
                                     </button>
                                 </div>
                                 <div id="batchFaceImages" class="row g-2" style="max-height: 300px; overflow-y: auto;"></div>
@@ -2440,45 +2440,45 @@ class PersonManagement {
                         <div class="row">
                             <div class="col-md-6">
                                 <label class="form-label">
-                                    <i class="bi bi-gear me-1"></i>入库模式
+                                    <i class="bi bi-gear me-1"></i>Warehousing mode
                                 </label>
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="enrollmentMode" id="autoMode" value="auto" checked>
                                     <label class="form-check-label" for="autoMode">
-                                        <strong>自动模式</strong><br>
-                                        <small class="text-muted">从文件名自动提取姓名</small>
+                                        <strong>automatic mode</strong><br>
+                                        <small class="text-muted">Automatically extract names from file names</small>
                                     </label>
                                 </div>
                                 <div class="form-check mt-2">
                                     <input class="form-check-input" type="radio" name="enrollmentMode" id="manualMode" value="manual">
                                     <label class="form-check-label" for="manualMode">
-                                        <strong>手动模式</strong><br>
-                                        <small class="text-muted">手动指定人员信息</small>
+                                        <strong>manual mode</strong><br>
+                                        <small class="text-muted">Manually specify person information</small>
                                     </label>
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div id="manualModeOptions" class="d-none">
                                     <label for="batchPersonName" class="form-label">
-                                        <i class="bi bi-person me-1"></i>统一姓名（可选）
+                                        <i class="bi bi-person me-1"></i>unified name（Optional）
                                     </label>
                                     <input type="text" class="form-control mb-2" id="batchPersonName" 
-                                           placeholder="留空则使用文件名">
+                                           placeholder="Leave blank to use filename">
                                     
                                     <label for="batchPersonDesc" class="form-label">
-                                        <i class="bi bi-card-text me-1"></i>统一描述（可选）
+                                        <i class="bi bi-card-text me-1"></i>unified description（Optional）
                                     </label>
                                     <input type="text" class="form-control" id="batchPersonDesc" 
-                                           placeholder="为所有照片添加统一描述">
+                                           placeholder="Add a unified description to all your photos">
                                 </div>
                                 <div id="autoModeInfo" class="">
                                     <div class="alert alert-light border mb-0">
                                         <small class="text-muted">
                                             <i class="bi bi-lightbulb me-1"></i>
-                                            <strong>文件命名建议：</strong><br>
-                                            • 张三.jpg → 姓名：张三<br>
-                                            • John_Smith.png → 姓名：John Smith<br>
-                                            • 员工001.jpg → 姓名：员工001
+                                            <strong>File naming suggestions：</strong><br>
+                                            • Zhang San.jpg → Name：Zhang San<br>
+                                            • John_Smith.png → Name：John Smith<br>
+                                            • staff001.jpg → Name：staff001
                                         </small>
                                     </div>
                                 </div>
@@ -2487,17 +2487,17 @@ class PersonManagement {
 
                         <div id="batchResults" class="mt-3 d-none">
                             <h6 class="text-muted mb-2">
-                                <i class="bi bi-list-check me-1"></i>入库结果：
+                                <i class="bi bi-list-check me-1"></i>Storage results：
                             </h6>
                             <div id="batchResultsContent"></div>
                         </div>
                     </div>
                     <div class="modal-footer border-0">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                            <i class="bi bi-x me-1"></i>关闭
+                            <i class="bi bi-x me-1"></i>closure
                         </button>
                         <button type="button" class="btn btn-primary" id="startBatchEnrollment" disabled>
-                            <i class="bi bi-database-add me-1"></i>开始批量入库
+                            <i class="bi bi-database-add me-1"></i>Start batch storage
                         </button>
                     </div>
                 </div>
@@ -2510,7 +2510,7 @@ class PersonManagement {
             const bootstrapModal = new bootstrap.Modal(modal);
             bootstrapModal.show();
 
-            // 绑定事件
+            // Binding events
             this.bindBatchFaceEnrollmentEvents(modal);
 
             modal.addEventListener('hidden.bs.modal', () => {
@@ -2528,12 +2528,12 @@ class PersonManagement {
         const manualOptions = modal.querySelector('#manualModeOptions');
         const autoInfo = modal.querySelector('#autoModeInfo');
 
-        // 文件选择事件
+        // File selection event
         fileInput.addEventListener('change', (e) => {
             this.handleBatchFaceFiles(e.target.files, modal);
         });
 
-        // 拖拽上传
+        // Drag and drop upload
         uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('border-success');
@@ -2549,7 +2549,7 @@ class PersonManagement {
             this.handleBatchFaceFiles(e.dataTransfer.files, modal);
         });
 
-        // 模式切换
+        // Mode switching
         autoMode.addEventListener('change', () => {
             if (autoMode.checked) {
                 manualOptions.classList.add('d-none');
@@ -2564,7 +2564,7 @@ class PersonManagement {
             }
         });
 
-        // 开始批量入库
+        // Start batch storage
         startBtn.addEventListener('click', () => {
             this.performBatchFaceEnrollment(modal);
         });
@@ -2582,7 +2582,7 @@ class PersonManagement {
             return;
         }
 
-        // 保存文件到模态框数据中
+        // Save the file to the modal box data
         modal._batchFiles = Array.from(files);
         countSpan.textContent = files.length;
 
@@ -2594,11 +2594,11 @@ class PersonManagement {
                 const col = document.createElement('div');
                 col.className = 'col-3 mb-2';
                 
-                // 从文件名提取可能的姓名
+                // Extract possible names from file names
                 const fileName = file.name;
                 const nameFromFile = fileName.replace(/\.(jpg|jpeg|png|gif|bmp|webp)$/i, '')
                                              .replace(/[_-]/g, ' ')
-                                             .trim() || '未命名';
+                                             .trim() || 'Unnamed';
 
                 col.innerHTML = `
                     <div class="position-relative">
@@ -2607,7 +2607,7 @@ class PersonManagement {
                              alt="${fileName}">
                         <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" 
                                 onclick="this.closest('.col-3').remove(); window.personManagement.updateBatchFileCount()" 
-                                title="移除">
+                                title="Remove">
                             <i class="bi bi-x"></i>
                         </button>
                         <div class="position-absolute bottom-0 start-0 end-0 bg-dark bg-opacity-75 text-white p-1 rounded-bottom small text-center">
@@ -2644,7 +2644,7 @@ class PersonManagement {
     async performBatchFaceEnrollment(modal) {
         const files = modal._batchFiles;
         if (!files || files.length === 0) {
-            this.showMessage('请先选择人脸照片', 'warning');
+            this.showMessage('Please select a face photo first', 'warning');
             return;
         }
 
@@ -2656,23 +2656,23 @@ class PersonManagement {
         const manualDesc = modal.querySelector('#batchPersonDesc').value.trim();
 
         const originalBtnText = startBtn.innerHTML;
-        startBtn.innerHTML = '<i class="bi bi-spinner bi-spin me-1"></i>批量入库中...';
+        startBtn.innerHTML = '<i class="bi bi-spinner bi-spin me-1"></i>Loading in batches...';
         startBtn.disabled = true;
 
         try {
             const formData = new FormData();
             
-            // 添加文件
+            // Add files
             files.forEach(file => {
                 formData.append('files', file);
             });
 
-            // 如果是手动模式且指定了姓名，添加姓名参数
+            // If it is manual mode and a name is specified，Add name parameter
             if (!autoMode && manualName) {
                 formData.append('names', manualName);
             }
 
-            // 如果指定了描述，添加描述参数
+            // If description is specified，Add description parameters
             if (manualDesc) {
                 formData.append('descriptions', manualDesc);
             }
@@ -2688,24 +2688,24 @@ class PersonManagement {
 
             const result = await response.json();
             
-            // 显示结果
+            // Show results
             this.displayBatchEnrollmentResults(result, resultsContent);
             results.classList.remove('d-none');
 
             if (result.success && result.success_count > 0) {
-                this.showMessage(`批量入库完成：成功 ${result.success_count} 个，失败 ${result.error_count} 个`, 
+                this.showMessage(`Batch storage completed：success ${result.success_count} indivual，fail ${result.error_count} indivual`, 
                     result.error_count === 0 ? 'success' : 'warning');
-                this.addRecentOperation('批量人脸入库', `批量入库了 ${result.success_count} 张人脸照片`);
+                this.addRecentOperation('Batch face storage', `Warehoused in batches ${result.success_count} face photo`);
                 
-                // 刷新人员列表
+                // Refresh person list
                 await this.loadPersons();
             } else {
-                this.showMessage('批量入库失败', 'error');
+                this.showMessage('Batch storage failed', 'error');
             }
 
         } catch (error) {
             console.error('Batch face enrollment error:', error);
-            this.showMessage(`批量入库失败: ${error.message}`, 'error');
+            this.showMessage(`Batch storage failed: ${error.message}`, 'error');
         } finally {
             startBtn.innerHTML = originalBtnText;
             startBtn.disabled = false;
@@ -2719,27 +2719,27 @@ class PersonManagement {
             <div class="alert alert-${result.error_count === 0 ? 'success' : 'warning'} border-0">
                 <div class="d-flex align-items-center mb-2">
                     <i class="bi bi-${result.error_count === 0 ? 'check-circle-fill' : 'exclamation-triangle-fill'} me-2"></i>
-                    <strong>批量入库完成</strong>
+                    <strong>Batch storage completed</strong>
                 </div>
                 <div class="row text-center">
                     <div class="col-4">
                         <div class="fs-4 fw-bold">${result.total_files || 0}</div>
-                        <small class="text-muted">总计</small>
+                        <small class="text-muted">total</small>
                     </div>
                     <div class="col-4">
                         <div class="fs-4 fw-bold text-success">${result.success_count || 0}</div>
-                        <small class="text-muted">成功</small>
+                        <small class="text-muted">success</small>
                     </div>
                     <div class="col-4">
                         <div class="fs-4 fw-bold text-danger">${result.error_count || 0}</div>
-                        <small class="text-muted">失败</small>
+                        <small class="text-muted">fail</small>
                     </div>
                 </div>
             </div>
         `;
 
         if (result.results && result.results.length > 0) {
-            html += '<div class="mt-3"><h6 class="small text-muted mb-2">详细结果：</h6>';
+            html += '<div class="mt-3"><h6 class="small text-muted mb-2">Detailed results：</h6>';
             
             result.results.forEach((item, index) => {
                 const statusClass = item.success ? 'success' : 'danger';
@@ -2753,10 +2753,10 @@ class PersonManagement {
                                 <div class="flex-grow-1 small">
                                     <div class="fw-bold">${item.file_name}</div>
                                     <div class="text-muted">
-                                        ${item.name ? `姓名: ${item.name}` : ''}
+                                        ${item.name ? `Name: ${item.name}` : ''}
                                         ${item.success ? 
-                                            `${item.person_id ? ` | 人员ID: ${item.person_id}` : ''}${item.face_encoding_id ? ` | 人脸ID: ${item.face_encoding_id}` : ''}${item.quality_score ? ` | 质量: ${(item.quality_score * 100).toFixed(1)}%` : ''}` :
-                                            ` | 错误: ${item.error}`
+                                            `${item.person_id ? ` | personnelID: ${item.person_id}` : ''}${item.face_encoding_id ? ` | human faceID: ${item.face_encoding_id}` : ''}${item.quality_score ? ` | quality: ${(item.quality_score * 100).toFixed(1)}%` : ''}` :
+                                            ` | mistake: ${item.error}`
                                         }
                                     </div>
                                 </div>
@@ -2773,7 +2773,7 @@ class PersonManagement {
     }
 }
 
-// 全局函数
+// global function
 function showBulkOperations() {
     const panel = document.getElementById('bulkOperationsPanel');
     if (panel) {
@@ -2782,7 +2782,7 @@ function showBulkOperations() {
         
         if (window.personManagement) {
             window.personManagement.showMessage(
-                isVisible ? '批量操作面板已隐藏' : '批量操作面板已显示', 
+                isVisible ? 'Batch operation panel is hidden' : 'Batch operation panel is displayed', 
                 'info'
             );
         }
@@ -2796,7 +2796,7 @@ function selectAllPersons() {
             window.personManagement.selectedPersons.add(person.id)
         );
         
-        // 更新所有复选框状态
+        // Update all checkbox states
         window.personManagement.filteredPersons.forEach(person => {
             const checkbox1 = document.getElementById(`person_${person.id}`);
             const checkbox2 = document.getElementById(`person_list_${person.id}`);
@@ -2805,7 +2805,7 @@ function selectAllPersons() {
         });
         
         window.personManagement.updateBulkOperationButtons();
-        window.personManagement.showMessage(`已选择 ${window.personManagement.selectedPersons.size} 个人员`, 'info');
+        window.personManagement.showMessage(`Selected ${window.personManagement.selectedPersons.size} personal personnel`, 'info');
     }
 }
 
@@ -2813,7 +2813,7 @@ function clearSelection() {
     if (window.personManagement) {
         window.personManagement.selectedPersons.clear();
         
-        // 清除所有复选框状态
+        // Clear all checkbox states
         document.querySelectorAll('input[type="checkbox"][data-person-id]').forEach(cb => {
             cb.checked = false;
         });
@@ -2822,7 +2822,7 @@ function clearSelection() {
         if (selectAllCheckbox) selectAllCheckbox.checked = false;
         
         window.personManagement.updateBulkOperationButtons();
-        window.personManagement.showMessage('已清除所有选择', 'info');
+        window.personManagement.showMessage('All selections cleared', 'info');
     }
 }
 
@@ -2830,7 +2830,7 @@ function bulkDeletePersons() {
     if (window.personManagement) {
         window.personManagement.bulkDeletePersons();
     } else {
-        alert('人员管理模块未加载');
+        alert('Personnel management module not loaded');
     }
 }
 
@@ -2838,18 +2838,18 @@ function exportSelectedPersons() {
     if (window.personManagement) {
         window.personManagement.exportSelectedPersons();
     } else {
-        alert('人员管理模块未加载');
+        alert('Personnel management module not loaded');
     }
 }
 
-// 批量人脸入库功能
+// Batch face storage function
 function showBatchFaceEnrollment() {
     if (window.personManagement) {
         window.personManagement.showBatchFaceEnrollmentModal();
     } else {
-        alert('人员管理模块未加载');
+        alert('Personnel management module not loaded');
     }
 }
 
-// 导出到全局作用域
+// Export to global scope
 window.PersonManagement = PersonManagement;

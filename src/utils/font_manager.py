@@ -1,6 +1,6 @@
 """
-中文字体管理器
-确保在不同环境下都能正确显示中文字符
+Chinese font manager
+Ensure that Chinese characters can be displayed correctly in different environments
 """
 
 import os
@@ -13,18 +13,18 @@ import logging
 logger = logging.getLogger(__name__)
 
 class FontManager:
-    """中文字体管理器"""
+    """Chinese font manager"""
     
     def __init__(self, base_dir: Optional[Path] = None):
-        """初始化字体管理器
+        """Initialize font manager
         
         Args:
-            base_dir: 项目根目录，如果不指定则自动检测
+            base_dir: Project root directory，If not specified, it will be automatically detected.
         """
         if base_dir is None:
-            # 自动检测项目根目录
+            # Automatically detect project root directory
             current_file = Path(__file__).resolve()
-            # 从当前文件向上查找到包含main.py的目录
+            # Search upwards from the current file to includemain.pydirectory
             base_dir = current_file.parent
             while base_dir.parent != base_dir:
                 if (base_dir / "main.py").exists():
@@ -32,69 +32,69 @@ class FontManager:
                 base_dir = base_dir.parent
         
         self.base_dir = Path(base_dir)
-        self.font_cache = {}  # 字体缓存
+        self.font_cache = {}  # Font cache
         
-        # 项目内字体路径
+        # Font path within the project
         self.project_fonts_dir = self.base_dir / "assets" / "fonts"
         
-        # 字体查找优先级列表（从高到低）
+        # Font lookup priority list（from high to low）
         self.font_search_paths = self._build_font_search_paths()
         
-        # 确保项目字体目录存在
+        # Make sure the project font directory exists
         self.project_fonts_dir.mkdir(parents=True, exist_ok=True)
         
     def _build_font_search_paths(self) -> List[str]:
-        """构建字体搜索路径列表"""
+        """Build a list of font search paths"""
         paths = []
         
-        # 1. 项目内字体（最高优先级）
+        # 1. Fonts within the project（highest priority）
         if self.project_fonts_dir.exists():
             for font_file in self.project_fonts_dir.glob("*.tt*"):
                 paths.append(str(font_file))
         
-        # 2. Linux系统字体路径
+        # 2. LinuxSystem font path
         linux_paths = [
-            # 文泉驿字体（推荐）
+            # Wenquanyi font（recommend）
             "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
             "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
             
-            # Noto字体
+            # Notofont
             "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/truetype/noto/NotoSerifCJK-Regular.ttc",
             
-            # Droid字体
+            # Droidfont
             "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
             
-            # 思源字体
+            # Siyuan font
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/truetype/arphic/uming.ttc",
             "/usr/share/fonts/truetype/arphic/ukai.ttc",
             
-            # Liberation字体（备用）
+            # Liberationfont（spare）
             "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         ]
         
-        # 3. Windows系统字体路径
+        # 3. WindowsSystem font path
         windows_paths = [
-            "C:/Windows/Fonts/simhei.ttf",       # 黑体
-            "C:/Windows/Fonts/simsun.ttc",       # 宋体
-            "C:/Windows/Fonts/msyh.ttc",         # 微软雅黑
-            "C:/Windows/Fonts/msyhbd.ttc",       # 微软雅黑粗体
-            "C:/Windows/Fonts/simkai.ttf",       # 楷体
-            "C:/Windows/Fonts/simfang.ttf",      # 仿宋
+            "C:/Windows/Fonts/simhei.ttf",       # black body
+            "C:/Windows/Fonts/simsun.ttc",       # Song Dynasty
+            "C:/Windows/Fonts/msyh.ttc",         # Microsoft Yahei
+            "C:/Windows/Fonts/msyhbd.ttc",       # Microsoft Yahei Bold
+            "C:/Windows/Fonts/simkai.ttf",       # regular script
+            "C:/Windows/Fonts/simfang.ttf",      # Imitation of Song Dynasty
         ]
         
-        # 4. macOS系统字体路径
+        # 4. macOSSystem font path
         macos_paths = [
-            "/System/Library/Fonts/PingFang.ttc",                    # 苹方
-            "/System/Library/Fonts/Hiragino Sans GB.ttc",           # 冬青黑体
+            "/System/Library/Fonts/PingFang.ttc",                    # Pingfang
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",           # holly blackbody
             "/Library/Fonts/Arial Unicode MS.ttf",                   # Arial Unicode
-            "/System/Library/Fonts/STHeiti Light.ttc",              # 华文黑体
+            "/System/Library/Fonts/STHeiti Light.ttc",              # Chinese boldface
             "/System/Library/Fonts/STHeiti Medium.ttc",
         ]
         
-        # 根据系统类型添加路径
+        # Add paths based on system type
         if sys.platform.startswith('linux'):
             paths.extend(linux_paths)
         elif sys.platform.startswith('win'):
@@ -102,7 +102,7 @@ class FontManager:
         elif sys.platform.startswith('darwin'):
             paths.extend(macos_paths)
         
-        # 添加所有系统的路径作为备用
+        # Add paths to all systems as fallback
         paths.extend(linux_paths)
         paths.extend(windows_paths)
         paths.extend(macos_paths)
@@ -110,66 +110,66 @@ class FontManager:
         return paths
     
     def get_font(self, size: int = 20) -> Optional[Union[ImageFont.FreeTypeFont, ImageFont.ImageFont]]:
-        """获取可用的中文字体
+        """Get available Chinese fonts
         
         Args:
-            size: 字体大小
+            size: font size
             
         Returns:
-            字体对象，如果找不到返回None
+            font object，If not found returnNone
         """
         cache_key = f"font_{size}"
         
-        # 检查缓存
+        # Check cache
         if cache_key in self.font_cache:
             return self.font_cache[cache_key]
         
-        # 尝试每个字体路径
+        # Try each font path
         for font_path in self.font_search_paths:
             if os.path.exists(font_path):
                 try:
                     font = ImageFont.truetype(font_path, size)
                     
-                    # 测试字体是否支持中文
+                    # Test whether the font supports Chinese
                     if self._test_chinese_support(font):
                         self.font_cache[cache_key] = font
-                        logger.info(f"成功加载字体: {font_path}, 大小: {size}")
+                        logger.info(f"Font loaded successfully: {font_path}, size: {size}")
                         return font
                         
                 except Exception as e:
-                    logger.debug(f"加载字体失败 {font_path}: {e}")
+                    logger.debug(f"Failed to load font {font_path}: {e}")
                     continue
         
-        # 如果没有找到合适的字体，尝试使用默认字体
+        # If no suitable font is found，Try using default font
         try:
             default_font = ImageFont.load_default()
-            logger.warning(f"未找到中文字体，使用系统默认字体，大小: {size}")
+            logger.warning(f"Chinese font not found，Use system default font，size: {size}")
             self.font_cache[cache_key] = default_font
             return default_font
         except Exception as e:
-            logger.error(f"无法加载默认字体: {e}")
+            logger.error(f"Unable to load default font: {e}")
             return None
     
     def _test_chinese_support(self, font: Union[ImageFont.FreeTypeFont, ImageFont.ImageFont]) -> bool:
-        """测试字体是否支持中文字符
+        """Test whether the font supports Chinese characters
         
         Args:
-            font: 要测试的字体对象
+            font: the font object to test
             
         Returns:
-            是否支持中文
+            Whether to support Chinese
         """
         try:
-            # 测试常用中文字符
-            test_chars = ["中", "文", "测", "试", "字", "体"]
+            # Test common Chinese characters
+            test_chars = ["middle", "arts", "test", "try", "Character", "body"]
             
-            # 创建临时图像进行测试
+            # Create a temporary image for testing
             img = Image.new('RGB', (100, 50), color='white')
             draw = ImageDraw.Draw(img)
             
             for char in test_chars:
                 bbox = draw.textbbox((0, 0), char, font=font)
-                # 如果字符有宽度，说明字体支持该字符
+                # If the character has width，Indicates that the font supports this character
                 if bbox[2] > bbox[0] and bbox[3] > bbox[1]:
                     return True
             
@@ -178,17 +178,17 @@ class FontManager:
             return False
     
     def get_available_fonts(self) -> List[dict]:
-        """获取所有可用字体的信息
+        """Get information about all available fonts
         
         Returns:
-            字体信息列表
+            Font information list
         """
         available_fonts = []
         
         for font_path in self.font_search_paths:
             if os.path.exists(font_path):
                 try:
-                    # 尝试加载字体
+                    # Try loading fonts
                     test_font = ImageFont.truetype(font_path, 16)
                     supports_chinese = self._test_chinese_support(test_font)
                     
@@ -202,18 +202,18 @@ class FontManager:
                     available_fonts.append(font_info)
                     
                 except Exception as e:
-                    logger.debug(f"检测字体时出错 {font_path}: {e}")
+                    logger.debug(f"Error while detecting font {font_path}: {e}")
         
         return available_fonts
     
     def install_project_fonts(self) -> bool:
-        """确保项目字体已安装
+        """Make sure project fonts are installed
         
         Returns:
-            是否成功安装项目字体
+            Whether the project font was successfully installed
         """
         try:
-            # 检查系统是否有文泉驿字体
+            # Check whether the system has Wenquanyi font
             system_wqy_paths = [
                 "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
                 "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
@@ -223,7 +223,7 @@ class FontManager:
             
             for sys_font_path in system_wqy_paths:
                 if os.path.exists(sys_font_path):
-                    # 复制到项目字体目录
+                    # Copy to project font directory
                     font_name = os.path.basename(sys_font_path)
                     dest_path = self.project_fonts_dir / font_name
                     
@@ -231,34 +231,34 @@ class FontManager:
                         try:
                             import shutil
                             shutil.copy2(sys_font_path, dest_path)
-                            logger.info(f"已复制系统字体到项目: {dest_path}")
+                            logger.info(f"Copied system fonts to project: {dest_path}")
                             project_font_installed = True
                         except Exception as e:
-                            logger.error(f"复制字体失败: {e}")
+                            logger.error(f"Failed to copy font: {e}")
                     else:
-                        logger.info(f"项目字体已存在: {dest_path}")
+                        logger.info(f"Project font already exists: {dest_path}")
                         project_font_installed = True
             
             return project_font_installed
             
         except Exception as e:
-            logger.error(f"安装项目字体时出错: {e}")
+            logger.error(f"Error installing project fonts: {e}")
             return False
     
     def get_text_size(self, text: str, font_size: int = 20) -> Tuple[int, int]:
-        """获取文本渲染后的尺寸
+        """Get the size of text after rendering
         
         Args:
-            text: 要测量的文本
-            font_size: 字体大小
+            text: text to measure
+            font_size: font size
             
         Returns:
-            (width, height) 文本尺寸
+            (width, height) text size
         """
         font = self.get_font(font_size)
         if font:
             try:
-                # 创建临时图像来测量文本
+                # Create temporary image to measure text
                 img = Image.new('RGB', (1, 1))
                 draw = ImageDraw.Draw(img)
                 bbox = draw.textbbox((0, 0), text, font=font)
@@ -266,24 +266,24 @@ class FontManager:
             except Exception:
                 pass
         
-        # 回退估算方法
+        # Fallback estimation method
         char_count = len(text)
-        # 中文字符通常比英文字符宽
-        avg_char_width = font_size * 0.8  # 平均字符宽度
-        text_height = font_size * 1.2     # 文本高度
+        # Chinese characters are usually wider than English characters
+        avg_char_width = font_size * 0.8  # average character width
+        text_height = font_size * 1.2     # text height
         
         return int(char_count * avg_char_width), int(text_height)
     
     def clear_cache(self):
-        """清空字体缓存"""
+        """Clear font cache"""
         self.font_cache.clear()
-        logger.info("字体缓存已清空")
+        logger.info("Font cache cleared")
 
-# 全局字体管理器实例
+# Global font manager instance
 _font_manager = None
 
 def get_font_manager() -> FontManager:
-    """获取全局字体管理器实例"""
+    """Get global font manager instance"""
     global _font_manager
     if _font_manager is None:
         _font_manager = FontManager()

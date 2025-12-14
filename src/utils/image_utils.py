@@ -1,5 +1,5 @@
 """
-图像处理工具函数
+Image processing tool functions
 """
 import cv2
 import numpy as np
@@ -11,19 +11,19 @@ logger = logging.getLogger(__name__)
 
 def validate_image(image_path: str) -> bool:
     """
-    验证图片文件是否有效
+    Verify that the image file is valid
     
     Args:
-        image_path: 图片文件路径
+        image_path: Image file path
         
     Returns:
-        True如果图片有效，False否则
+        TrueIf the image is valid，Falseotherwise
     """
     try:
         if not os.path.exists(image_path):
             return False
         
-        # 检查文件扩展名 - 从配置文件读取
+        # Check file extension - Read from configuration file
         from .config import config
         allowed_extensions = config.get_allowed_extensions_with_dot()
         valid_extensions = set(ext.lower() for ext in allowed_extensions)
@@ -31,69 +31,69 @@ def validate_image(image_path: str) -> bool:
         if ext not in valid_extensions:
             return False
         
-        # 尝试加载图片
+        # Try to load image
         with Image.open(image_path) as img:
-            img.verify()  # 验证图片是否完整
+            img.verify()  # Verify that the image is complete
         
         return True
         
     except Exception as e:
-        logger.warning(f"图片验证失败 {image_path}: {str(e)}")
+        logger.warning(f"Image verification failed {image_path}: {str(e)}")
         return False
 
 def preprocess_image(image_path: str, target_size: tuple = None, normalize: bool = False) -> np.ndarray:
     """
-    预处理图片
+    Preprocess images
     
     Args:
-        image_path: 图片路径
-        target_size: 目标尺寸 (width, height)
-        normalize: 是否归一化像素值到0-1
+        image_path: Image path
+        target_size: target size (width, height)
+        normalize: Whether to normalize pixel values ​​to0-1
         
     Returns:
-        预处理后的图片数组
+        Preprocessed image array
     """
     try:
-        # 读取图片
+        # Read pictures
         image = cv2.imread(image_path)
         if image is None:
-            raise ValueError(f"无法读取图片: {image_path}")
+            raise ValueError(f"Unable to read image: {image_path}")
         
-        # 转换BGR到RGB
+        # ConvertBGRarriveRGB
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
-        # 调整尺寸
+        # resize
         if target_size:
             image = cv2.resize(image, target_size)
         
-        # 归一化
+        # normalization
         if normalize:
             image = image.astype(np.float32) / 255.0
         
         return image
         
     except Exception as e:
-        logger.error(f"图片预处理失败 {image_path}: {str(e)}")
+        logger.error(f"Image preprocessing failed {image_path}: {str(e)}")
         raise
 
 def resize_image(image: np.ndarray, max_width: int = 800, max_height: int = 600) -> np.ndarray:
     """
-    按比例调整图片尺寸
+    Resize image proportionally
     
     Args:
-        image: 输入图片数组
-        max_width: 最大宽度
-        max_height: 最大高度
+        image: Input image array
+        max_width: maximum width
+        max_height: maximum height
         
     Returns:
-        调整尺寸后的图片
+        Resized image
     """
     height, width = image.shape[:2]
     
-    # 计算缩放比例
+    # Calculate scaling
     scale_width = max_width / width
     scale_height = max_height / height
-    scale = min(scale_width, scale_height, 1.0)  # 不放大图片
+    scale = min(scale_width, scale_height, 1.0)  # Do not enlarge picture
     
     if scale < 1.0:
         new_width = int(width * scale)
@@ -104,16 +104,16 @@ def resize_image(image: np.ndarray, max_width: int = 800, max_height: int = 600)
 
 def draw_face_boxes(image: np.ndarray, face_results: list, color: tuple = (0, 255, 0), thickness: int = 2) -> np.ndarray:
     """
-    在图片上绘制人脸框和标签
+    Draw face boxes and labels on pictures
     
     Args:
-        image: 输入图片
-        face_results: 人脸识别结果列表
-        color: 框的颜色 (R, G, B)
-        thickness: 线条粗细
+        image: Enter picture
+        face_results: Face recognition result list
+        color: box color (R, G, B)
+        thickness: line thickness
         
     Returns:
-        绘制了人脸框的图片
+        Picture with face frame drawn
     """
     result_image = image.copy()
     
@@ -122,28 +122,28 @@ def draw_face_boxes(image: np.ndarray, face_results: list, color: tuple = (0, 25
         person_name = result['person_name']
         confidence = result['confidence']
         
-        # face_location格式: (top, right, bottom, left)
+        # face_locationFormat: (top, right, bottom, left)
         top, right, bottom, left = face_location
         
-        # 绘制矩形框
+        # Draw a rectangular box
         cv2.rectangle(result_image, (left, top), (right, bottom), color, thickness)
         
-        # 绘制标签
+        # draw labels
         label = f"{person_name}"
         if confidence > 0:
             label += f" ({confidence:.2f})"
         
-        # 计算文本尺寸
+        # Calculate text size
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 0.6
         text_thickness = 1
         (text_width, text_height), _ = cv2.getTextSize(label, font, font_scale, text_thickness)
         
-        # 绘制文本背景
+        # Draw text background
         cv2.rectangle(result_image, (left, top - text_height - 10), 
                      (left + text_width, top), color, -1)
         
-        # 绘制文本
+        # draw text
         cv2.putText(result_image, label, (left, top - 5), 
                    font, font_scale, (255, 255, 255), text_thickness)
     
@@ -151,78 +151,78 @@ def draw_face_boxes(image: np.ndarray, face_results: list, color: tuple = (0, 25
 
 def save_image_with_results(image: np.ndarray, face_results: list, output_path: str) -> bool:
     """
-    保存带有识别结果的图片
+    Save image with recognition results
     
     Args:
-        image: 输入图片
-        face_results: 人脸识别结果
-        output_path: 输出文件路径
+        image: Enter picture
+        face_results: Face recognition results
+        output_path: Output file path
         
     Returns:
-        保存是否成功
+        Is the save successful?
     """
     try:
-        # 绘制人脸框
+        # Draw face frame
         result_image = draw_face_boxes(image, face_results)
         
-        # 转换RGB到BGR用于保存
+        # ConvertRGBarriveBGRfor saving
         if len(result_image.shape) == 3:
             result_image = cv2.cvtColor(result_image, cv2.COLOR_RGB2BGR)
         
-        # 保存图片
+        # save image
         success = cv2.imwrite(output_path, result_image)
         
         if success:
-            logger.info(f"结果图片已保存到: {output_path}")
+            logger.info(f"The resulting image has been saved to: {output_path}")
         else:
-            logger.error(f"保存图片失败: {output_path}")
+            logger.error(f"Failed to save picture: {output_path}")
             
         return success
         
     except Exception as e:
-        logger.error(f"保存图片时出错: {str(e)}")
+        logger.error(f"Error saving image: {str(e)}")
         return False
 
 def create_thumbnail(image_path: str, thumbnail_path: str, size: tuple = (150, 150)) -> bool:
     """
-    创建图片缩略图
+    Create image thumbnails
     
     Args:
-        image_path: 原图片路径
-        thumbnail_path: 缩略图保存路径
-        size: 缩略图尺寸
+        image_path: Original image path
+        thumbnail_path: Thumbnail save path
+        size: Thumbnail size
         
     Returns:
-        创建是否成功
+        Is the creation successful?
     """
     try:
         with Image.open(image_path) as img:
-            # 转换为RGB模式
+            # Convert toRGBmodel
             if img.mode != 'RGB':
                 img = img.convert('RGB')
             
-            # 创建缩略图
+            # Create thumbnail
             img.thumbnail(size, Image.Resampling.LANCZOS)
             
-            # 保存缩略图
+            # Save thumbnail
             img.save(thumbnail_path, 'JPEG', quality=85)
             
-        logger.info(f"缩略图已创建: {thumbnail_path}")
+        logger.info(f"Thumbnail created: {thumbnail_path}")
         return True
         
     except Exception as e:
-        logger.error(f"创建缩略图失败: {str(e)}")
+        logger.error(f"Failed to create thumbnail: {str(e)}")
         return False
 
 def get_image_info(image_path: str) -> dict:
     """
-    获取图片信息
+    Get picture information
     
     Args:
-        image_path: 图片路径
+        image_path: Image path
         
     Returns:
-        图片信息字典
+        Picture information dictionary
     """
     try:
         with Image.open(image_path) as img:
@@ -237,5 +237,5 @@ def get_image_info(image_path: str) -> dict:
         return info
         
     except Exception as e:
-        logger.error(f"获取图片信息失败: {str(e)}")
+        logger.error(f"Failed to obtain image information: {str(e)}")
         return {}

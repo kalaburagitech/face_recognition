@@ -1,6 +1,6 @@
 """
-统一模型管理器
-负责管理所有机器学习模型的下载、存储和配置路径
+Unified Model Manager
+Responsible for managing the download of all machine learning models、Storage and configuration paths
 """
 import os
 import logging
@@ -11,40 +11,40 @@ import json
 logger = logging.getLogger(__name__)
 
 class ModelManager:
-    """统一模型管理器"""
+    """Unified Model Manager"""
     
     def __init__(self, project_root: Optional[str] = None):
         """
-        初始化模型管理器
+        Initialize model manager
         
         Args:
-            project_root: 项目根目录，如果为None则自动检测
+            project_root: Project root directory，if forNonethen automatically detect
         """
         if project_root is None:
-            # 自动检测项目根目录
+            # Automatically detect project root directory
             current_file = Path(__file__).resolve()
             self.project_root = current_file.parent.parent.parent
         else:
             self.project_root = Path(project_root)
             
-        # 模型根目录
+        # Model root directory
         self.models_root = self.project_root / "models"
         
-        # 各类模型目录
+        # Catalog of various models
         self.insightface_dir = self.models_root / "insightface"
         self.deepface_dir = self.models_root / "deepface"
         self.cache_dir = self.models_root / "cache"
         
-        # 确保目录存在
+        # Make sure the directory exists
         self._ensure_directories()
         
-        # 设置环境变量
+        # Set environment variables
         self._setup_environment()
         
-        logger.info(f"模型管理器初始化完成，模型根目录: {self.models_root}")
+        logger.info(f"Model manager initialization completed，Model root directory: {self.models_root}")
     
     def _ensure_directories(self):
-        """确保所有必需的目录存在"""
+        """Make sure all required directories exist"""
         directories = [
             self.models_root,
             self.insightface_dir,
@@ -54,40 +54,40 @@ class ModelManager:
         
         for directory in directories:
             directory.mkdir(parents=True, exist_ok=True)
-            logger.debug(f"确保目录存在: {directory}")
+            logger.debug(f"Make sure the directory exists: {directory}")
     
     def _setup_environment(self):
-        """设置环境变量以重定向模型下载路径"""
+        """Set environment variables to redirect model download paths"""
         
-        # 设置 DeepFace 模型路径
+        # set up DeepFace model path
         os.environ['DEEPFACE_HOME'] = str(self.deepface_dir)
         
-        # 设置 InsightFace 模型路径
+        # set up InsightFace model path
         os.environ['INSIGHTFACE_HOME'] = str(self.insightface_dir)
         
-        # 设置通用缓存目录
+        # Set general cache directory
         os.environ['HUGGINGFACE_HUB_CACHE'] = str(self.cache_dir / "huggingface")
         os.environ['TORCH_HOME'] = str(self.cache_dir / "torch")
         os.environ['TRANSFORMERS_CACHE'] = str(self.cache_dir / "transformers")
         
-        # 设置其他可能的ML库缓存目录
+        # Set other possibleMLlibrary cache directory
         os.environ['SKLEARN_DATA_DIR'] = str(self.cache_dir / "sklearn")
         os.environ['MPLCONFIGDIR'] = str(self.cache_dir / "matplotlib") 
         os.environ['KERAS_HOME'] = str(self.cache_dir / "keras")
         
-        # 设置TensorFlow相关环境变量
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'  # 减少TensorFlow日志噪音
+        # set upTensorFlowRelated environment variables
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'  # reduceTensorFlowlog noise
         
-        logger.info("环境变量设置完成")
+        logger.info("Environment variable setting completed")
         logger.debug(f"DEEPFACE_HOME: {os.environ.get('DEEPFACE_HOME')}")
         logger.debug(f"INSIGHTFACE_HOME: {os.environ.get('INSIGHTFACE_HOME')}")
     
     def get_model_paths(self) -> Dict[str, str]:
         """
-        获取所有模型路径配置
+        Get all model path configurations
         
         Returns:
-            包含所有模型路径的字典
+            A dictionary containing all model paths
         """
         return {
             'models_root': str(self.models_root),
@@ -106,39 +106,39 @@ class ModelManager:
     
     def configure_insightface(self, model_name: str = 'buffalo_l') -> str:
         """
-        配置 InsightFace 模型路径
+        Configuration InsightFace model path
         
         Args:
-            model_name: 模型名称
+            model_name: Model name
             
         Returns:
-            InsightFace 模型根目录路径
+            InsightFace Model root directory path
         """
-        # 确保 InsightFace 模型目录存在
+        # make sure InsightFace Model directory exists
         models_dir = self.insightface_dir / "models"
         models_dir.mkdir(parents=True, exist_ok=True)
         
-        # 检查模型是否已存在
+        # Check if the model already exists
         model_dir = models_dir / model_name
         if model_dir.exists():
-            logger.info(f"InsightFace 模型 {model_name} 已存在: {model_dir}")
+            logger.info(f"InsightFace Model {model_name} Already exists: {model_dir}")
         else:
-            logger.info(f"InsightFace 模型 {model_name} 将下载到: {model_dir}")
+            logger.info(f"InsightFace Model {model_name} will be downloaded to: {model_dir}")
         
         return str(self.insightface_dir)
     
     def configure_deepface(self) -> Dict[str, str]:
         """
-        配置 DeepFace 模型路径
+        Configuration DeepFace model path
         
         Returns:
-            DeepFace 相关路径配置
+            DeepFace Related path configuration
         """
-        # DeepFace 会在 DEEPFACE_HOME 下自动创建 .deepface 目录结构
-        # 我们只需要确保基础目录存在即可
+        # DeepFace will be in DEEPFACE_HOME Automatically created under .deepface Directory structure
+        # We just need to make sure the base directory exists
         self.deepface_dir.mkdir(parents=True, exist_ok=True)
         
-        # 检查是否需要从系统默认位置迁移模型
+        # Check if the model needs to be migrated from the system default location
         home_deepface = Path.home() / ".deepface"
         if home_deepface.exists():
             self._migrate_deepface_models(home_deepface, self.deepface_dir / ".deepface")
@@ -151,50 +151,50 @@ class ModelManager:
     
     def _migrate_deepface_models(self, source_dir: Path, target_dir: Path):
         """
-        迁移 DeepFace 模型文件到项目目录
+        migrate DeepFace Model files to project directory
         
         Args:
-            source_dir: 源目录 (通常是 ~/.deepface)
-            target_dir: 目标目录 (项目中的 models/deepface)
+            source_dir: source directory (usually ~/.deepface)
+            target_dir: target directory (in the project models/deepface)
         """
         try:
             if not source_dir.exists():
                 return
             
-            # 检查源目录中是否有模型文件
+            # Check if there is a model file in the source directory
             model_files = []
             for pattern in ["*.h5", "*.pb", "*.onnx", "*.pth", "*.bin"]:
                 model_files.extend(source_dir.rglob(pattern))
             
             if not model_files:
-                logger.info("未发现需要迁移的 DeepFace 模型文件")
+                logger.info("No need to migrate found DeepFace model file")
                 return
             
-            logger.info(f"发现 {len(model_files)} 个 DeepFace 模型文件，开始迁移...")
+            logger.info(f"Discover {len(model_files)} indivual DeepFace model file，Start migration...")
             
             for model_file in model_files:
-                # 保持相对路径结构
+                # Maintain relative path structure
                 relative_path = model_file.relative_to(source_dir)
                 target_file = target_dir / relative_path
                 
-                # 确保目标目录存在
+                # Make sure the target directory exists
                 target_file.parent.mkdir(parents=True, exist_ok=True)
                 
-                # 复制文件（如果不存在或者源文件更新）
+                # Copy files（If it does not exist or the source file is updated）
                 if not target_file.exists() or model_file.stat().st_mtime > target_file.stat().st_mtime:
                     import shutil
                     shutil.copy2(model_file, target_file)
-                    logger.info(f"迁移模型文件: {model_file} -> {target_file}")
+                    logger.info(f"Migrate model files: {model_file} -> {target_file}")
                 
         except Exception as e:
-            logger.error(f"DeepFace 模型迁移失败: {e}")
+            logger.error(f"DeepFace Model migration failed: {e}")
     
     def get_statistics(self) -> Dict[str, Any]:
         """
-        获取模型管理统计信息
+        Get model management statistics
         
         Returns:
-            统计信息字典
+            Statistics Dictionary
         """
         stats = {
             'models_root': str(self.models_root),
@@ -204,7 +204,7 @@ class ModelManager:
         }
         
         try:
-            # 遍历模型目录统计
+            # Traverse model directory statistics
             for subdir in self.models_root.iterdir():
                 if subdir.is_dir():
                     size = self._get_directory_size(subdir)
@@ -220,26 +220,26 @@ class ModelManager:
             
             stats['total_size_mb'] = round(stats['total_size_mb'], 2)
             
-            # 统计各类模型文件
+            # Statistics of various model files
             for ext in ['.onnx', '.h5', '.pb', '.pth', '.bin']:
                 count = len(list(self.models_root.rglob(f"*{ext}")))
                 if count > 0:
                     stats['model_counts'][ext] = count
             
         except Exception as e:
-            logger.error(f"统计模型信息失败: {e}")
+            logger.error(f"Statistical model information failed: {e}")
         
         return stats
     
     def _get_directory_size(self, directory: Path) -> int:
         """
-        计算目录大小（字节）
+        Calculate directory size（byte）
         
         Args:
-            directory: 目录路径
+            directory: directory path
             
         Returns:
-            目录大小（字节）
+            Directory size（byte）
         """
         total = 0
         try:
@@ -247,19 +247,19 @@ class ModelManager:
                 if file_path.is_file():
                     total += file_path.stat().st_size
         except Exception as e:
-            logger.warning(f"计算目录大小失败 {directory}: {e}")
+            logger.warning(f"Calculating directory size failed {directory}: {e}")
         
         return total
     
     def clean_unused_models(self, dry_run: bool = True) -> Dict[str, Any]:
         """
-        清理未使用的模型文件
+        Clean up unused model files
         
         Args:
-            dry_run: 是否只是预览而不实际删除
+            dry_run: Whether to just preview without actually deleting
             
         Returns:
-            清理结果信息
+            Clean result information
         """
         result = {
             'files_to_remove': [],
@@ -269,10 +269,10 @@ class ModelManager:
         }
         
         try:
-            # 查找可能的重复或过时文件
-            # 这里可以添加具体的清理逻辑
+            # Find possible duplicate or outdated files
+            # Specific cleanup logic can be added here
             
-            # 示例：查找空目录
+            # Example：Find empty directories
             for directory in self.models_root.rglob("*"):
                 if directory.is_dir() and not any(directory.iterdir()):
                     result['files_to_remove'].append({
@@ -282,7 +282,7 @@ class ModelManager:
                     })
             
             if not dry_run:
-                # 实际执行清理
+                # actually perform the cleanup
                 for item in result['files_to_remove']:
                     path = Path(item['path'])
                     if path.exists():
@@ -291,25 +291,25 @@ class ModelManager:
                         else:
                             path.unlink()
                         result['removed_files'].append(item['path'])
-                        logger.info(f"已删除: {path}")
+                        logger.info(f"Deleted: {path}")
             
         except Exception as e:
-            logger.error(f"清理模型文件失败: {e}")
+            logger.error(f"Cleaning model file failed: {e}")
         
         return result
 
-# 全局模型管理器实例
+# Global model manager instance
 _model_manager = None
 
 def get_model_manager() -> ModelManager:
-    """获取全局模型管理器实例"""
+    """Get global model manager instance"""
     global _model_manager
     if _model_manager is None:
         _model_manager = ModelManager()
     return _model_manager
 
 def setup_model_environment():
-    """设置模型环境（在应用启动时调用）"""
+    """Set up the model environment（Called when the app starts）"""
     manager = get_model_manager()
-    logger.info("模型环境设置完成")
+    logger.info("Model environment setup completed")
     return manager

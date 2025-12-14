@@ -1,121 +1,121 @@
-# 统一模型管理系统
+# Unified model management system
 
-## 概述
+## Overview
 
-本项目已实现统一模型管理系统，将所有机器学习模型文件统一存储在项目的 `models/` 目录下，避免模型文件散布在系统各处，便于管理和部署。
+This project has implemented a unified model management system，Store all machine learning model files in the project's `models/` under directory，Prevent model files from being scattered throughout the system，Easy to manage and deploy。
 
-## 目录结构
+## Directory structure
 
 ```
 models/
-├── insightface/           # InsightFace 模型目录
+├── insightface/           # InsightFace Model catalog
 │   └── models/
-│       └── buffalo_l/     # buffalo_l 模型文件
-│           ├── 1k3d68.onnx         # 68点关键点检测 (137MB)
-│           ├── 2d106det.onnx       # 106点关键点检测 (4.8MB)
-│           ├── det_10g.onnx        # 人脸检测 (16.1MB)
-│           ├── genderage.onnx      # 性别年龄识别 (1.3MB)
-│           └── w600k_r50.onnx      # 人脸特征提取 (166.3MB)
-├── deepface/              # DeepFace 模型目录
-│   └── .deepface/         # DeepFace 自动创建的目录结构
-│       ├── weights/       # 模型权重文件
-│       │   └── arcface_weights.h5  # ArcFace 模型权重 (130.7MB)
-│       └── models/        # 其他模型文件
-└── cache/                 # 通用缓存目录
-    ├── huggingface/       # HuggingFace 模型缓存
-    ├── torch/             # PyTorch 模型缓存
-    └── transformers/      # Transformers 模型缓存
+│       └── buffalo_l/     # buffalo_l model file
+│           ├── 1k3d68.onnx         # 68Key point detection (137MB)
+│           ├── 2d106det.onnx       # 106Key point detection (4.8MB)
+│           ├── det_10g.onnx        # Face detection (16.1MB)
+│           ├── genderage.onnx      # gender age identification (1.3MB)
+│           └── w600k_r50.onnx      # Facial feature extraction (166.3MB)
+├── deepface/              # DeepFace Model catalog
+│   └── .deepface/         # DeepFace Automatically created directory structure
+│       ├── weights/       # Model weight file
+│       │   └── arcface_weights.h5  # ArcFace Model weight (130.7MB)
+│       └── models/        # Other model files
+└── cache/                 # Common cache directory
+    ├── huggingface/       # HuggingFace Model caching
+    ├── torch/             # PyTorch Model caching
+    └── transformers/      # Transformers Model caching
 ```
 
-## 功能特性
+## Features
 
-### 1. 自动路径配置
+### 1. Automatic path configuration
 
-系统会自动设置以下环境变量，重定向所有模型下载到项目目录：
+The system will automatically set the following environment variables，Redirect all model downloads to the project directory：
 
-**核心模型路径:**
+**core model path:**
 - `DEEPFACE_HOME`: `models/deepface`
 - `INSIGHTFACE_HOME`: `models/insightface`
 
-**通用缓存路径:**
+**Universal cache path:**
 - `HUGGINGFACE_HUB_CACHE`: `models/cache/huggingface`
 - `TORCH_HOME`: `models/cache/torch`
 - `TRANSFORMERS_CACHE`: `models/cache/transformers`
 
-**科学计算库缓存:**
+**Scientific Computing Library Cache:**
 - `SKLEARN_DATA_DIR`: `models/cache/sklearn`
 - `MPLCONFIGDIR`: `models/cache/matplotlib`
 - `KERAS_HOME`: `models/cache/keras`
 
-**优化配置:**
-- `TF_CPP_MIN_LOG_LEVEL`: `1` (减少TensorFlow日志噪音)
+**Optimize configuration:**
+- `TF_CPP_MIN_LOG_LEVEL`: `1` (reduceTensorFlowlog noise)
 
-**注意**: DeepFace 库有固定的目录结构行为：
-- 设置 `DEEPFACE_HOME=models/deepface` 后，DeepFace 会自动在该目录下创建 `.deepface` 子目录
-- 实际的模型文件会存储在 `models/deepface/.deepface/weights/` 下
-- 这是 DeepFace 库的内部逻辑，无法改变，但不影响正常使用
+**Notice**: DeepFace Libraries have fixed directory structure behavior：
+- set up `DEEPFACE_HOME=models/deepface` back，DeepFace will be automatically created in this directory `.deepface` subdirectory
+- The actual model files will be stored in `models/deepface/.deepface/weights/` Down
+- This is DeepFace The internal logic of the library，cannot be changed，But it does not affect normal use
 
-### 2. 自动模型迁移
+### 2. Automatic model migration
 
-- 检查系统默认位置（如 `~/.deepface/`）的现有模型
-- 自动迁移到项目目录
-- 保持目录结构和文件完整性
+- Check system default location（like `~/.deepface/`）of existing models
+- Automatically migrate to project directory
+- Maintain directory structure and file integrity
 
-### 3. 统一管理接口
+### 3. Unified management interface
 
-通过 `ModelManager` 类提供统一的模型管理功能：
+pass `ModelManager` Class provides unified model management functions：
 
 ```python
 from src.utils.model_manager import get_model_manager
 
-# 获取模型管理器
+# Get model manager
 manager = get_model_manager()
 
-# 获取所有模型路径
+# Get all model paths
 paths = manager.get_model_paths()
 
-# 获取统计信息
+# Get statistics
 stats = manager.get_statistics()
 
-# 清理未使用的模型（预览模式）
+# Clean up unused models（preview mode）
 cleanup_info = manager.clean_unused_models(dry_run=True)
 ```
 
-## 使用方法
+## How to use
 
-### 1. 应用启动时自动设置
+### 1. Set automatically when app starts
 
-在 `main.py` 中，模型环境会在应用启动时自动设置：
+exist `main.py` middle，The model environment is automatically set when the application starts：
 
 ```python
-# 设置模型环境（在导入其他模块之前）
+# Set up the model environment（before importing other modules）
 from src.utils.model_manager import setup_model_environment
 setup_model_environment()
 ```
 
-### 2. 服务中使用
+### 2. used in service
 
-在 `AdvancedFaceRecognitionService` 中会自动使用统一配置：
+exist `AdvancedFaceRecognitionService` will automatically use the unified configuration：
 
 ```python
 class AdvancedFaceRecognitionService:
     def __init__(self, model_name: str = 'buffalo_l'):
-        # 初始化模型管理器
+        # Initialize model manager
         self.model_manager = get_model_manager()
-        # ... 其他初始化代码
+        # ... Other initialization code
 ```
 
-### 3. 测试验证
+### 3. Test verification
 
-运行测试脚本验证配置是否正确：
+Run the test script to verify that the configuration is correct：
 
 ```bash
 python test_model_management.py
 ```
 
-## 配置文件更新
+## Configuration file update
 
-`config.json` 中添加了模型管理相关配置：
+`config.json` Added model management related configurations in：
 
 ```json
 {
@@ -129,90 +129,90 @@ python test_model_management.py
 }
 ```
 
-## 优势
+## Advantages
 
-### 1. 便于管理
-- 所有模型文件集中在项目目录
-- 清晰的目录结构
-- 统一的管理接口
+### 1. Easy to manage
+- All model files are concentrated in the project directory
+- clear directory structure
+- Unified management interface
 
-### 2. 便于部署
-- 模型文件跟随项目代码
-- 无需担心系统路径差异
-- 支持容器化部署
+### 2. Easy to deploy
+- Model files follow project code
+- No need to worry about system path differences
+- Support containerized deployment
 
-### 3. 便于维护
-- 模型文件版本控制
-- 清理未使用模型
-- 统计模型使用情况
+### 3. Easy to maintain
+- Model file version control
+- Clean up unused models
+- Statistical model usage
 
-### 4. 开发友好
-- 自动路径配置
-- 无需手动设置环境变量
-- 兼容现有代码
+### 4. Development friendly
+- Automatic path configuration
+- No need to manually set environment variables
+- Compatible with existing code
 
-## 模型文件大小统计
+## Model file size statistics
 
-当前项目中的模型文件：
+Model files in the current project：
 
-| 类型 | 数量 | 总大小 | 位置 |
+| type | quantity | total size | Location |
 |-----|-----|-------|------|
-| InsightFace ONNX | 5个 | ~601MB | `models/insightface/models/buffalo_l/` |
-| DeepFace H5 | 2个 | ~684MB | `models/deepface/.deepface/weights/` |
-| **总计** | **7个** | **~1.3GB** | **项目 models/ 目录** |
+| InsightFace ONNX | 5indivual | ~601MB | `models/insightface/models/buffalo_l/` |
+| DeepFace H5 | 2indivual | ~684MB | `models/deepface/.deepface/weights/` |
+| **total** | **7indivual** | **~1.3GB** | **project models/ Table of contents** |
 
-**模型详情:**
-- `arcface_weights.h5` (130.7MB) - ArcFace 人脸识别模型
-- `vgg_face_weights.h5` (553.2MB) - VGG-Face 人脸识别模型  
-- InsightFace Buffalo-L 模型组 (5个ONNX文件)
+**Model details:**
+- `arcface_weights.h5` (130.7MB) - ArcFace face recognition model
+- `vgg_face_weights.h5` (553.2MB) - VGG-Face face recognition model  
+- InsightFace Buffalo-L model group (5indivualONNXdocument)
 
-## 迁移说明
+## Migration instructions
 
-### 从旧版本升级
+### Upgrading from an older version
 
-1. **自动迁移**: 系统会自动检测并迁移 `~/.deepface/` 中的模型文件
-2. **手动清理**: 迁移完成后可手动清理系统默认目录：
+1. **Automatic migration**: The system will automatically detect and migrate `~/.deepface/` model files in
+2. **Manual cleanup**: After the migration is completed, you can manually clean up the system default directory.：
    ```bash
-   # 确认迁移完成后再删除
+   # Confirm migration is complete before deleting
    rm -rf ~/.deepface/
    ```
 
-### 新项目部署
+### New project deployment
 
-1. 克隆项目代码
-2. 安装依赖：`pip install -r requirements.txt`
-3. 运行应用，模型会自动下载到正确位置
+1. Clone project code
+2. Install dependencies：`pip install -r requirements.txt`
+3. Run application，The model will automatically download to the correct location
 
-## 故障排除
+## troubleshooting
 
-### 1. 模型下载失败
+### 1. Model download failed
 
 ```bash
-# 检查网络连接
+# Check network connection
 ping github.com
 
-# 手动测试模型管理器
+# Manually test the model manager
 python test_model_management.py
 ```
 
-### 2. 路径配置问题
+### 2. Path configuration problem
 
 ```bash
-# 检查环境变量
+# Check environment variables
 python -c "import os; print('DEEPFACE_HOME:', os.environ.get('DEEPFACE_HOME'))"
 ```
 
-### 3. 权限问题
+### 3. Permissions issue
 
 ```bash
-# 确保模型目录有写权限
+# Make sure the model directory has write permissions
 chmod -R 755 models/
 ```
 
-## 更新日志
+## Change log
 
-- **v1.0** (2024-08-11): 实现统一模型管理系统
-  - 自动路径配置
-  - 模型文件迁移
-  - 测试验证脚本
-  - 文档完善
+- **v1.0** (2024-08-11): Implement a unified model management system
+  - Automatic path configuration
+  - Model file migration
+  - Test verification script
+  - Complete documentation

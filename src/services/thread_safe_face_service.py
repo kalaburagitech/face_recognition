@@ -1,6 +1,6 @@
 """
-线程安全的人脸识别服务单例
-为多线程部署优化，共享模型实例和缓存
+Thread-safe face recognition service singleton
+Optimized for multi-threaded deployments，Sharing model instances and caches
 """
 import threading
 import logging
@@ -9,7 +9,7 @@ import sys
 import os
 from pathlib import Path
 
-# 添加项目根目录到Python路径
+# Add the project root directory toPythonpath
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 
 class ThreadSafeFaceService:
     """
-    线程安全的人脸识别服务单例
+    Thread-safe face recognition service singleton
     
-    特性:
-    - 单例模式，进程内共享模型实例
-    - 线程安全的缓存操作
-    - 避免模型重复加载
-    - 适用于多线程部署
+    characteristic:
+    - Singleton pattern，In-process shared model instance
+    - Thread-safe cache operations
+    - Avoid repeated loading of models
+    - Suitable for multi-threaded deployment
     """
     
     _instance = None
@@ -44,77 +44,77 @@ class ThreadSafeFaceService:
         if self._initialized:
             return
             
-        # 初始化线程锁
-        self._cache_lock = threading.RLock()  # 支持重入锁
+        # Initialize thread lock
+        self._cache_lock = threading.RLock()  # Support reentrancy lock
         self._service_lock = threading.RLock()
         
-        # 初始化核心服务
+        # Initialize core services
         with self._service_lock:
             self._service = AdvancedFaceRecognitionService()
             
-        logger.info("线程安全人脸识别服务初始化完成")
+        logger.info("Thread-safe face recognition service initialization completed")
         self._initialized = True
     
     def detect_faces(self, image, **kwargs):
-        """线程安全的人脸检测"""
+        """Thread-safe face detection"""
         with self._service_lock:
             return self._service.detect_faces(image, **kwargs)
     
-    def enroll_person(self, name: str, image_path: str, description: Optional[str] = None, 
-                     original_filename: Optional[str] = None) -> Dict[str, Any]:
-        """线程安全的人员入库"""
+    def enroll_person(self, name: str, image_path: str, region: str, emp_id: str, emp_rank: str, 
+                     description: Optional[str] = None, original_filename: Optional[str] = None, 
+                     client_id: Optional[str] = None) -> Dict[str, Any]:
+        """Thread-safe personnel warehousing"""
         with self._service_lock:
             with self._cache_lock:
-                return self._service.enroll_person(name, image_path, description, original_filename)
+                return self._service.enroll_person(name, image_path, region, emp_id, emp_rank, description, original_filename, client_id)
     
     def recognize_face(self, image, **kwargs) -> Dict[str, Any]:
-        """线程安全的人脸识别"""
+        """Thread-safe face recognition"""
         with self._cache_lock:
             return self._service.recognize_face(image, **kwargs)
     
     def analyze_face_attributes(self, image, **kwargs) -> list:
-        """线程安全的人脸属性分析"""
+        """Thread-safe face attribute analysis"""
         with self._service_lock:
             return self._service.analyze_face_attributes(image, **kwargs)
     
     def get_statistics(self) -> Dict[str, Any]:
-        """线程安全的统计信息获取"""
+        """Thread-safe statistics acquisition"""
         with self._cache_lock:
             return self._service.get_statistics()
     
-    def get_all_persons(self) -> list:
-        """线程安全的获取所有人员"""
+    def get_all_persons(self, region: Optional[str] = None, client_id: Optional[str] = None) -> list:
+        """Thread-safe retrieval of all persons"""
         with self._cache_lock:
-            return self._service.db_manager.get_all_persons()
+            return self._service.db_manager.get_all_persons(region=region, client_id=client_id)
     
-    def recognize_face_with_threshold(self, image, threshold: float = 0.25) -> Dict[str, Any]:
-        """线程安全的带阈值人脸识别"""
+    def recognize_face_with_threshold(self, image, region: str, threshold: float = 0.25, client_id: Optional[str] = None) -> Dict[str, Any]:
+        """Thread-safe face recognition with threshold"""
         with self._cache_lock:
-            return self._service.recognize_face_with_threshold(image, threshold)
+            return self._service.recognize_face_with_threshold(image, region, threshold, client_id)
     
     def visualize_face_detection(self, image_path: str) -> Dict[str, Any]:
-        """线程安全的人脸检测可视化"""
+        """Thread-safe face detection visualization"""
         with self._service_lock:
             return self._service.visualize_face_detection(image_path)
     
     @property
-    def _face_cache(self) -> Dict[str, Any]:
-        """线程安全的缓存访问"""
-        with self._cache_lock:
-            return self._service._face_cache
+    def db_manager(self):
+        """Access to database manager"""
+        return self._service.db_manager
 
 
-# 全局单例实例
+# Global singleton instance
 _thread_safe_service = None
 _service_init_lock = threading.Lock()
 
 
 def get_thread_safe_face_service() -> ThreadSafeFaceService:
     """
-    获取线程安全的人脸识别服务实例
+    Get a thread-safe face recognition service instance
     
     Returns:
-        ThreadSafeFaceService: 线程安全的人脸识别服务单例
+        ThreadSafeFaceService: Thread-safe face recognition service singleton
     """
     global _thread_safe_service
     

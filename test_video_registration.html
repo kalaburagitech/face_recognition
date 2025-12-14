@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Registration Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .video-container {
+            border: 2px solid #ccc;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        video {
+            width: 100%;
+            max-width: 400px;
+            height: 300px;
+            object-fit: cover;
+        }
+
+        .frames-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .frame {
+            width: 80px;
+            height: 60px;
+            border: 1px solid #ccc;
+        }
+
+        .frame img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        .log {
+            background: #f8f9fa;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 3px solid #007bff;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Video Registration Test</h1>
+
+        <div class="video-container">
+            <h3>Camera Feed</h3>
+            <video id="testVideo" autoplay muted playsinline></video>
+            <div id="status" class="status info">Ready to test</div>
+        </div>
+
+        <div>
+            <button onclick="startCamera()">Start Camera</button>
+            <button onclick="startRecording()">Start 5s Recording</button>
+            <button onclick="stopCamera()">Stop Camera</button>
+            <button onclick="testEnrollment()">Test Enrollment</button>
+            <button onclick="clearFrames()">Clear Frames</button>
+        </div>
+
+        <div>
+            <h3>Captured Frames (<span id="frameCount">0</span>)</h3>
+            <div id="framesContainer" class="frames-container"></div>
+        </div>
+
+        <div>
+            <h3>Test Results</h3>
+            <div id="results"></div>
+        </div>
+
+        <div>
+            <h3>Debug Log</h3>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let stream = null;
+        let frames = [];
+        let recording = false;
+        let recordingInterval = null;
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            log(`Status: ${message}`);
+        }
+
+        async function startCamera() {
+            try {
+                updateStatus('Requesting camera access...', 'info');
+
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    }
+                });
+
+                const video = document.getElementById('testVideo');
+                video.srcObject = stream;
+                await video.play();
+
+                updateStatus('Camera started successfully', 'success');
+                log(`Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
+
+            } catch (error) {
+                updateStatus(`Camera error: ${error.message}`, 'error');
+                log(`Camera error: ${error}`);
+            }
+        }
+
+        function captureFrame() {
+            const video = document.getElementById('testVideo');
+            if (!video || !stream) {
+                log('Cannot capture frame: video or stream not available');
+                return null;
+            }
+
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0);
+
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        frames.push(blob);
+                        log(`Frame ${frames.length} captured (${blob.size} bytes)`);
+                        updateFrameDisplay();
+                    } else {
+                        log('Failed to create blob from canvas');
+                    }
+                }, 'image/jpeg', 0.8);
+
+            } catch (error) {
+                log(`Frame capture error: ${error}`);
+            }
+        }
+
+        function updateFrameDisplay() {
+            const container = document.getElementById('framesContainer');
+            const countSpan = document.getElementById('frameCount');
+
+            countSpan.textContent = frames.length;
+            container.innerHTML = '';
+
+            frames.forEach((blob, index) => {
+                const url = URL.createObjectURL(blob);
+                const frameDiv = document.createElement('div');
+                frameDiv.className = 'frame';
+                frameDiv.innerHTML = `<img src="${url}" alt="Frame ${index + 1}">`;
+                container.appendChild(frameDiv);
+            });
+        }
+
+        function startRecording() {
+            if (recording) {
+                log('Recording already in progress');
+                return;
+            }
+
+            if (!stream) {
+                updateStatus('Please start camera first', 'error');
+                return;
+            }
+
+            recording = true;
+            frames = []; // Clear previous frames
+            updateFrameDisplay();
+
+            let secondsLeft = 5;
+            updateStatus(`Recording... ${secondsLeft} seconds left`, 'info');
+
+            recordingInterval = setInterval(() => {
+                captureFrame();
+                secondsLeft--;
+
+                if (secondsLeft > 0) {
+                    updateStatus(`Recording... ${secondsLeft} seconds left`, 'info');
+                } else {
+                    clearInterval(recordingInterval);
+                    recording = false;
+                    updateStatus(`Recording complete! Captured ${frames.length} frames`, 'success');
+                    log(`Recording finished with ${frames.length} frames`);
+                }
+            }, 1000);
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+
+                const video = document.getElementById('testVideo');
+                video.srcObject = null;
+
+                updateStatus('Camera stopped', 'info');
+            }
+
+            if (recordingInterval) {
+                clearInterval(recordingInterval);
+                recording = false;
+            }
+        }
+
+        async function testEnrollment() {
+            if (frames.length === 0) {
+                updateStatus('No frames to test with. Please record first.', 'error');
+                return;
+            }
+
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>Testing enrollment...</p>';
+
+            try {
+                log(`Testing enrollment with ${frames.length} frames`);
+
+                // Test single frame enrollment
+                if (frames.length > 0) {
+                    const formData = new FormData();
+                    formData.append('name', 'Test Person');
+                    formData.append('description', 'Video registration test');
+
+                    const file = new File([frames[0]], `test_frame_${Date.now()}.jpg`, {
+                        type: 'image/jpeg',
+                        lastModified: Date.now()
+                    });
+                    formData.append('file', file);
+
+                    log('Sending single frame enrollment request...');
+                    const response = await fetch('/api/enroll', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    log(`Single frame enrollment response: ${JSON.stringify(result)}`);
+
+                    if (result.success) {
+                        resultsDiv.innerHTML += '<div class="status success">✓ Single frame enrollment successful</div>';
+                    } else {
+                        resultsDiv.innerHTML += `<div class="status error">✗ Single frame enrollment failed: ${result.error}</div>`;
+                    }
+                }
+
+                // Test batch enrollment if multiple frames
+                if (frames.length > 1) {
+                    const batchFormData = new FormData();
+                    batchFormData.append('names', 'Test Person Batch');
+                    batchFormData.append('descriptions', 'Video registration batch test');
+
+                    frames.forEach((blob, index) => {
+                        const file = new File([blob], `test_batch_frame_${index + 1}_${Date.now()}.jpg`, {
+                            type: 'image/jpeg',
+                            lastModified: Date.now()
+                        });
+                        batchFormData.append('files', file);
+                    });
+
+                    log('Sending batch enrollment request...');
+                    const batchResponse = await fetch('/api/batch_enroll', {
+                        method: 'POST',
+                        body: batchFormData
+                    });
+
+                    const batchResult = await batchResponse.json();
+                    log(`Batch enrollment response: ${JSON.stringify(batchResult)}`);
+
+                    if (batchResult.success) {
+                        resultsDiv.innerHTML += `<div class="status success">✓ Batch enrollment successful (${batchResult.success_count}/${batchResult.total_files})</div>`;
+                    } else {
+                        resultsDiv.innerHTML += `<div class="status error">✗ Batch enrollment failed: ${batchResult.error}</div>`;
+                    }
+                }
+
+            } catch (error) {
+                log(`Enrollment test error: ${error}`);
+                resultsDiv.innerHTML += `<div class="status error">✗ Enrollment test failed: ${error.message}</div>`;
+            }
+        }
+
+        function clearFrames() {
+            frames = [];
+            updateFrameDisplay();
+            document.getElementById('results').innerHTML = '';
+            updateStatus('Frames cleared', 'info');
+        }
+
+        // Initialize
+        log('Video registration test page loaded');
+        updateStatus('Ready to test video registration', 'info');
+    </script>
+</body>
+
+</html>

@@ -1,4 +1,4 @@
-// 全局配置和常量
+// Global configuration and constants
 const CONFIG = {
     API_BASE: '',
     SUPPORTED_IMAGE_TYPES: [
@@ -6,7 +6,7 @@ const CONFIG = {
         'image/webp', 'image/bmp', 'image/tiff', 'image/avif',
         'image/svg+xml', 'image/x-icon', 'image/heic', 'image/heif'
     ],
-    MAX_FILE_SIZE: 16 * 1024 * 1024, // 16MB - 与后端config.json保持一致
+    MAX_FILE_SIZE: 16 * 1024 * 1024, // 16MB - with backendconfig.jsonBe consistent
     TOAST_DURATION: {
         success: 3000,
         error: 5000,
@@ -15,7 +15,7 @@ const CONFIG = {
     }
 };
 
-// API 调用封装
+// API Call encapsulation
 class ApiClient {
     static async get(endpoint) {
         try {
@@ -77,21 +77,21 @@ class ApiClient {
     }
 }
 
-// 文件验证工具
+// File verification tool
 class FileValidator {
     static validate(file) {
         const errors = [];
 
-        // 检查文件类型
+        // Check file type
         if (!CONFIG.SUPPORTED_IMAGE_TYPES.includes(file.type)) {
-            errors.push(`不支持的文件格式: ${file.type}`);
+            errors.push(`Unsupported file format: ${file.type}`);
         }
 
-        // 检查文件大小
+        // Check file size
         if (file.size > CONFIG.MAX_FILE_SIZE) {
             const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
             const maxSizeMB = (CONFIG.MAX_FILE_SIZE / (1024 * 1024)).toFixed(0);
-            errors.push(`文件过大: ${sizeMB}MB，最大支持 ${maxSizeMB}MB`);
+            errors.push(`File too large: ${sizeMB}MB，maximum support ${maxSizeMB}MB`);
         }
 
         return {
@@ -101,7 +101,7 @@ class FileValidator {
     }
 
     static validateMultiple(files) {
-        // 保持文件的原始顺序，不进行排序
+        // Keep the original order of files，No sorting
         const fileArray = Array.from(files);
         
         const results = fileArray.map(file => ({
@@ -109,7 +109,7 @@ class FileValidator {
             ...this.validate(file)
         }));
 
-        // 保持原始顺序，只过滤出有效文件
+        // keep original order，Filter out only valid files
         const validFiles = results.filter(r => r.valid).map(r => r.file);
         const allErrors = results.filter(r => !r.valid).flatMap(r => r.errors);
 
@@ -121,7 +121,7 @@ class FileValidator {
     }
 }
 
-// Toast 通知系统
+// Toast Notification system
 class ToastManager {
     static container = null;
 
@@ -171,7 +171,7 @@ class ToastManager {
         
         bsToast.show();
         
-        // 清理
+        // clean up
         toast.addEventListener('hidden.bs.toast', () => {
             toast.remove();
         });
@@ -198,10 +198,10 @@ class ToastManager {
     }
 }
 
-// 导航管理
+// Navigation management
 class NavigationManager {
     static init() {
-        // 监听导航点击
+        // Listen for navigation clicks
         document.querySelectorAll('.nav-link[data-section]').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -212,29 +212,29 @@ class NavigationManager {
     }
 
     static showSection(sectionName) {
-        // 隐藏所有section
+        // Hide allsection
         document.querySelectorAll('.section').forEach(section => {
             section.classList.remove('active');
         });
         
-        // 移除所有nav-link的active状态
+        // Remove allnav-linkofactivestate
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.remove('active');
         });
         
-        // 显示目标section
+        // show targetsection
         const targetSection = document.getElementById(`${sectionName}-section`);
         if (targetSection) {
             targetSection.classList.add('active');
         }
         
-        // 激活对应的nav-link
+        // Activate the correspondingnav-link
         const targetLink = document.querySelector(`[data-section="${sectionName}"]`);
         if (targetLink) {
             targetLink.classList.add('active');
         }
 
-        // 触发section特定的加载逻辑
+        // triggersectionspecific loading logic
         this.triggerSectionLoad(sectionName);
     }
 
@@ -250,35 +250,35 @@ class NavigationManager {
     }
 }
 
-// 拖拽上传处理
+// Drag and drop upload processing
 class DragDropHandler {
     static init(element, onFilesCallback) {
         if (!element || typeof onFilesCallback !== 'function') {
-            console.error('DragDropHandler: 缺少必要参数');
+            console.error('DragDropHandler: Missing required parameters');
             return;
         }
 
-        // 阻止默认拖拽行为
+        // Prevent default dragging behavior
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             element.addEventListener(eventName, this.preventDefaults, false);
             document.body.addEventListener(eventName, this.preventDefaults, false);
         });
 
-        // 拖拽进入和悬停
+        // Drag to enter and hover
         ['dragenter', 'dragover'].forEach(eventName => {
             element.addEventListener(eventName, () => {
                 element.classList.add('dragover');
             }, false);
         });
 
-        // 拖拽离开
+        // Drag and leave
         ['dragleave', 'drop'].forEach(eventName => {
             element.addEventListener(eventName, () => {
                 element.classList.remove('dragover');
             }, false);
         });
 
-        // 文件放置
+        // file placement
         element.addEventListener('drop', (e) => {
             const files = e.dataTransfer.files;
             if (files.length > 0) {
@@ -293,7 +293,7 @@ class DragDropHandler {
     }
 }
 
-// 图片预览工具
+// Image preview tool
 class ImagePreview {
     static createPreview(file, container, options = {}) {
         const {
@@ -319,15 +319,16 @@ class ImagePreview {
                 
                 div.appendChild(img);
                 
-                // 添加删除按钮
+                // Add delete button
                 if (onRemove) {
                     const removeBtn = document.createElement('button');
                     removeBtn.className = 'btn btn-outline-danger btn-sm position-absolute top-0 end-0 m-2';
                     removeBtn.innerHTML = '<i class="bi bi-x"></i>';
-                    removeBtn.onclick = () => onRemove(div, file);
+                    removeBtn.onclick = () => onRemove(container, file);
                     div.appendChild(removeBtn);
                 }
                 
+                // will be createddivadded to the incomingcontainermiddle
                 container.appendChild(div);
                 resolve(div);
             };
@@ -342,9 +343,9 @@ class ImagePreview {
     }
 }
 
-// 加载状态管理
+// Loading state management
 class LoadingManager {
-    static setButtonLoading(button, isLoading, loadingText = '处理中...') {
+    static setButtonLoading(button, isLoading, loadingText = 'Processing...') {
         if (!button) return;
 
         if (isLoading) {
@@ -359,7 +360,7 @@ class LoadingManager {
         }
     }
 
-    static showSpinner(container, message = '加载中...') {
+    static showSpinner(container, message = 'loading...') {
         container.innerHTML = `
             <div class="text-center py-4">
                 <div class="spinner-border text-primary" role="status">
@@ -371,7 +372,7 @@ class LoadingManager {
     }
 }
 
-// 数字动画
+// digital animation
 class NumberAnimator {
     static animate(elementId, targetValue, duration = 1000) {
         const element = document.getElementById(elementId);
@@ -400,7 +401,7 @@ class NumberAnimator {
     }
 }
 
-// 导出到全局作用域
+// Export to global scope
 window.CONFIG = CONFIG;
 window.ApiClient = ApiClient;
 window.FileValidator = FileValidator;

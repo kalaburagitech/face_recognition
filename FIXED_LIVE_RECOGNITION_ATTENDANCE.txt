@@ -1,0 +1,83 @@
+================================================================================
+✅ FIXED: Live Recognition Attendance Duplicate Detection
+================================================================================
+
+PROBLEM IDENTIFIED:
+-------------------
+The backend was correctly detecting duplicates (logs showed "⚠️ DUPLICATE DETECTED"),
+but the frontend JavaScript in the LIVE RECOGNITION page was not checking the 
+`already_marked` flag in the API response.
+
+ROOT CAUSE:
+-----------
+There are TWO different attendance marking functions:
+1. web/assets/js/recognition.js - For UPLOAD recognition (was already fixed)
+2. web/index.html (line ~3967) - For LIVE CAMERA recognition (was NOT checking the flag)
+
+WHAT WAS FIXED:
+---------------
+Updated the markAttendance() function in web/index.html to:
+✅ Check the `result.already_marked` flag
+✅ Show BLUE "Attendance Already Marked" alert when duplicate detected
+✅ Show GREEN "Attendance Marked Successfully" for new attendance
+✅ Display the timestamp when attendance was marked
+✅ Show appropriate toast notifications
+✅ Added console.log debugging
+
+HOW TO TEST:
+------------
+1. Refresh your browser page (Ctrl+R or F5)
+   - No need to restart server, just refresh the page!
+
+2. Go to "Live Recognition" tab
+
+3. Start the camera and let it recognize a face
+
+4. Click "Submit Attendance" - should show:
+   ✅ GREEN alert: "Attendance Marked Successfully"
+   ✅ Shows timestamp
+
+5. Click "Submit Attendance" AGAIN on the same person:
+   ✅ BLUE alert: "Attendance Already Marked"  
+   ✅ Shows original timestamp
+   ✅ Toast: "Attendance already marked for [name]"
+
+6. Check browser console (F12):
+   ✅ Should see: "Attendance API Response: {success: true, already_marked: true, ...}"
+   ✅ Should see: "already_marked flag: true"
+
+7. Check server logs:
+   ✅ Should see: "⚠️ DUPLICATE DETECTED: Attendance already marked for..."
+
+EXPECTED BEHAVIOR:
+------------------
+
+FIRST CLICK:
+- Green success alert: "✓ Attendance Marked Successfully"
+- Shows: "Marked at: [timestamp]"
+- Toast: "Attendance marked for [name]"
+
+SECOND CLICK (same person, same day):
+- Blue info alert: "ℹ️ Attendance Already Marked"
+- Shows: "Marked at: [original timestamp]"
+- Toast: "Attendance already marked for [name]"
+
+OTHER RECOGNIZED FACES:
+- Remain unaffected
+- Can still submit their attendance independently
+- No page refresh needed
+
+WHAT YOU'LL SEE IN LOGS:
+------------------------
+Server logs will show:
+INFO - Attendance mark request - person_id=109, emp_id=None, name=None, date=2025-12-13 00:00:00
+INFO - Attendance check result - person_id=109, existing=True
+WARNING - ⚠️ DUPLICATE DETECTED: Attendance already marked for shashank (ID=109) on 2025-12-13
+
+Browser console will show:
+Attendance API Response: {success: true, already_marked: true, message: "Attendance already marked for today", ...}
+already_marked flag: true
+
+================================================================================
+✅ SOLUTION: Just refresh your browser! The fix is now complete.
+================================================================================

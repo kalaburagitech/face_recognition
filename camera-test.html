@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Diagnostics - Face Recognition System</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+        
+        .test-section h3 {
+            margin-top: 0;
+            color: #34495e;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background: #2980b9;
+        }
+        
+        button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        video {
+            width: 100%;
+            max-width: 400px;
+            height: 300px;
+            background: #000;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        
+        .device-list {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .device-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        .device-item:last-child {
+            border-bottom: none;
+        }
+        
+        .log-container {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .environment-info {
+            background: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        
+        .environment-info code {
+            background: #34495e;
+            color: #ecf0f1;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥 Camera Diagnostics</h1>
+        
+        <!-- Environment Information -->
+        <div class="test-section">
+            <h3>🖥️ Environment Information</h3>
+            <div class="environment-info" id="environmentInfo">
+                <strong>Browser:</strong> <code id="browserInfo">Loading...</code><br>
+                <strong>User Agent:</strong> <code id="userAgent">Loading...</code><br>
+                <strong>Platform:</strong> <code id="platformInfo">Loading...</code><br>
+                <strong>URL:</strong> <code id="currentUrl">Loading...</code><br>
+                <strong>Secure Context:</strong> <code id="secureContext">Loading...</code><br>
+                <strong>Permissions API:</strong> <code id="permissionsApi">Loading...</code>
+            </div>
+        </div>
+
+        <!-- Basic API Support Test -->
+        <div class="test-section">
+            <h3>🔍 API Support Test</h3>
+            <div id="apiSupport">Testing API support...</div>
+        </div>
+
+        <!-- Permissions Test -->
+        <div class="test-section">
+            <h3>🔐 Permissions Test</h3>
+            <button onclick="checkPermissions()">Check Camera Permissions</button>
+            <div id="permissionsResult"></div>
+        </div>
+
+        <!-- Device Enumeration Test -->
+        <div class="test-section">
+            <h3>📹 Device Detection Test</h3>
+            <button onclick="enumerateDevices()">Enumerate Media Devices</button>
+            <div id="deviceResults"></div>
+            <div id="deviceList" class="device-list" style="display: none;"></div>
+        </div>
+
+        <!-- Camera Access Test -->
+        <div class="test-section">
+            <h3>🎬 Camera Access Test</h3>
+            <button onclick="testCameraAccess()">Test Default Camera</button>
+            <button onclick="testSpecificCamera()">Test Device Index 2</button>
+            <button onclick="stopCamera()">Stop Camera</button>
+            <div id="cameraResults"></div>
+            <video id="testVideo" style="display: none;" autoplay muted></video>
+        </div>
+
+        <!-- System Commands Test -->
+        <div class="test-section">
+            <h3>💻 System Camera Detection</h3>
+            <button onclick="detectSystemCameras()">Detect System Cameras</button>
+            <div id="systemResults"></div>
+        </div>
+
+        <!-- Log Output -->
+        <div class="test-section">
+            <h3>📋 Debug Log</h3>
+            <button onclick="clearLog()">Clear Log</button>
+            <div id="logOutput" class="log-container">Starting diagnostics...\n</div>
+        </div>
+    </div>
+
+    <script>
+        let currentStream = null;
+        const logOutput = document.getElementById('logOutput');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logOutput.textContent += logEntry;
+            logOutput.scrollTop = logOutput.scrollHeight;
+            
+            if (type === 'error') {
+                console.error(message);
+            } else {
+                console.log(message);
+            }
+        }
+
+        function setStatus(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.className = `status ${type}`;
+            element.textContent = message;
+        }
+
+        function clearLog() {
+            logOutput.textContent = 'Log cleared.\n';
+        }
+
+        // Initialize environment information
+        function initializeEnvironment() {
+            document.getElementById('browserInfo').textContent = navigator.userAgent.split(' ').pop();
+            document.getElementById('userAgent').textContent = navigator.userAgent;
+            document.getElementById('platformInfo').textContent = navigator.platform;
+            document.getElementById('currentUrl').textContent = window.location.href;
+            document.getElementById('secureContext').textContent = window.isSecureContext ? 'Yes' : 'No';
+            document.getElementById('permissionsApi').textContent = 'permissions' in navigator ? 'Supported' : 'Not Supported';
+            
+            log(`Environment initialized: ${navigator.userAgent}`);
+            log(`Secure context: ${window.isSecureContext}`);
+            log(`Current URL: ${window.location.href}`);
+        }
+
+        // Test basic API support
+        function testApiSupport() {
+            const apiSupportDiv = document.getElementById('apiSupport');
+            let html = '';
+            let allSupported = true;
+
+            const tests = [
+                { name: 'navigator.mediaDevices', test: () => !!navigator.mediaDevices },
+                { name: 'getUserMedia', test: () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) },
+                { name: 'enumerateDevices', test: () => !!(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) },
+                { name: 'MediaStream', test: () => typeof MediaStream !== 'undefined' },
+                { name: 'RTCPeerConnection', test: () => typeof RTCPeerConnection !== 'undefined' || typeof webkitRTCPeerConnection !== 'undefined' }
+            ];
+
+            tests.forEach(({ name, test }) => {
+                const supported = test();
+                const status = supported ? 'success' : 'error';
+                const icon = supported ? '✅' : '❌';
+                html += `<div class="status ${status}">${icon} ${name}: ${supported ? 'Supported' : 'Not Supported'}</div>`;
+                
+                if (!supported && (name === 'navigator.mediaDevices' || name === 'getUserMedia')) {
+                    allSupported = false;
+                }
+                
+                log(`${name}: ${supported ? 'Supported' : 'Not Supported'}`);
+            });
+
+            apiSupportDiv.innerHTML = html;
+
+            if (!allSupported) {
+                apiSupportDiv.innerHTML += `<div class="status error">⚠️ Critical: Basic camera APIs are not supported in this browser!</div>`;
+                log('CRITICAL: Basic camera APIs not supported!', 'error');
+            }
+        }
+
+        // Check permissions
+        async function checkPermissions() {
+            log('Checking camera permissions...');
+            
+            try {
+                if ('permissions' in navigator) {
+                    const permission = await navigator.permissions.query({ name: 'camera' });
+                    setStatus('permissionsResult', `Camera permission: ${permission.state}`, 
+                        permission.state === 'granted' ? 'success' : 
+                        permission.state === 'denied' ? 'error' : 'warning');
+                    log(`Permission state: ${permission.state}`);
+                } else {
+                    setStatus('permissionsResult', 'Permissions API not supported - will need to request access directly', 'warning');
+                    log('Permissions API not supported');
+                }
+            } catch (error) {
+                setStatus('permissionsResult', `Error checking permissions: ${error.message}`, 'error');
+                log(`Permission check error: ${error.message}`, 'error');
+            }
+        }
+
+        // Enumerate devices
+        async function enumerateDevices() {
+            log('Enumerating media devices...');
+            const deviceResults = document.getElementById('deviceResults');
+            const deviceList = document.getElementById('deviceList');
+            
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                    throw new Error('enumerateDevices not supported');
+                }
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                log(`Found ${devices.length} total devices, ${videoDevices.length} video devices`);
+                
+                if (videoDevices.length === 0) {
+                    setStatus('deviceResults', 'No video devices found!', 'error');
+                } else {
+                    setStatus('deviceResults', `Found ${videoDevices.length} video device(s)`, 'success');
+                    
+                    let html = '<h4>Video Devices:</h4>';
+                    videoDevices.forEach((device, index) => {
+                        const label = device.label || `Device ${index}`;
+                        const deviceId = device.deviceId.substring(0, 20) + '...';
+                        html += `<div class="device-item">
+                            <strong>Index ${index}:</strong> ${label}<br>
+                            <strong>Device ID:</strong> ${deviceId}<br>
+                            <strong>Kind:</strong> ${device.kind}
+                        </div>`;
+                        log(`  Device ${index}: ${label} (${deviceId})`);
+                    });
+                    
+                    deviceList.innerHTML = html;
+                    deviceList.style.display = 'block';
+                }
+                
+            } catch (error) {
+                setStatus('deviceResults', `Error: ${error.message}`, 'error');
+                log(`Device enumeration error: ${error.message}`, 'error');
+            }
+        }
+
+        // Test camera access
+        async function testCameraAccess() {
+            log('Testing default camera access...');
+            const cameraResults = document.getElementById('cameraResults');
+            const video = document.getElementById('testVideo');
+            
+            try {
+                const constraints = {
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                };
+                
+                log(`Using constraints: ${JSON.stringify(constraints)}`);
+                
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                video.srcObject = currentStream;
+                video.style.display = 'block';
+                
+                const track = currentStream.getVideoTracks()[0];
+                const settings = track.getSettings();
+                
+                setStatus('cameraResults', `✅ Camera access successful! Resolution: ${settings.width}x${settings.height}`, 'success');
+                log(`Camera access successful: ${settings.width}x${settings.height}`);
+                log(`Device label: ${track.label}`);
+                
+            } catch (error) {
+                setStatus('cameraResults', `❌ Camera access failed: ${error.message}`, 'error');
+                log(`Camera access error: ${error.name} - ${error.message}`, 'error');
+                
+                // Provide specific guidance based on error type
+                if (error.name === 'NotAllowedError') {
+                    log('  → User denied camera permission or security policy blocks access');
+                } else if (error.name === 'NotFoundError') {
+                    log('  → No camera device found');
+                } else if (error.name === 'NotReadableError') {
+                    log('  → Camera is in use by another application');
+                }
+            }
+        }
+
+        // Test specific camera (device index 2)
+        async function testSpecificCamera() {
+            log('Testing device index 2 (/dev/video2)...');
+            const cameraResults = document.getElementById('cameraResults');
+            const video = document.getElementById('testVideo');
+            
+            try {
+                // First enumerate to get device 2
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                if (videoDevices.length <= 2) {
+                    throw new Error(`Only ${videoDevices.length} video devices found, device index 2 not available`);
+                }
+                
+                const targetDevice = videoDevices[2];
+                log(`Target device: ${targetDevice.label || 'Unknown'} (${targetDevice.deviceId.substring(0, 20)}...)`);
+                
+                const constraints = {
+                    video: {
+                        deviceId: { exact: targetDevice.deviceId },
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                };
+                
+                log(`Using constraints: ${JSON.stringify(constraints, null, 2)}`);
+                
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                video.srcObject = currentStream;
+                video.style.display = 'block';
+                
+                const track = currentStream.getVideoTracks()[0];
+                const settings = track.getSettings();
+                
+                setStatus('cameraResults', `✅ Device 2 access successful! ${track.label} (${settings.width}x${settings.height})`, 'success');
+                log(`Device 2 access successful: ${track.label}`);
+                log(`Resolution: ${settings.width}x${settings.height}`);
+                
+            } catch (error) {
+                setStatus('cameraResults', `❌ Device 2 access failed: ${error.message}`, 'error');
+                log(`Device 2 access error: ${error.name} - ${error.message}`, 'error');
+            }
+        }
+
+        // Stop camera
+        function stopCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+                currentStream = null;
+                document.getElementById('testVideo').style.display = 'none';
+                setStatus('cameraResults', 'Camera stopped', 'info');
+                log('Camera stopped');
+            }
+        }
+
+        // Detect system cameras (mock - would need backend)
+        function detectSystemCameras() {
+            log('System camera detection would require backend API...');
+            setStatus('systemResults', 'This would require a backend API to run system commands like "ls /dev/video*"', 'info');
+        }
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            log('Camera diagnostics page loaded');
+            initializeEnvironment();
+            testApiSupport();
+        });
+    </script>
+</body>
+</html>

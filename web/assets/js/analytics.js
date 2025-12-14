@@ -1,4 +1,4 @@
-// 统计分析模块 - 简化版
+// Statistics and analysis module - simplified version
 class Analytics {
     constructor() {
         this.stats = null;
@@ -13,7 +13,7 @@ class Analytics {
     }
 
     bindEvents() {
-        // 阈值同步控制 - 识别阈值
+        // Threshold sync control - recognition threshold
         const recognitionRange = document.getElementById('recognitionThresholdRange');
         const recognitionInput = document.getElementById('recognitionThreshold');
         const recognitionDisplay = document.getElementById('recognitionThresholdDisplay');
@@ -34,7 +34,7 @@ class Analytics {
             });
         }
 
-        // 检测阈值
+        // Detection threshold
         const detectionRange = document.getElementById('detectionThresholdRange');
         const detectionInput = document.getElementById('detectionThreshold');
         const detectionDisplay = document.getElementById('detectionThresholdDisplay');
@@ -55,7 +55,7 @@ class Analytics {
             });
         }
 
-        // 重复阈值
+        // Duplicate threshold
         const duplicateRange = document.getElementById('duplicateThresholdRange');
         const duplicateInput = document.getElementById('duplicateThreshold');
         const duplicateDisplay = document.getElementById('duplicateThresholdDisplay');
@@ -83,7 +83,7 @@ class Analytics {
         const thresholdDisplay = document.getElementById('thresholdDisplay');
 
         if (thresholdRange && thresholdInput && thresholdDisplay) {
-            // 设置初始值
+            // Set initial value
             const initialValue = '0.35';
             thresholdRange.value = initialValue;
             thresholdInput.value = initialValue;
@@ -93,30 +93,30 @@ class Analytics {
 
     async loadData() {
         try {
-            // 显示加载状态
+            // Show loading state
             this.showLoading(true);
 
-            // 并行加载数据
+            // Load data in parallel
             const [statsResponse, configResponse] = await Promise.all([
                 fetch('/api/statistics').catch(() => null),
                 fetch('/api/config').catch(() => null)
             ]);
 
-            // 处理统计数据
+            // Handle statistics data
             if (statsResponse && statsResponse.ok) {
                 this.stats = await statsResponse.json();
             } else {
-                // 显示错误而不是使用模拟数据
-                console.error('无法获取统计数据');
+                // Show error instead of using mock data
+                console.error('Failed to get statistics data');
                 this.stats = this.getEmptyStats();
-                this.displayError('无法获取统计数据，请检查后端服务是否正常运行');
+                this.displayError('Failed to get statistics data, please check whether the backend service is running properly');
             }
 
-            // 处理配置数据
+            // Handle configuration data
             if (configResponse && configResponse.ok) {
                 this.config = await configResponse.json();
             } else {
-                // 使用默认配置
+                // Use default configuration
                 this.config = this.getDefaultConfig();
             }
 
@@ -126,8 +126,8 @@ class Analytics {
 
         } catch (error) {
             console.error('Load analytics data error:', error);
-            this.displayError('加载数据失败，请检查网络连接');
-            // 显示空数据而不是模拟数据
+            this.displayError('Failed to load data, please check the network connection');
+            // Show empty data instead of mock data
             this.stats = this.getEmptyStats();
             this.config = this.getDefaultConfig();
             this.displayStatistics();
@@ -151,9 +151,9 @@ class Analytics {
 
     getDefaultConfig() {
         return {
-            recognition_threshold: 0.2,     // 人脸识别匹配阈值：越低要求越严格
-            detection_threshold: 0.5,       // 人脸检测置信度阈值：越高检测越严格 
-            duplicate_threshold: 0.95,      // 重复人脸判定阈值：越高防重复越严格
+            recognition_threshold: 0.2,     // Face recognition matching threshold: the lower, the stricter
+            detection_threshold: 0.5,       // Face detection confidence threshold: the higher, the stricter 
+            duplicate_threshold: 0.95,      // Duplicate face judgment threshold: the higher, the stricter the duplicate prevention
             model_name: 'buffalo_l',
             provider: 'CPUExecutionProvider'
         };
@@ -162,34 +162,34 @@ class Analytics {
     displayStatistics() {
         if (!this.stats) return;
 
-        // 更新顶部统计卡片
+        // Update top statistics cards
         this.updateElement('statTotalPersons', this.stats.total_persons || 0);
         this.updateElement('statTotalEncodings', this.stats.total_encodings || 0);
         this.updateElement('statThreshold', (this.stats.recognition_threshold || 0.35).toFixed(2));
 
-        // 更新详细统计
+        // Update detailed statistics
         this.updateElement('detailTotalPersons', this.stats.total_persons || 0);
         this.updateElement('detailTotalEncodings', this.stats.total_encodings || 0);
-        this.updateElement('avgPhotosPerPerson', (this.stats.avg_photos_per_person || 0).toFixed(1) + ' 张');
+        this.updateElement('avgPhotosPerPerson', (this.stats.avg_photos_per_person || 0).toFixed(1) + ' images');
         this.updateElement('currentThreshold', (this.stats.recognition_threshold || 0.35).toFixed(2));
     }
 
     displayConfiguration() {
         if (!this.config) return;
 
-        // 更新配置表单
+        // Update configuration form
         this.updateFormElement('threshold', this.config.recognition_threshold || 0.35);
         this.updateFormElement('thresholdRange', this.config.recognition_threshold || 0.35);
         this.updateFormElement('modelName', this.config.model_name || 'buffalo_l');
         this.updateFormElement('provider', this.config.provider || 'CPUExecutionProvider');
 
-        // 更新阈值显示
+        // Update threshold display
         const thresholdDisplay = document.getElementById('thresholdDisplay');
         if (thresholdDisplay) {
             thresholdDisplay.textContent = (this.config.recognition_threshold || 0.35).toFixed(2);
         }
 
-        // 更新系统信息
+        // Update system info
         this.updateElement('currentModel', this.config.model_name || 'buffalo_l');
         this.updateElement('currentProvider', this.config.provider || 'CPU');
     }
@@ -214,15 +214,15 @@ class Analytics {
             const detectionThreshold = parseFloat(document.getElementById('detectionThreshold').value);
             const duplicateThreshold = parseFloat(document.getElementById('duplicateThreshold').value);
             
-            // 验证三个阈值的有效性
+            // Validate the three thresholds
             if (isNaN(recognitionThreshold) || recognitionThreshold < 0.1 || recognitionThreshold > 0.9) {
-                throw new Error('识别阈值必须在 0.1 到 0.9 之间');
+                throw new Error('Recognition threshold must be between 0.1 and 0.9');
             }
             if (isNaN(detectionThreshold) || detectionThreshold < 0.1 || detectionThreshold > 0.9) {
-                throw new Error('检测阈值必须在 0.1 到 0.9 之间');
+                throw new Error('Detection threshold must be between 0.1 and 0.9');
             }
             if (isNaN(duplicateThreshold) || duplicateThreshold < 0.8 || duplicateThreshold > 0.99) {
-                throw new Error('重复阈值必须在 0.8 到 0.99 之间');
+                throw new Error('Duplicate threshold must be between 0.8 and 0.99');
             }
 
             const config = {
@@ -241,20 +241,20 @@ class Analytics {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.detail || '配置更新失败');
+                throw new Error(errorData.detail || 'Configuration update failed');
             }
 
-            // 显示成功提示
-            this.showNotification('配置更新成功！', 'success');
+            // Show success message
+            this.showNotification('Configuration updated successfully!', 'success');
             
-            // 3秒后重新加载配置以确保同步
+            // Reload configuration after 3 seconds to ensure synchronization
             setTimeout(() => {
                 this.loadConfiguration();
             }, 3000);
 
         } catch (error) {
-            console.error('更新配置失败:', error);
-            this.showNotification(error.message || '配置更新失败，请重试！', 'error');
+            console.error('Failed to update configuration:', error);
+            this.showNotification(error.message || 'Configuration update failed, please try again!', 'error');
         }
     }
 
@@ -264,7 +264,7 @@ class Analytics {
             if (response.ok) {
                 const config = await response.json();
                 
-                // 设置识别阈值
+                // Set recognition threshold
                 const recognitionThreshold = config.recognition_threshold || 0.2;
                 const recognitionRange = document.getElementById('recognitionThresholdRange');
                 const recognitionInput = document.getElementById('recognitionThreshold');
@@ -276,7 +276,7 @@ class Analytics {
                     recognitionDisplay.textContent = recognitionThreshold;
                 }
 
-                // 设置检测阈值
+                // Set detection threshold
                 const detectionThreshold = config.detection_threshold || 0.35;
                 const detectionRange = document.getElementById('detectionThresholdRange');
                 const detectionInput = document.getElementById('detectionThreshold');
@@ -288,8 +288,8 @@ class Analytics {
                     detectionDisplay.textContent = detectionThreshold;
                 }
 
-                // 设置重复阈值
-                const duplicateThreshold = config.duplicate_threshold || 0.95;
+                // Set duplicate threshold
+                const duplicateThreshold = config.duplicate_threshold || 0.85;
                 const duplicateRange = document.getElementById('duplicateThresholdRange');
                 const duplicateInput = document.getElementById('duplicateThreshold');
                 const duplicateDisplay = document.getElementById('duplicateThresholdDisplay');
@@ -301,11 +301,11 @@ class Analytics {
                 }
                 
             } else {
-                console.warn('无法加载配置，使用默认值');
+                console.warn('Failed to load configuration, using default values');
                 this.setDefaultConfiguration();
             }
         } catch (error) {
-            console.error('加载配置失败:', error);
+            console.error('Failed to load configuration:', error);
             this.setDefaultConfiguration();
         }
     }
@@ -313,7 +313,7 @@ class Analytics {
     setDefaultConfiguration() {
         const defaultConfig = this.getDefaultConfig();
         
-        // 设置识别阈值默认值
+        // Set default recognition threshold
         const recognitionRange = document.getElementById('recognitionThresholdRange');
         const recognitionInput = document.getElementById('recognitionThreshold');
         const recognitionDisplay = document.getElementById('recognitionThresholdDisplay');
@@ -324,7 +324,7 @@ class Analytics {
             recognitionDisplay.textContent = defaultConfig.recognition_threshold;
         }
 
-        // 设置检测阈值默认值
+        // Set default detection threshold
         const detectionRange = document.getElementById('detectionThresholdRange');
         const detectionInput = document.getElementById('detectionThreshold');
         const detectionDisplay = document.getElementById('detectionThresholdDisplay');
@@ -335,7 +335,7 @@ class Analytics {
             detectionDisplay.textContent = defaultConfig.detection_threshold;
         }
 
-        // 设置重复阈值默认值
+        // Set default duplicate threshold
         const duplicateRange = document.getElementById('duplicateThresholdRange');
         const duplicateInput = document.getElementById('duplicateThreshold');
         const duplicateDisplay = document.getElementById('duplicateThresholdDisplay');
@@ -361,7 +361,7 @@ class Analytics {
     updateLastUpdateTime() {
         const element = document.getElementById('lastUpdateTime');
         if (element) {
-            element.textContent = new Date().toLocaleString('zh-CN');
+            element.textContent = new Date().toLocaleString('en-US');
         }
     }
 
@@ -370,20 +370,20 @@ class Analytics {
     }
 
     showMessage(message, type = 'info') {
-        // 简单的消息显示
+        // Simple message display
         console.log(`[${type.toUpperCase()}] ${message}`);
         
-        // 如果有 ToastManager，使用它
+        // If there is a ToastManager, use it
         if (window.ToastManager) {
             window.ToastManager.show(message, type);
         } else {
-            // 否则使用简单的 alert
+            // Otherwise use simple alert
             if (type === 'error') {
-                alert('错误: ' + message);
+                alert('Error: ' + message);
             } else if (type === 'warning') {
-                alert('警告: ' + message);
+                alert('Warning: ' + message);
             } else if (type === 'success') {
-                alert('成功: ' + message);
+                alert('Success: ' + message);
             }
         }
     }
@@ -392,14 +392,14 @@ class Analytics {
         this.showMessage(message, type);
     }
 
-    // 导出统计数据
+    // Export statistics data
     exportStats() {
         try {
             const exportData = {
                 timestamp: new Date().toISOString(),
                 statistics: this.stats,
                 configuration: this.config,
-                export_time: new Date().toLocaleString('zh-CN')
+                export_time: new Date().toLocaleString('en-US')
             };
 
             const blob = new Blob([JSON.stringify(exportData, null, 2)], {
@@ -415,49 +415,49 @@ class Analytics {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            this.showMessage('统计数据导出成功', 'success');
+            this.showMessage('Statistics data exported successfully', 'success');
 
         } catch (error) {
             console.error('Export stats error:', error);
-            this.showMessage('导出失败: ' + error.message, 'error');
+            this.showMessage('Export failed: ' + error.message, 'error');
         }
     }
 
-    // 下载系统报告
+    // Download system report
     downloadSystemReport() {
         try {
             const reportData = {
-                系统概览: {
-                    总人员数: this.stats?.total_persons || 0,
-                    总照片数: this.stats?.total_encodings || 0,
-                    平均每人照片: (this.stats?.avg_photos_per_person || 0).toFixed(1),
-                    识别阈值: (this.stats?.recognition_threshold || 0.35).toFixed(2)
+                system_overview: {
+                    total_persons: this.stats?.total_persons || 0,
+                    total_photos: this.stats?.total_encodings || 0,
+                    avg_photos_per_person: (this.stats?.avg_photos_per_person || 0).toFixed(1),
+                    recognition_threshold: (this.stats?.recognition_threshold || 0.35).toFixed(2)
                 },
-                系统配置: {
-                    识别模型: this.config?.model_name || 'buffalo_l',
-                    执行提供者: this.config?.provider || 'CPU',
-                    最大文件大小: '10MB',
-                    支持格式: 'JPEG, PNG, WebP'
+                system_config: {
+                    model_name: this.config?.model_name || 'buffalo_l',
+                    execution_provider: this.config?.provider || 'CPU',
+                    max_file_size: '10MB',
+                    supported_formats: 'JPEG, PNG, WebP'
                 },
-                生成时间: new Date().toLocaleString('zh-CN')
+                generated_time: new Date().toLocaleString('en-US')
             };
 
-            const content = `# 人脸识别系统报告
+            const content = `# Face Recognition System Report
 
-## 系统概览
-- 总人员数: ${reportData.系统概览.总人员数}
-- 总照片数: ${reportData.系统概览.总照片数}  
-- 平均每人照片: ${reportData.系统概览.平均每人照片}
-- 识别阈值: ${reportData.系统概览.识别阈值}
+## System Overview
+- Total persons: ${reportData.system_overview.total_persons}
+- Total photos: ${reportData.system_overview.total_photos}  
+- Average photos per person: ${reportData.system_overview.avg_photos_per_person}
+- Recognition threshold: ${reportData.system_overview.recognition_threshold}
 
-## 系统配置
-- 识别模型: ${reportData.系统配置.识别模型}
-- 执行提供者: ${reportData.系统配置.执行提供者}
-- 最大文件大小: ${reportData.系统配置.最大文件大小}
-- 支持格式: ${reportData.系统配置.支持格式}
+## System Configuration
+- Recognition model: ${reportData.system_config.model_name}
+- Execution provider: ${reportData.system_config.execution_provider}
+- Max file size: ${reportData.system_config.max_file_size}
+- Supported formats: ${reportData.system_config.supported_formats}
 
 ---
-报告生成时间: ${reportData.生成时间}
+Report generated at: ${reportData.generated_time}
 `;
 
             const blob = new Blob([content], { type: 'text/markdown' });
@@ -470,65 +470,65 @@ class Analytics {
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            this.showMessage('系统报告下载成功', 'success');
+            this.showMessage('System report downloaded successfully', 'success');
 
         } catch (error) {
             console.error('Download report error:', error);
-            this.showMessage('系统报告下载失败', 'error');
+            this.showMessage('Failed to download system report', 'error');
         }
     }
 
-    // 清理缓存
+    // Clear cache
     clearCache() {
-        if (confirm('确定要清理系统缓存吗？这将清除临时文件和缓存数据。')) {
+        if (confirm('Are you sure you want to clear the system cache? This will remove temporary files and cached data.')) {
             try {
-                // 清理本地存储
+                // Clear local storage
                 localStorage.removeItem('face_recognition_cache');
                 sessionStorage.clear();
                 
-                // 模拟清理过程
+                // Simulate cleanup process
                 setTimeout(() => {
-                    this.showMessage('缓存清理完成', 'success');
-                    this.loadData(); // 重新加载数据
+                    this.showMessage('Cache cleared successfully', 'success');
+                    this.loadData(); // Reload data
                 }, 1000);
 
             } catch (error) {
                 console.error('Clear cache error:', error);
-                this.showMessage('缓存清理失败', 'error');
+                this.showMessage('Failed to clear cache', 'error');
             }
         }
     }
 
-    // 显示API文档
+    // Show API documentation
     showApiDocs() {
         const docsContent = `
-# 人脸识别系统 API 文档
+# Face Recognition System API Documentation
 
-## 基础接口
+## Basic Endpoints
 
-### 1. 统计数据
+### 1. Statistics
 - **GET** /api/statistics
-- 响应: { total_persons, total_encodings, avg_encodings_per_person, recognition_threshold }
+- Response: { total_persons, total_encodings, avg_encodings_per_person, recognition_threshold }
 
-### 2. 系统配置  
+### 2. System Configuration  
 - **GET** /api/config
 - **POST** /api/config
-- 参数: { recognition_threshold, model_name, provider }
+- Params: { recognition_threshold, model_name, provider }
 
-### 3. 人脸识别
+### 3. Face Recognition
 - **POST** /api/recognize
-- 参数: image (file)
-- 响应: { person_name, confidence, bbox }
+- Params: image (file)
+- Response: { person_name, confidence, bbox }
 
-### 4. 人员管理
-- **GET** /api/persons - 获取人员列表
-- **POST** /api/persons - 注册新人员
-- **DELETE** /api/persons/{id} - 删除人员
+### 4. Person Management
+- **GET** /api/persons - Get person list
+- **POST** /api/persons - Register new person
+- **DELETE** /api/persons/{id} - Delete person
 
-更多详细信息请查看项目文档。
+For more details, please refer to the project documentation.
         `;
 
-        // 创建模态框显示文档
+        // Create modal to display documentation
         const modal = document.createElement('div');
         modal.className = 'modal fade';
         modal.innerHTML = `
@@ -536,7 +536,7 @@ class Analytics {
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">
-                            <i class="bi bi-book me-2"></i>API 文档
+                            <i class="bi bi-book me-2"></i>API Documentation
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
@@ -544,7 +544,7 @@ class Analytics {
                         <pre style="white-space: pre-wrap; font-family: 'JetBrains Mono', monospace; font-size: 0.875rem;">${docsContent}</pre>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     </div>
                 </div>
             </div>
@@ -560,12 +560,12 @@ class Analytics {
                 document.body.removeChild(modal);
             });
         } else {
-            // 如果没有 Bootstrap，使用简单显示
+            // If Bootstrap is not available, use simple display
             alert(docsContent);
             document.body.removeChild(modal);
         }
     }
 }
 
-// 导出到全局作用域
+// Export to global scope
 window.Analytics = Analytics;

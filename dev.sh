@@ -1,21 +1,21 @@
 #!/bin/bash
 
-# 人脸识别系统开发模式启动脚本
+# Face recognition system development mode startup script
 
 echo "=================================="
-echo "人脸识别系统 - 开发模式"
+echo "Facial recognition system - development mode"
 echo "=================================="
 
-# 检查虚拟环境
+# Check virtual environment
 if [ ! -d ".venv" ]; then
-    echo "虚拟环境不存在，请先运行 ./start_uv.sh 或 ./start.sh"
+    echo "Virtual environment does not exist，Please run first ./start_uv.sh or ./start.sh"
     exit 1
 fi
 
-# 激活虚拟环境
-echo "激活虚拟环境..."
+# Activate virtual environment
+echo "Activate virtual environment..."
 source .venv/bin/activate
 
-# 启动开发服务器 (热重载)
-echo "启动开发服务器 (热重载模式)..."
+# Start the development server (Hot reload)
+echo "Start the development server (Hot reload mode)..."
 python main.py --reload --log-level DEBUG

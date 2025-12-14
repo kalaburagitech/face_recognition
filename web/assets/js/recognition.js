@@ -1,4 +1,4 @@
-// 人脸识别模块
+// Face recognition module
 class FaceRecognition {
     constructor() {
         this.currentFile = null;
@@ -10,23 +10,23 @@ class FaceRecognition {
     }
 
     bindEvents() {
-        // 上传区域
+        // Upload area
         const uploadZone = document.getElementById('uploadZone');
         const fileInput = document.getElementById('imageFile');
         const recognizeBtn = document.getElementById('recognizeBtn');
 
         if (uploadZone && fileInput) {
-            // 点击上传
+            // Click to upload
             uploadZone.addEventListener('click', () => fileInput.click());
             
-            // 文件选择
+            // File selection
             fileInput.addEventListener('change', (e) => {
                 if (e.target.files.length > 0) {
                     this.handleFile(e.target.files[0]);
                 }
             });
 
-            // 拖拽上传
+            // Drag and drop upload
             DragDropHandler.init(uploadZone, (files) => {
                 if (files.length > 0) {
                     this.handleFile(files[0]);
@@ -34,12 +34,12 @@ class FaceRecognition {
             });
         }
 
-        // 识别按钮
+        // Identify button
         if (recognizeBtn) {
             recognizeBtn.addEventListener('click', () => this.performRecognition());
         }
 
-        // 重置按钮
+        // reset button
         const resetBtn = document.querySelector('[onclick="clearRecognition()"]');
         if (resetBtn) {
             resetBtn.onclick = () => this.clearRecognition();
@@ -72,7 +72,7 @@ class FaceRecognition {
                 img.src = e.target.result;
                 preview.style.display = 'block';
                 
-                // 添加淡入动画
+                // Add fade-in animation
                 preview.classList.add('fade-in');
             }
         };
@@ -85,9 +85,9 @@ class FaceRecognition {
             const fileSize = (file.size / 1024 / 1024).toFixed(2);
             infoDiv.innerHTML = `
                 <i class="bi bi-info-circle me-1"></i>
-                文件名: ${file.name} | 
-                大小: ${fileSize} MB | 
-                类型: ${file.type}
+                file name: ${file.name} | 
+                size: ${fileSize} MB | 
+                type: ${file.type}
             `;
         }
     }
@@ -105,28 +105,28 @@ class FaceRecognition {
 
     async performRecognition() {
         if (!this.currentFile) {
-            ToastManager.show('请先选择图片', 'warning');
+            ToastManager.show('Please select a picture first', 'warning');
             return;
         }
 
         const btn = document.getElementById('recognizeBtn');
         const loadingOverlay = document.getElementById('recognitionLoading');
         
-        // 显示加载状态
+        // show loading status
         if (loadingOverlay) {
             loadingOverlay.style.display = 'flex';
         }
         
-        LoadingManager.setButtonLoading(btn, true, '识别中...');
+        LoadingManager.setButtonLoading(btn, true, 'Recognizing...');
 
         try {
             const formData = new FormData();
             formData.append('file', this.currentFile);
 
-            // 首先获取识别结果
+            // First get the recognition results
             const result = await ApiClient.post('/api/recognize', formData);
             
-            // 然后获取可视化图片
+            // Then get the visualization picture
             const visualResponse = await fetch('/api/recognize_visual', {
                 method: 'POST',
                 body: formData
@@ -140,13 +140,13 @@ class FaceRecognition {
                 this.displayResults(result);
             }
             
-            ToastManager.show('识别完成', 'success');
+            ToastManager.show('Recognition completed', 'success');
             this.showDownloadButton();
 
         } catch (error) {
             console.error('Recognition error:', error);
-            ToastManager.show(`识别失败: ${error.message}`, 'error');
-            this.displayError('识别失败，请重试');
+            ToastManager.show(`Recognition failed: ${error.message}`, 'error');
+            this.displayError('Recognition failed，Please try again');
         } finally {
             LoadingManager.setButtonLoading(btn, false);
             if (loadingOverlay) {
@@ -168,32 +168,32 @@ class FaceRecognition {
 
         let resultsHtml = '';
         
-        // 如果有可视化图片，先显示
+        // If there is a visual picture，show first
         if (visualUrl) {
             resultsHtml += `
                 <div class="mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="text-primary mb-0">
-                            <i class="bi bi-image me-2"></i>识别可视化结果
+                            <i class="bi bi-image me-2"></i>Identify visualization results
                         </h6>
                         <button class="btn btn-outline-primary btn-sm" onclick="downloadVisualization('${visualUrl}')">
-                            <i class="bi bi-download me-1"></i>下载
+                            <i class="bi bi-download me-1"></i>download
                         </button>
                     </div>
                     <div class="text-center">
-                        <img src="${visualUrl}" class="img-fluid rounded shadow" alt="识别结果可视化" style="max-height: 350px; cursor: pointer;" onclick="showImageModal('${visualUrl}')">
-                        <div class="small text-muted mt-2">点击图片查看大图</div>
+                        <img src="${visualUrl}" class="img-fluid rounded shadow" alt="Visualization of recognition results" style="max-height: 350px; cursor: pointer;" onclick="showImageModal('${visualUrl}')">
+                        <div class="small text-muted mt-2">Click on the image to view a larger version</div>
                     </div>
                 </div>
             `;
         }
 
-        // 显示识别结果详情
+        // Display recognition result details
         if (result.matches && result.matches.length > 0) {
             resultsHtml += `
                 <div class="mb-3">
                     <h6 class="text-success mb-3">
-                        <i class="bi bi-person-check me-2"></i>识别成功 - 找到 ${result.matches.length} 个匹配
+                        <i class="bi bi-person-check me-2"></i>Recognition successful - turn up ${result.matches.length} matches
                     </h6>
                     <div class="row">
                         ${result.matches.map((match, index) => `
@@ -205,21 +205,21 @@ class FaceRecognition {
                 </div>
             `;
 
-            // 显示总结信息
+            // Show summary information
             resultsHtml += `
                 <div class="alert alert-info">
                     <div class="row text-center">
                         <div class="col-4">
                             <div class="fw-bold">${result.total_faces || 1}</div>
-                            <div class="small">检测人脸</div>
+                            <div class="small">Detect faces</div>
                         </div>
                         <div class="col-4">
                             <div class="fw-bold">${result.matches.length}</div>
-                            <div class="small">匹配人员</div>
+                            <div class="small">Match people</div>
                         </div>
                         <div class="col-4">
                             <div class="fw-bold">${Math.max(...result.matches.map(m => m.match_score)).toFixed(1)}%</div>
-                            <div class="small">最高相似度</div>
+                            <div class="small">highest similarity</div>
                         </div>
                     </div>
                 </div>
@@ -228,13 +228,13 @@ class FaceRecognition {
             resultsHtml += `
                 <div class="alert alert-warning text-center">
                     <i class="bi bi-exclamation-triangle fs-1 text-warning mb-3"></i>
-                    <h5 class="mb-2">未找到匹配的人员</h5>
-                    <p class="mb-3">该人脸在数据库中没有匹配记录</p>
+                    <h5 class="mb-2">No matching people found</h5>
+                    <p class="mb-3">There is no matching record for this face in the database</p>
                     <div class="d-grid gap-2">
                         <button class="btn btn-primary" onclick="showEnrollmentModal()">
-                            <i class="bi bi-person-plus me-2"></i>注册此人员
+                            <i class="bi bi-person-plus me-2"></i>Register this person
                         </button>
-                        <small class="text-muted">建议检查照片质量或先注册该人员</small>
+                        <small class="text-muted">It is recommended to check the photo quality or register the person first</small>
                     </div>
                 </div>
             `;
@@ -247,13 +247,13 @@ class FaceRecognition {
     createResultCard(match, index) {
         const scoreClass = this.getScoreClass(match.match_score);
         return `
-            <div class="result-card">
+            <div class="result-card" id="result-card-${match.person_id}">
                 <div class="d-flex justify-content-between align-items-start mb-3">
                     <div class="d-flex align-items-center">
                         <div class="badge bg-primary me-2">#${index}</div>
                         <div>
                             <h6 class="mb-1 text-primary fw-bold">${match.name}</h6>
-                            <small class="text-muted">人员ID: ${match.person_id}${match.face_encoding_id ? ` | 人脸ID: ${match.face_encoding_id}` : ''}</small>
+                            <small class="text-muted">personnelID: ${match.person_id}${match.face_encoding_id ? ` | human faceID: ${match.face_encoding_id}` : ''}</small>
                         </div>
                     </div>
                     <span class="match-score ${scoreClass}">
@@ -264,40 +264,40 @@ class FaceRecognition {
                 <div class="row g-3 text-sm">
                     <div class="col-md-6">
                         <div class="d-flex justify-content-between">
-                            <span class="text-muted">相似度距离:</span>
+                            <span class="text-muted">similarity distance:</span>
                             <span class="fw-semibold">${match.distance.toFixed(4)}</span>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="d-flex justify-content-between">
-                            <span class="text-muted">图像质量:</span>
+                            <span class="text-muted">Image quality:</span>
                             <span class="fw-semibold">${((match.quality || 0) * 100).toFixed(1)}%</span>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="d-flex justify-content-between">
-                            <span class="text-muted">识别模型:</span>
+                            <span class="text-muted">Identify model:</span>
                             <span class="fw-semibold">${match.model}</span>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="d-flex justify-content-between">
-                            <span class="text-muted">检测框:</span>
+                            <span class="text-muted">detection frame:</span>
                             <span class="fw-semibold">${match.bbox ? `${match.bbox[2]-match.bbox[0]}×${match.bbox[3]-match.bbox[1]}` : 'N/A'}</span>
                         </div>
                     </div>
                     ${match.age ? `
                         <div class="col-md-6">
                             <div class="d-flex justify-content-between">
-                                <span class="text-muted">预估年龄:</span>
-                                <span class="fw-semibold">${match.age}岁</span>
+                                <span class="text-muted">Estimated age:</span>
+                                <span class="fw-semibold">${match.age}age</span>
                             </div>
                         </div>
                     ` : ''}
                     ${match.gender ? `
                         <div class="col-md-6">
                             <div class="d-flex justify-content-between">
-                                <span class="text-muted">性别:</span>
+                                <span class="text-muted">gender:</span>
                                 <span class="fw-semibold">${match.gender}</span>
                             </div>
                         </div>
@@ -310,12 +310,86 @@ class FaceRecognition {
                              style="width: ${match.match_score}%"></div>
                     </div>
                     <div class="d-flex justify-content-between mt-1">
-                        <small class="text-muted">置信度</small>
+                        <small class="text-muted">Confidence</small>
                         <small class="text-muted">${this.getConfidenceText(match.match_score)}</small>
                     </div>
                 </div>
+                
+                <div class="mt-3" id="attendance-section-${match.person_id}">
+                    <button class="btn btn-success w-100" onclick="faceRecognition.markAttendance(${match.person_id}, '${match.name}')">
+                        <i class="bi bi-check-circle me-2"></i>Submit Attendance
+                    </button>
+                </div>
             </div>
         `;
+    }
+
+    async markAttendance(personId, personName) {
+        const attendanceSection = document.getElementById(`attendance-section-${personId}`);
+        if (!attendanceSection) return;
+
+        // Show loading state
+        attendanceSection.innerHTML = `
+            <button class="btn btn-secondary w-100" disabled>
+                <span class="spinner-border spinner-border-sm me-2"></span>Checking...
+            </button>
+        `;
+
+        try {
+            // Mark attendance
+            const formData = new FormData();
+            formData.append('person_id', personId);
+            formData.append('status', 'present');
+
+            const response = await fetch('/api/attendance/mark', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            // Debug logging
+            console.log('Attendance API Response:', result);
+            console.log('already_marked flag:', result.already_marked);
+
+            if (result.success) {
+                if (result.already_marked === true) {
+                    // Attendance already marked
+                    attendanceSection.innerHTML = `
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Attendance Already Marked</strong><br>
+                            <small>Marked at: ${new Date(result.attendance.marked_at).toLocaleString()}</small>
+                        </div>
+                    `;
+                    ToastManager.show(`Attendance already marked for ${personName}`, 'info');
+                } else {
+                    // Successfully marked
+                    attendanceSection.innerHTML = `
+                        <div class="alert alert-success mb-0">
+                            <i class="bi bi-check-circle me-2"></i>
+                            <strong>Attendance Marked Successfully</strong><br>
+                            <small>Marked at: ${new Date(result.attendance.marked_at).toLocaleString()}</small>
+                        </div>
+                    `;
+                    ToastManager.show(`Attendance marked for ${personName}`, 'success');
+                }
+            } else {
+                throw new Error(result.error || 'Failed to mark attendance');
+            }
+        } catch (error) {
+            console.error('Attendance marking error:', error);
+            attendanceSection.innerHTML = `
+                <div class="alert alert-danger mb-0">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Failed to mark attendance: ${error.message}
+                </div>
+                <button class="btn btn-warning w-100 mt-2" onclick="faceRecognition.markAttendance(${personId}, '${personName}')">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Retry
+                </button>
+            `;
+            ToastManager.show(`Failed to mark attendance: ${error.message}`, 'error');
+        }
     }
 
     getScoreClass(score) {
@@ -331,11 +405,11 @@ class FaceRecognition {
     }
 
     getConfidenceText(score) {
-        if (score >= 90) return '非常高';
-        if (score >= 80) return '高';
-        if (score >= 60) return '中等';
-        if (score >= 40) return '较低';
-        return '低';
+        if (score >= 90) return 'very high';
+        if (score >= 80) return 'high';
+        if (score >= 60) return 'medium';
+        if (score >= 40) return 'lower';
+        return 'Low';
     }
 
     displayError(message) {
@@ -365,7 +439,7 @@ class FaceRecognition {
         if (preview) preview.style.display = 'none';
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="bi bi-search me-2"></i>开始识别';
+            btn.innerHTML = '<i class="bi bi-search me-2"></i>Start identifying';
         }
         if (clearBtn) clearBtn.style.display = 'none';
         if (downloadBtn) downloadBtn.style.display = 'none';
@@ -375,15 +449,15 @@ class FaceRecognition {
             results.innerHTML = `
                 <div class="empty-state">
                     <i class="bi bi-search"></i>
-                    <h6>等待识别</h6>
-                    <p class="mb-0">请上传照片开始识别</p>
+                    <h6>Waiting for recognition</h6>
+                    <p class="mb-0">Please upload a photo to start identification</p>
                 </div>
             `;
         }
 
-        ToastManager.show('已重置识别界面', 'info');
+        ToastManager.show('The recognition interface has been reset', 'info');
     }
 }
 
-// 导出到全局作用域
+// Export to global scope
 window.FaceRecognition = FaceRecognition;

@@ -1,6 +1,6 @@
 """
-基于 InsightFace 和 DeepFace 的先进人脸识别服务
-采用最新的深度学习技术，提供更高的准确率和性能
+based on InsightFace and DeepFace Advanced facial recognition services
+Using the latest deep learning technology，Provides higher accuracy and performance
 """
 import os
 import cv2
@@ -11,7 +11,7 @@ from datetime import datetime
 import sys
 import base64
 
-# 添加项目根目录到Python路径
+# Add the project root directory toPythonpath
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.utils.enhanced_visualization import EnhancedFaceVisualizer
@@ -19,12 +19,12 @@ import pickle
 import base64
 from pathlib import Path
 
-# 先进的人脸识别库
+# Advanced face recognition library
 import insightface
 from deepface import DeepFace
 import onnxruntime
 
-# 本地模块
+# local module
 from ..models.database import DatabaseManager, Person, FaceEncoding
 from ..utils.config import config
 from ..utils.model_manager import get_model_manager
@@ -33,116 +33,114 @@ logger = logging.getLogger(__name__)
 
 class AdvancedFaceRecognitionService:
     """
-    先进的人脸识别服务
+    Advanced facial recognition service
     
-    特性:
-    - 使用 InsightFace 进行高精度人脸检测和特征提取
-    - 支持多种预训练模型 (ArcFace, CosFace, SphereFace)
-    - DeepFace 作为备选方案，支持多种后端
-    - 更高的识别准确率 (99.83% on LFW)
-    - 更快的推理速度
-    - 支持年龄、性别、情绪等属性分析
+    characteristic:
+    - use InsightFace Perform high-precision face detection and feature extraction
+    - Supports multiple pre-trained models (ArcFace, CosFace, SphereFace)
+    - DeepFace as an alternative，Supports multiple backends
+    - Higher recognition accuracy (99.83% on LFW)
+    - Faster inference speed
+    - Support age、gender、Analysis of attributes such as emotions
     """
     
     def __init__(self, model_name: str = 'buffalo_l'):
         """
-        初始化先进人脸识别服务
+        Initialize advanced face recognition service
         
         Args:
-            model_name: InsightFace 模型名称
-                - buffalo_l: 大型模型，最高精度
-                - buffalo_m: 中型模型，平衡精度和速度
-                - buffalo_s: 小型模型，最快速度
+            model_name: InsightFace Model name
+                - buffalo_l: large model，Highest accuracy
+                - buffalo_m: medium model，Balancing precision and speed
+                - buffalo_s: small model，fastest speed
         """
-        # 初始化模型管理器
+        # Initialize model manager
         self.model_manager = get_model_manager()
         
         self.db_manager = DatabaseManager()
         self.model_name = model_name
         
-        # 初始化增强可视化器
+        # Initialize the enhanced visualizer
         self.visualizer = EnhancedFaceVisualizer()
         
-        # 初始化 InsightFace
+        # initialization InsightFace
         self._init_insightface()
         
-        # 设置 DeepFace 配置
+        # set up DeepFace Configuration
         self._init_deepface()
         
-        # 使用内存缓存系统
-        self._face_cache = {}
-        self._load_face_cache()
-        logger.info("📝 使用内存缓存模式")
+        # PostgreSQL + pgvector handles all caching and search
+        logger.info("📝 Using PostgreSQL + pgvector for face search")
         
-        logger.info(f"先进人脸识别服务初始化完成，使用模型: {model_name}")
+        logger.info(f"Advanced face recognition service initialization completed，Use model: {model_name}")
     
     def _init_insightface(self):
-        """初始化 InsightFace"""
+        """initialization InsightFace"""
         try:
-            # 使用模型管理器配置 InsightFace 路径
+            # Configure using the model manager InsightFace path
             model_root = self.model_manager.configure_insightface(self.model_name)
             
-            # 初始化应用
+            # Initialize application
             self.app = insightface.app.FaceAnalysis(
                 name=self.model_name,
                 root=model_root,
-                providers=['CPUExecutionProvider']  # 使用 CPU，GPU 可改为 CUDAExecutionProvider
+                providers=['CPUExecutionProvider']  # use CPU，GPU Can be changed to CUDAExecutionProvider
             )
             self.app.prepare(ctx_id=0, det_size=(640, 640))
             
-            logger.info(f"InsightFace 初始化成功，模型路径: {model_root}")
+            logger.info(f"InsightFace Initialization successful，model path: {model_root}")
             
         except Exception as e:
-            logger.error(f"InsightFace 初始化失败: {str(e)}")
+            logger.error(f"InsightFace Initialization failed: {str(e)}")
             self.app = None
     
     def _init_deepface(self):
-        """初始化 DeepFace 配置"""
-        # 配置 DeepFace 模型路径
+        """initialization DeepFace Configuration"""
+        # Configuration DeepFace model path
         deepface_config = self.model_manager.configure_deepface()
-        logger.info(f"DeepFace 配置路径: {deepface_config['deepface_home']}")
+        logger.info(f"DeepFace Configuration path: {deepface_config['deepface_home']}")
         
         self.deepface_models = [
-            'ArcFace',      # 最新的 ArcFace 模型
-            'Facenet512',   # 高维特征 FaceNet
-            'VGG-Face',     # 经典 VGG-Face
-            'OpenFace',     # 轻量级模型
+            'ArcFace',      # latest ArcFace Model
+            'Facenet512',   # High dimensional features FaceNet
+            'VGG-Face',     # classic VGG-Face
+            'OpenFace',     # lightweight model
         ]
         self.current_deepface_model = 'ArcFace'
         
-        logger.info("DeepFace 配置完成")
+        logger.info("DeepFace Configuration completed")
     
     def detect_faces(self, image: np.ndarray) -> List[Dict[str, Any]]:
         """
-        高精度人脸检测
+        High-precision face detection
         
         Args:
-            image: 输入图像 (BGR 格式)
+            image: input image (BGR Format)
             
         Returns:
-            检测到的人脸信息列表，包含位置、关键点、质量评分等
+            List of detected face information，Contains location、Key points、Quality score and more
         """
         faces = []
         
-        # 获取人脸检测阈值
+        # Get face detection threshold
         detection_threshold = getattr(config, 'DETECTION_THRESHOLD', 0.5)
         
         try:
             if self.app:
-                # 使用 InsightFace 检测
+                # use InsightFace Detection
                 results = self.app.get(image)
                 
                 for face in results:
-                    # 应用检测阈值过滤
+                    # Apply detection threshold filtering
                     if face.det_score < detection_threshold:
-                        logger.debug(f"人脸检测置信度过低: {face.det_score:.3f} < {detection_threshold}")
+                        logger.debug(f"Face detection confidence is too low: {face.det_score:.3f} < {detection_threshold}")
                         continue
                         
                     face_info = {
                         'bbox': face.bbox.astype(int).tolist(),  # [x1, y1, x2, y2]
-                        'landmarks': face.kps.astype(int).tolist(),  # 5个关键点
-                        'det_score': float(face.det_score),  # 检测置信度
-                        'embedding': face.embedding,  # 512维特征向量
+                        'landmarks': face.kps.astype(int).tolist(),  # 5key points
+                        'det_score': float(face.det_score),  # Detection confidence
+                        'embedding': face.embedding,  # 512dimensional eigenvector
                         'age': getattr(face, 'age', None),
                         'gender': getattr(face, 'gender', None),
                         'quality': self._calculate_face_quality(face)
@@ -150,23 +148,23 @@ class AdvancedFaceRecognitionService:
                     faces.append(face_info)
             
             else:
-                # 备选方案：使用 OpenCV 检测
+                # Alternatives：use OpenCV Detection
                 faces = self._detect_faces_opencv(image)
             
-            logger.info(f"检测到 {len(faces)} 个人脸")
+            logger.info(f"detected {len(faces)} personal face")
             return faces
             
         except Exception as e:
-            logger.error(f"人脸检测失败: {str(e)}")
+            logger.error(f"Face detection failed: {str(e)}")
             return []
     
     def _detect_faces_opencv(self, image: np.ndarray) -> List[Dict[str, Any]]:
-        """使用 OpenCV 进行人脸检测（备选方案）"""
+        """use OpenCV Perform face detection（Alternatives）"""
         try:
-            # 加载 Haar 级联分类器
+            # load Haar Cascade classifier
             cascade_path = os.path.join(cv2.__path__[0], 'data', 'haarcascade_frontalface_default.xml')
             if not os.path.exists(cascade_path):
-                # 使用默认路径
+                # Use default path
                 cascade_path = 'haarcascade_frontalface_default.xml'
             
             face_cascade = cv2.CascadeClassifier(cascade_path)
@@ -176,7 +174,7 @@ class AdvancedFaceRecognitionService:
                 gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
             )
         except Exception as e:
-            logger.warning(f"OpenCV人脸检测失败: {e}")
+            logger.warning(f"OpenCVFace detection failed: {e}")
             return []
         
         faces = []
@@ -184,7 +182,7 @@ class AdvancedFaceRecognitionService:
             face_info = {
                 'bbox': [x, y, x+w, y+h],
                 'landmarks': None,
-                'det_score': 0.8,  # 假设的置信度
+                'det_score': 0.8,  # Hypothesis confidence
                 'embedding': None,
                 'age': None,
                 'gender': None,
@@ -195,46 +193,46 @@ class AdvancedFaceRecognitionService:
         return faces
     
     def _calculate_face_quality(self, face) -> float:
-        """计算人脸质量评分"""
+        """Calculate face quality score"""
         quality_score = 1.0
         
-        # 基于检测置信度
+        # Based on detection confidence
         quality_score *= face.det_score
         
-        # 基于人脸大小（面积）
+        # Based on face size（area）
         bbox = face.bbox
         face_area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
-        if face_area < 2500:  # 50x50 像素
+        if face_area < 2500:  # 50x50 Pixel
             quality_score *= 0.5
-        elif face_area < 10000:  # 100x100 像素
+        elif face_area < 10000:  # 100x100 Pixel
             quality_score *= 0.8
         
         return float(quality_score)
     
     def extract_features(self, image: np.ndarray, face_info: Dict[str, Any]) -> Optional[np.ndarray]:
         """
-        提取人脸特征向量
+        Extract facial feature vector
         
         Args:
-            image: 原始图像
-            face_info: 人脸信息（包含边界框）
+            image: original image
+            face_info: Face information（Contains bounding box）
             
         Returns:
-            512维特征向量，如果提取失败返回 None
+            512dimensional eigenvector，If the extraction fails return None
         """
         try:
             if face_info.get('embedding') is not None:
-                # 如果已经有特征向量，直接返回
+                # If there is already a feature vector，Return directly
                 return face_info['embedding']
             
-            # 裁剪人脸区域
+            # Crop face area
             bbox = face_info['bbox']
             face_crop = image[bbox[1]:bbox[3], bbox[0]:bbox[2]]
             
             if face_crop.size == 0:
                 return None
             
-            # 使用 DeepFace 提取特征
+            # use DeepFace Extract features
             try:
                 embedding = DeepFace.represent(
                     img_path=face_crop,
@@ -245,166 +243,102 @@ class AdvancedFaceRecognitionService:
                 return np.array(embedding, dtype=np.float32)
                 
             except Exception as e:
-                logger.warning(f"DeepFace 特征提取失败: {str(e)}")
+                logger.warning(f"DeepFace Feature extraction failed: {str(e)}")
                 return None
             
         except Exception as e:
-            logger.error(f"特征提取失败: {str(e)}")
+            logger.error(f"Feature extraction failed: {str(e)}")
             return None
     
-    def enroll_person(self, name: str, image_path: str, description: Optional[str] = None, original_filename: Optional[str] = None) -> Dict[str, Any]:
+    def enroll_person(self, name: str, image_path: str, region: str, emp_id: str, emp_rank: str, description: Optional[str] = None, original_filename: Optional[str] = None, client_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        高精度人员入库
+        High-precision personnel warehousing
         
         Args:
-            name: 人员姓名
-            image_path: 图像路径（临时文件路径）
-            description: 人员描述
-            original_filename: 原始文件名（用于数据库存储）
+            name: Personnel name
+            image_path: image path（Temporary file path）
+            region: Region (ka/ap/tn)
+            emp_id: Employee ID
+            emp_rank: Employee Rank
+            description: Personnel description
+            original_filename: original file name（for database storage）
             
         Returns:
-            入库结果信息
+            Storage result information
         """
         try:
-            # 读取图像
+            # read image
             image = cv2.imread(image_path)
             if image is None:
-                return {'success': False, 'error': '无法读取图像文件'}
+                return {'success': False, 'error': 'Unable to read image file'}
             
-            # 检测人脸
+            # Detect faces
             faces = self.detect_faces(image)
             
             if not faces:
-                return {'success': False, 'error': '未检测到人脸'}
+                return {'success': False, 'error': 'No face detected'}
             
             if len(faces) > 1:
-                return {'success': False, 'error': '检测到多个人脸，请使用只包含一个人脸的图像'}
+                return {'success': False, 'error': 'Multiple faces detected，Please use an image containing only one face'}
             
             face = faces[0]
             
-            # 质量检查
+            # Quality check
             if face['quality'] < 0.5:
-                return {'success': False, 'error': '人脸质量不足，请使用更清晰的图像'}
+                return {'success': False, 'error': 'Insufficient face quality，Please use a clearer image'}
             
-            # 提取特征
+            # Extract features
             features = self.extract_features(image, face)
             if features is None:
-                return {'success': False, 'error': '特征提取失败'}
+                return {'success': False, 'error': 'Feature extraction failed'}
             
-            # 检查是否已存在相似人脸（同名和不同名都查重）
-            duplicate_threshold_value = config.get('face_recognition.duplicate_threshold', 0.95)
-            if isinstance(duplicate_threshold_value, (int, float)):
-                duplicate_threshold = float(duplicate_threshold_value)
-            else:
-                duplicate_threshold = 0.95  # 默认值
-
-            similarity_threshold_percent = duplicate_threshold * 100
-
-            # 1. 查重：同名同脸禁止
-            existing_person = self.db_manager.get_person_by_name(name)
-            if existing_person:
-                person_id_checked = getattr(existing_person, "id", None)
-                if not isinstance(person_id_checked, int):
-                    logger.error(f"existing_person.id 不是int类型，跳过同名查重。实际类型: {type(person_id_checked)}")
-                else:
-                    encodings = self.db_manager.get_face_encodings_by_person(person_id_checked)
-                    for encoding_obj in encodings:
-                        db_enc = encoding_obj.encoding
-                        # 只对bytes类型做反序列化
-                        if isinstance(db_enc, bytes):
-                            try:
-                                db_feature = pickle.loads(db_enc)
-                            except Exception as e:
-                                logger.warning(f"特征反序列化失败: {e}")
-                                continue
-                            # 计算余弦相似度
-                            similarity = float(np.dot(features, db_feature) / (np.linalg.norm(features) * np.linalg.norm(db_feature)))
-                            match_score = similarity * 100
-                            if match_score > similarity_threshold_percent:
-                                return {
-                                    'success': False,
-                                    'error': f'该人员已存在相似人脸 (匹配度: {match_score:.1f}%，阈值: {similarity_threshold_percent:.1f}%)'
-                                }
-                for encoding_obj in encodings:
-                    db_enc = encoding_obj.encoding
-                    # 只对bytes类型做反序列化
-                    if isinstance(db_enc, bytes):
-                        try:
-                            db_feature = pickle.loads(db_enc)
-                        except Exception as e:
-                            logger.warning(f"特征反序列化失败: {e}")
-                            continue
-                        # 计算余弦相似度
-                        similarity = float(np.dot(features, db_feature) / (np.linalg.norm(features) * np.linalg.norm(db_feature)))
-                        match_score = similarity * 100
-                        if match_score > similarity_threshold_percent:
-                            return {
-                                'success': False,
-                                'error': f'该人员已存在相似人脸 (匹配度: {match_score:.1f}%，阈值: {similarity_threshold_percent:.1f}%)'
-                            }
-
-            # 2. 查重：不同名同脸禁止
-            existing_match = self.recognize_face(image)
-            if existing_match['matches']:
-                best_match = existing_match['matches'][0]
-                if best_match['name'] != name:
-                    if best_match['match_score'] > similarity_threshold_percent:
-                        return {
-                            'success': False, 
-                            'error': f'相似人脸已存在：{best_match["name"]} (匹配度: {best_match["match_score"]:.1f}%，阈值: {similarity_threshold_percent:.1f}%)'
-                        }
+            # Check if similar faces already exist（Enhanced duplicate detection logic）
+            duplicate_check = self._check_duplicate_faces(features, name)
+            if not duplicate_check['success']:
+                return duplicate_check  # Returns the result of duplicate detection failure
             
-            # 保存到数据库
+            # Save to database
             try:
-                # 检查同名人员是否已存在
-                existing_person = self.db_manager.get_person_by_name(name)
+                # Check if a person with the same name already exists
+                existing_person = self.db_manager.get_person_by_name(name, region=region, client_id=client_id)
                 
                 if existing_person:
-                    # 同名人员已存在，为其添加新的人脸特征
+                    # A person with the same name already exists，Add new facial features to it
                     person_id = getattr(existing_person, "id", None)
                     if not isinstance(person_id, int):
-                        logger.error(f"existing_person.id 不是int类型，无法入库。实际类型: {type(person_id)}")
-                        return {'success': False, 'error': '数据库人员ID异常，无法入库'}
-                    logger.info(f"为现有人员 {name} (ID: {person_id}) 添加新的人脸特征")
+                        logger.error(f"existing_person.id nointtype，Unable to store。actual type: {type(person_id)}")
+                        return {'success': False, 'error': 'Database PersonnelIDabnormal，Unable to store'}
+                    logger.info(f"for existing staff {name} (ID: {person_id}) Add new facial features")
                 else:
-                    # 创建新人员记录
-                    person = self.db_manager.create_person(name, description)
+                    # Create new person record with region, emp_id, and emp_rank
+                    person = self.db_manager.create_person(name, region=region, emp_id=emp_id, emp_rank=emp_rank, description=description, client_id=client_id)
                     person_id = person.id
-                    logger.info(f"创建新人员: {name} (ID: {person_id})")
+                    logger.info(f"Create new person: {name} in region {region} with emp_id {emp_id} and rank {emp_rank} (ID: {person_id})")
                 
-                # 读取图片二进制数据
+                # Read image binary data
                 with open(image_path, 'rb') as f:
                     image_data = f.read()
                 
-                # 保存特征向量和图片数据
+                # Save feature vectors and image data
                 bbox = face['bbox']
                 face_bbox_str = f"[{int(bbox[0])},{int(bbox[1])},{int(bbox[2])},{int(bbox[3])}]"
                 
-                # 使用原始文件名作为image_path存储，而不是临时路径
+                # Use the original filename asimage_pathstorage，instead of a temporary path
                 stored_image_path = original_filename if original_filename else os.path.basename(image_path)
                 
                 face_encoding = self.db_manager.add_face_encoding(
                     person_id=person_id,
                     encoding=features,
-                    image_path=stored_image_path,  # 存储原始文件名
+                    image_path=stored_image_path,  # Store original file name
                     image_data=image_data,
                     face_bbox=face_bbox_str,
                     confidence=face['quality'],
                     quality_score=face['quality']
                 )
                 
-                # 更新内存缓存
-                if person_id not in self._face_cache:
-                    self._face_cache[person_id] = {
-                        'name': name,
-                        'embeddings': [],
-                        'model': f"advanced_{self.model_name}"
-                    }
+                # No cache needed - PostgreSQL handles everything
                 
-                # 将特征向量和人脸ID一起添加到缓存
-                self._face_cache[person_id]['embeddings'].append((features, face_encoding.id))
-                
-                logger.info(f"成功入库人脸特征: {name} (人员ID: {person_id}, 特征ID: {face_encoding.id})")
+                logger.info(f"Successfully stored facial features: {name} (personnelID: {person_id}, featureID: {face_encoding.id})")
                 
                 return {
                     'success': True,
@@ -413,93 +347,562 @@ class AdvancedFaceRecognitionService:
                     'quality_score': face['quality'],
                     'feature_dim': len(features),
                     'faces_detected': 1,
-                    'face_encoding': features.tolist()  # 将numpy数组转换为Python列表
+                    'face_encoding': features.tolist()  # Willnumpyarray converted toPythonlist
                 }
             except Exception as db_error:
-                logger.error(f"数据库操作失败: {str(db_error)}")
-                return {'success': False, 'error': f'数据库保存失败: {str(db_error)}'}
+                logger.error(f"Database operation failed: {str(db_error)}")
+                return {'success': False, 'error': f'Database save failed: {str(db_error)}'}
         
         except Exception as e:
-            logger.error(f"人员入库失败: {str(e)}")
-            return {'success': False, 'error': f'入库失败: {str(e)}'}
+            logger.error(f"Personnel entry failed: {str(e)}")
+            return {'success': False, 'error': f'Storage failed: {str(e)}'}
+    
+    def enroll_person_no_duplicate_check(self, name: str, image_path: str, region: str, emp_id: str, emp_rank: str, description: Optional[str] = None, original_filename: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Personnel warehousing（Skip duplicate detection）
+        For bulk registration that has been pre-checked
+        
+        Args:
+            name: Personnel name
+            image_path: image path（Temporary file path）
+            region: Region (ka/ap/tn)
+            emp_id: Employee ID
+            emp_rank: Employee Rank
+            description: Personnel description
+            original_filename: original file name（for database storage）
+            
+        Returns:
+            Storage result information
+        """
+        try:
+            # read image
+            image = cv2.imread(image_path)
+            if image is None:
+                return {'success': False, 'error': 'Unable to read image file'}
+            
+            # Detect faces
+            faces = self.detect_faces(image)
+            
+            if not faces:
+                return {'success': False, 'error': 'No face detected'}
+            
+            if len(faces) > 1:
+                return {'success': False, 'error': 'Multiple faces detected，Please use an image containing only one face'}
+            
+            face = faces[0]
+            
+            # Quality check
+            if face['quality'] < 0.5:
+                return {'success': False, 'error': 'Insufficient face quality，Please use a clearer image'}
+            
+            # Extract features
+            features = self.extract_features(image, face)
+            if features is None:
+                return {'success': False, 'error': 'Feature extraction failed'}
+            
+            # Skip duplicate detection，Save directly to database
+            try:
+                # Check if a person with the same name already exists
+                existing_person = self.db_manager.get_person_by_name(name)
+                
+                if existing_person:
+                    # A person with the same name already exists，Add new facial features to it
+                    person_id = getattr(existing_person, "id", None)
+                    if not isinstance(person_id, int):
+                        logger.error(f"existing_person.id nointtype，Unable to store。actual type: {type(person_id)}")
+                        return {'success': False, 'error': 'Database PersonnelIDabnormal，Unable to store'}
+                    logger.info(f"for existing staff {name} (ID: {person_id}) Add new facial features")
+                else:
+                    # Create new person record with region, emp_id, and emp_rank
+                    person = self.db_manager.create_person(name, region=region, emp_id=emp_id, emp_rank=emp_rank, description=description)
+                    person_id = person.id
+                    logger.info(f"Create new person: {name} in region {region} with emp_id {emp_id} and rank {emp_rank} (ID: {person_id})")
+                
+                # Read image binary data
+                with open(image_path, 'rb') as f:
+                    image_data = f.read()
+                
+                # Save feature vectors and image data
+                bbox = face['bbox']
+                face_bbox_str = f"[{int(bbox[0])},{int(bbox[1])},{int(bbox[2])},{int(bbox[3])}]"
+                
+                # Use the original filename asimage_pathstorage，instead of a temporary path
+                stored_image_path = original_filename if original_filename else os.path.basename(image_path)
+                
+                face_encoding = self.db_manager.add_face_encoding(
+                    person_id=person_id,
+                    encoding=features,
+                    image_path=stored_image_path,  # Store original file name
+                    image_data=image_data,
+                    face_bbox=face_bbox_str,
+                    confidence=face['quality'],
+                    quality_score=face['quality']
+                )
+                
+                # No cache needed - PostgreSQL handles everything
+                
+                logger.info(f"Successfully stored facial features: {name} (personnelID: {person_id}, featureID: {face_encoding.id})")
+                
+                return {
+                    'success': True,
+                    'person_id': person_id,
+                    'face_encoding_id': face_encoding.id,
+                    'quality_score': face['quality'],
+                    'feature_dim': len(features),
+                    'faces_detected': 1,
+                    'face_encoding': features.tolist()  # Willnumpyarray converted toPythonlist
+                }
+            except Exception as db_error:
+                logger.error(f"Database operation failed: {str(db_error)}")
+                return {'success': False, 'error': f'Database save failed: {str(db_error)}'}
+        
+        except Exception as e:
+            logger.error(f"Personnel entry failed: {str(e)}")
+            return {'success': False, 'error': f'Storage failed: {str(e)}'}
+    
+    def _check_duplicate_faces(self, features: np.ndarray, name: str, exclude_session_frames: List[np.ndarray] = None) -> Dict[str, Any]:
+        """
+        Strict duplicate face detection logic - Prevent the same face from being registered as different people
+        
+        Args:
+            features: Current face feature vector
+            name: Personnel name
+            exclude_session_frames: Frame data within the same registration session that needs to be excluded（for video registration）
+            
+        Returns:
+            Check results dictionary
+        """
+        try:
+            # Get duplicate detection threshold - Use stricter thresholds to prevent duplication across people
+            duplicate_threshold_value = config.get('face_recognition.duplicate_threshold', 0.60)
+            if isinstance(duplicate_threshold_value, (int, float)):
+                duplicate_threshold = float(duplicate_threshold_value)
+            else:
+                duplicate_threshold = 0.60  # Strict default threshold (60% similarity)
+
+            similarity_threshold_percent = duplicate_threshold * 100
+            logger.info(f"🔍 Starting duplicate face check - Name: '{name}', Threshold: {duplicate_threshold} ({similarity_threshold_percent}%)")
+
+            # key changes：Check all faces in entire database，regardless of name
+            # This ensures that the same face cannot be registered under different names
+            try:
+                with self.db_manager.get_session() as session:
+                    from ..models import FaceEncoding as FaceEncodingModel
+                    from ..models import Person
+                    
+                    # Get all face codes in the database
+                    all_faces = session.query(FaceEncodingModel, Person).join(
+                        Person, FaceEncodingModel.person_id == Person.id
+                    ).all()
+                    
+                    logger.info(f"Checking against {len(all_faces)} registered faces in database")
+                    
+                    max_similarity = 0.0
+                    most_similar_person = None
+                    
+                    for face_encoding, person in all_faces:
+                        db_enc = face_encoding.embedding
+                        if db_enc is None:
+                            continue
+                            
+                        # Process encoded data
+                        db_feature = self._parse_face_encoding(db_enc)
+                        if db_feature is None:
+                            logger.warning(f"Failed to parse encoding for person: {person.name}")
+                            continue
+                        
+                        # Calculate similarity
+                        similarity_result = self._calculate_enhanced_similarity(features, db_feature)
+                        
+                        # Track highest similarity for logging
+                        if similarity_result['combined_score'] > max_similarity:
+                            max_similarity = similarity_result['combined_score']
+                            most_similar_person = person.name
+                        
+                        # Log each comparison for debugging
+                        logger.debug(f"Comparing with {person.name}: {similarity_result['combined_score']:.2f}%")
+                        
+                        # Strict inspection：If the similarity exceeds the threshold，Reject regardless of whether the names are the same or not.
+                        if similarity_result['combined_score'] > similarity_threshold_percent:
+                            logger.warning(f"🚫 DUPLICATE DETECTED! New: '{name}' vs Existing: '{person.name}' | Similarity: {similarity_result['combined_score']:.2f}% (Threshold: {similarity_threshold_percent}%)")
+                            
+                            if person.name == name:
+                                # Duplicate faces of people with the same name
+                                return {
+                                    'success': False,
+                                    'error': f'Similar faces already exist for this person (Matching degree: {similarity_result["combined_score"]:.1f}%，threshold: {similarity_threshold_percent:.1f}%)'
+                                }
+                            else:
+                                # Duplicate faces of different people - This is the key fix
+                                return {
+                                    'success': False,
+                                    'error': f'This face has been registered as：{person.name}。The same face cannot be registered as different people。(Matching degree: {similarity_result["combined_score"]:.1f}%，threshold: {similarity_threshold_percent:.1f}%)'
+                                }
+                            
+            except Exception as e:
+                logger.error(f"Repeat check failed: {e}")
+                # if check fails，for safety reasons，Deny registration
+                return {
+                    'success': False,
+                    'error': 'Face repeatability check failed，For data security，Please try registration again'
+                }
+            
+            # 3. If exclude frame data is provided，Check if it is too similar to other frames in the same session（Interframe check for video registration only）
+            if exclude_session_frames:
+                session_duplicate_threshold = 0.98  # Frames within the same session use a higher threshold
+                session_threshold_percent = session_duplicate_threshold * 100
+                
+                for i, session_frame in enumerate(exclude_session_frames):
+                    if session_frame is None:
+                        continue
+                        
+                    similarity_result = self._calculate_enhanced_similarity(features, session_frame)
+                    if similarity_result['combined_score'] > session_threshold_percent:
+                        logger.info(f"Skip session frames{i+1}frames that are too similar，Similarity: {similarity_result['combined_score']:.2f}%")
+                        return {
+                            'success': False,
+                            'skip_frame': True,  # Mark as skipped frame，instead of error
+                            'similarity_score': similarity_result['combined_score']
+                        }
+            
+            logger.info(f"✅ Duplicate check passed for '{name}' | Highest similarity: {max_similarity:.2f}% with '{most_similar_person}' (below threshold {similarity_threshold_percent}%)")
+            return {'success': True}
+            
+        except Exception as e:
+            logger.error(f"Duplicate detection failed: {str(e)}")
+            # Deny registration when detection fails for security
+            return {
+                'success': False,
+                'error': 'Face repeatability check failed，Please try registration again'
+            }
+    
+    def _parse_face_encoding(self, db_enc) -> Optional[np.ndarray]:
+        """
+        Parse face encoding data in different formats
+        
+        Args:
+            db_enc: Encoded data in database
+            
+        Returns:
+            parsednumpyarray orNone
+        """
+        try:
+            if isinstance(db_enc, bytes):
+                return pickle.loads(db_enc)
+            elif isinstance(db_enc, np.ndarray):
+                return db_enc
+            elif isinstance(db_enc, (list, tuple)):
+                return np.array(db_enc, dtype=np.float32)
+            else:
+                logger.warning(f"Unknown encoding format: {type(db_enc)}")
+                return None
+        except Exception as e:
+            logger.warning(f"Feature parsing failed: {e}")
+            return None
+    
+    def _calculate_enhanced_similarity(self, features1: np.ndarray, features2: np.ndarray) -> Dict[str, float]:
+        """
+        Compute enhanced similarity，Combining cosine similarity and Euclidean distance
+        Adapt to different lighting and angle changes
+        
+        Args:
+            features1: first eigenvector
+            features2: second eigenvector
+            
+        Returns:
+            A dictionary containing various similarity metrics
+        """
+        try:
+            # Make sure the feature vectors are normalized
+            features1_norm = features1 / np.linalg.norm(features1)
+            features2_norm = features2 / np.linalg.norm(features2)
+            
+            # cosine similarity（More suitable for handling lighting changes）
+            cosine_sim = float(np.dot(features1_norm, features2_norm))
+            
+            # Euclidean distance（More suitable for handling angle changes）
+            euclidean_dist = float(np.linalg.norm(features1_norm - features2_norm))
+            
+            # Overall rating：Cosine similarity is given higher weight
+            # For facial features，Cosine similarity is usually 0.3-1.0 between
+            # Euclidean distance is usually 0-2.0 between
+            combined_similarity = (cosine_sim * 0.8) + ((2.0 - euclidean_dist) / 2.0 * 0.2)
+            combined_score = combined_similarity * 100
+            
+            return {
+                'cosine_similarity': cosine_sim,
+                'euclidean_distance': euclidean_dist,
+                'combined_similarity': combined_similarity,
+                'combined_score': combined_score
+            }
+            
+        except Exception as e:
+            logger.warning(f"Similarity calculation failed: {e}")
+            return {
+                'cosine_similarity': 0.0,
+                'euclidean_distance': 2.0,
+                'combined_similarity': 0.0,
+                'combined_score': 0.0
+            }
+    
+    def _extract_features_for_comparison(self, image_path: str) -> Optional[np.ndarray]:
+        """
+        Extract facial features for comparison purposes，No repeated testing
+        
+        Args:
+            image_path: image path
+            
+        Returns:
+            eigenvector orNone
+        """
+        try:
+            image = cv2.imread(image_path)
+            if image is None:
+                return None
+            
+            faces = self.detect_faces(image)
+            if not faces:
+                return None
+            
+            face = faces[0]  # Only take the first face
+            features = self.extract_features(image, face)
+            return features
+            
+        except Exception as e:
+            logger.warning(f"Feature extraction failed: {e}")
+            return None
+    
+    def _check_frame_similarity(self, current_features: np.ndarray, session_features: List[np.ndarray]) -> Dict[str, Any]:
+        """
+        Check the similarity of the current frame with other frames in the session
+        
+        Args:
+            current_features: Feature vector of the current frame
+            session_features: List of features of processed frames in the session
+            
+        Returns:
+            Check results
+        """
+        try:
+            # Frames within the same session use a higher similarity threshold，Avoid frames that are too similar
+            frame_similarity_threshold = 0.98
+            threshold_percent = frame_similarity_threshold * 100
+            
+            for i, session_frame in enumerate(session_features):
+                if session_frame is None:
+                    continue
+                    
+                similarity_result = self._calculate_enhanced_similarity(current_features, session_frame)
+                if similarity_result['combined_score'] > threshold_percent:
+                    logger.info(f"Frame similarity is too high: with frame{i+1}Similarity {similarity_result['combined_score']:.2f}% > {threshold_percent}%")
+                    return {
+                        'success': False,
+                        'similar_frame_index': i + 1,
+                        'similarity_score': similarity_result['combined_score']
+                    }
+            
+            return {'success': True}
+            
+        except Exception as e:
+            logger.warning(f"Frame similarity check failed: {e}")
+            return {'success': True}  # Allow continuation if check fails
+    
+    def pre_check_duplicate_for_batch(self, image_paths: List[str], name: str) -> Dict[str, Any]:
+        """
+        Duplicate detection before batch registration - Check all frames for conflicts with existing database
+        This ensures that all frames are checked before any database operations
+        
+        Args:
+            image_paths: and large image path list
+            name: Personnel name
+            
+        Returns:
+            Check results dictionary
+        """
+        try:
+            logger.info(f"Repeat checks before starting batch registration，Name: {name}, Frames: {len(image_paths)}")
+            
+            # Get duplicate detection threshold
+            duplicate_threshold_value = config.get('face_recognition.duplicate_threshold', 0.75)
+            if isinstance(duplicate_threshold_value, (int, float)):
+                duplicate_threshold = float(duplicate_threshold_value)
+            else:
+                duplicate_threshold = 0.75
+            
+            similarity_threshold_percent = duplicate_threshold * 100
+            
+            # First extract the features of all frames
+            frame_features = []
+            for i, image_path in enumerate(image_paths):
+                try:
+                    image = cv2.imread(image_path)
+                    if image is None:
+                        continue
+                    
+                    faces = self.detect_faces(image)
+                    if not faces:
+                        continue
+                    
+                    face = faces[0]  # Only take the first face
+                    features = self.extract_features(image, face)
+                    if features is not None:
+                        frame_features.append((i, features, image_path))
+                        
+                except Exception as e:
+                    logger.warning(f"Extract frames {i+1} Feature failed: {e}")
+                    continue
+            
+            if not frame_features:
+                return {
+                    'success': False,
+                    'error': 'Unable to extract valid facial features from any frame'
+                }
+            
+            logger.info(f"Extracted successfully {len(frame_features)} Characteristics of frames")
+            
+            # Check each frame to see if it conflicts with an existing face in the database
+            try:
+                with self.db_manager.get_session() as session:
+                    from ..models import FaceEncoding as FaceEncodingModel
+                    from ..models import Person
+                    
+                    # Get all face codes in the database
+                    all_faces = session.query(FaceEncodingModel, Person).join(
+                        Person, FaceEncodingModel.person_id == Person.id
+                    ).all()
+                    
+                    logger.info(f"Compare in database {len(all_faces)} registered faces")
+                    
+                    # Check every frame
+                    for frame_idx, frame_features_vec, frame_path in frame_features:
+                        for face_encoding, person in all_faces:
+                            db_enc = face_encoding.embedding
+                            if db_enc is None:
+                                continue
+                                
+                            # Process encoded data
+                            db_feature = self._parse_face_encoding(db_enc)
+                            if db_feature is None:
+                                continue
+                            
+                            # Calculate similarity
+                            similarity_result = self._calculate_enhanced_similarity(frame_features_vec, db_feature)
+                            
+                            # If the similarity exceeds the threshold，Immediately reject the entire batch registration
+                            if similarity_result['combined_score'] > similarity_threshold_percent:
+                                logger.warning(f"Duplicate faces detected in batch registration! frame{frame_idx+1}: '{name}' vs Already exists: '{person.name}', Similarity: {similarity_result['combined_score']:.2f}%")
+                                
+                                if person.name == name:
+                                    # Duplicate faces of people with the same name
+                                    return {
+                                        'success': False,
+                                        'error': f'Similar faces already exist for this person (Matching degree: {similarity_result["combined_score"]:.1f}%，threshold: {similarity_threshold_percent:.1f}%)',
+                                        'frame_index': frame_idx + 1,
+                                        'existing_person': person.name
+                                    }
+                                else:
+                                    # Duplicate faces of different people
+                                    return {
+                                        'success': False,
+                                        'error': f'This face has been registered as：{person.name}。The same face cannot be registered as different people。(Matching degree: {similarity_result["combined_score"]:.1f}%，threshold: {similarity_threshold_percent:.1f}%)',
+                                        'frame_index': frame_idx + 1,
+                                        'existing_person': person.name
+                                    }
+                    
+            except Exception as e:
+                logger.error(f"Check before batch registration failed: {e}")
+                return {
+                    'success': False,
+                    'error': 'Face repeatability check failed，For data security，Please try again'
+                }
+            
+            logger.info(f"Pass the check before batch registration，all {len(frame_features)} No duplicates found in frames")
+            return {'success': True, 'valid_frames': len(frame_features)}
+            
+        except Exception as e:
+            logger.error(f"Check before batch registration failed: {str(e)}")
+            return {
+                'success': False,
+                'error': 'Face repeatability check failed，Please try registration again'
+            }
     
     def extract_face_embeddings(self, image: Union[np.ndarray, str]) -> Dict[str, Any]:
         """
-        专门用于提取人脸特征向量的方法，不进行身份识别
+        A method specifically used to extract facial feature vectors，No identification
         
         Args:
-            image: 图像数组或图像路径
+            image: image array or image path
             
         Returns:
-            包含人脸特征向量的结果
+            Results containing face feature vectors
         """
         try:
-            # 处理输入图像
+            # Process the input image
             if isinstance(image, str):
                 img = cv2.imread(image)
                 if img is None:
-                    return {'success': False, 'error': '无法读取图像文件'}
+                    return {'success': False, 'error': 'Unable to read image file'}
             else:
                 img = image.copy()
             
             if img is None:
-                return {'success': False, 'error': '无效的图像数据'}
+                return {'success': False, 'error': 'Invalid image data'}
             
-            # 获取图像尺寸
+            # Get image size
             height, width = img.shape[:2]
             
             face_embeddings = []
             
-            # 直接使用InsightFace获取人脸和特征
+            # Use directlyInsightFaceGet faces and features
             try:
                 if self.app is not None:
-                    logger.info("开始使用InsightFace进行人脸检测和特征提取")
-                    # 直接获取所有人脸和特征
+                    logger.info("Get startedInsightFacePerform face detection and feature extraction")
+                    # Get all faces and features directly
                     faces_with_features = self.app.get(img)
-                    logger.info(f"InsightFace检测到 {len(faces_with_features)} 个人脸")
+                    logger.info(f"InsightFacedetected {len(faces_with_features)} personal face")
                     
                     for i, face_result in enumerate(faces_with_features):
-                        logger.info(f"处理第 {i+1} 个人脸")
-                        # 应用检测阈值过滤
+                        logger.info(f"processing section {i+1} personal face")
+                        # Apply detection threshold filtering
                         detection_threshold = getattr(config, 'DETECTION_THRESHOLD', 0.5)
-                        logger.info(f"检测置信度: {face_result.det_score}, 阈值: {detection_threshold}")
+                        logger.info(f"Detection confidence: {face_result.det_score}, threshold: {detection_threshold}")
                         
                         if face_result.det_score < detection_threshold:
-                            logger.info(f"人脸 {i+1} 置信度过低，跳过")
+                            logger.info(f"human face {i+1} Confidence too low，jump over")
                             continue
                         
-                        # 构建人脸信息
+                        # Construct face information
                         try:
                             bbox = face_result.bbox.astype(int).tolist()
                             confidence = float(face_result.det_score)
                             embedding = face_result.normed_embedding.tolist()
                             
-                            logger.info(f"人脸 {i+1}: bbox={bbox}, confidence={confidence}, embedding_len={len(embedding)}")
+                            logger.info(f"human face {i+1}: bbox={bbox}, confidence={confidence}, embedding_len={len(embedding)}")
                             
                             face_info = {
                                 'bbox': bbox,
                                 'confidence': confidence,
-                                'quality': confidence,  # 使用检测置信度作为质量分数
-                                'embedding': embedding  # 使用标准化的特征向量
+                                'quality': confidence,  # Use detection confidence as quality score
+                                'embedding': embedding  # Use standardized feature vectors
                             }
                             
                             face_embeddings.append(face_info)
-                            logger.info(f"成功添加人脸 {i+1} 的特征信息")
+                            logger.info(f"Face added successfully {i+1} feature information")
                             
                         except Exception as inner_e:
-                            logger.error(f"构建人脸信息失败: {inner_e}")
+                            logger.error(f"Failed to construct face information: {inner_e}")
                             import traceback
-                            logger.error(f"错误详情: {traceback.format_exc()}")
+                            logger.error(f"Error details: {traceback.format_exc()}")
                             continue
                         
                 else:
-                    return {'success': False, 'error': 'InsightFace模型未初始化'}
+                    return {'success': False, 'error': 'InsightFaceModel is not initialized'}
             
             except Exception as e:
-                logger.error(f"人脸检测和特征提取失败: {str(e)}")
+                logger.error(f"Face detection and feature extraction failed: {str(e)}")
                 import traceback
-                logger.error(f"错误详情: {traceback.format_exc()}")
-                return {'success': False, 'error': f'特征提取失败: {str(e)}'}
+                logger.error(f"Error details: {traceback.format_exc()}")
+                return {'success': False, 'error': f'Feature extraction failed: {str(e)}'}
             
             return {
                 'success': True,
@@ -510,47 +913,47 @@ class AdvancedFaceRecognitionService:
             }
             
         except Exception as e:
-            logger.error(f"人脸特征提取失败: {str(e)}")
-            return {'success': False, 'error': f'特征提取失败: {str(e)}'}
+            logger.error(f"Facial feature extraction failed: {str(e)}")
+            return {'success': False, 'error': f'Feature extraction failed: {str(e)}'}
     
     def recognize_face(self, image: Union[np.ndarray, str]) -> Dict[str, Any]:
         """
-        高精度人脸识别
+        High-precision face recognition
         
         Args:
-            image: 图像数组或图像路径
+            image: image array or image path
             
         Returns:
-            识别结果，包含匹配的人员信息和置信度
+            Recognition results，Contains matching person information and confidence
         """
         try:
-            # 处理输入图像
+            # Process the input image
             if isinstance(image, str):
                 img = cv2.imread(image)
             else:
                 img = image.copy()
             
             if img is None:
-                return {'success': False, 'matches': [], 'error': '无法读取图像'}
+                return {'success': False, 'matches': [], 'error': 'Unable to read image'}
             
-            # 检测人脸
+            # Detect faces
             faces = self.detect_faces(img)
             
             if not faces:
-                return {'success': True, 'matches': [], 'message': '未检测到人脸'}
+                return {'success': True, 'matches': [], 'message': 'No face detected'}
             
             all_matches = []
             
             for i, face in enumerate(faces):
-                # 提取特征
+                # Extract features
                 features = self.extract_features(img, face)
                 if features is None:
                     continue
                 
-                # 与数据库中的特征比较
-                matches = self._match_features(features)
+                # Compare with features in database (use region from method parameter)
+                matches = self._match_features(features, region=region)
                 
-                # 添加人脸位置信息
+                # Add face location information
                 for match in matches:
                     match['face_index'] = i
                     match['bbox'] = face['bbox']
@@ -558,7 +961,7 @@ class AdvancedFaceRecognitionService:
                 
                 all_matches.extend(matches)
             
-            # 按匹配度排序
+            # Sort by match
             all_matches.sort(key=lambda x: x['match_score'], reverse=True)
             
             return {
@@ -568,116 +971,89 @@ class AdvancedFaceRecognitionService:
             }
         
         except Exception as e:
-            logger.error(f"人脸识别失败: {str(e)}")
-            return {'success': False, 'matches': [], 'error': f'识别失败: {str(e)}'}
+            logger.error(f"Face recognition failed: {str(e)}")
+            return {'success': False, 'matches': [], 'error': f'Recognition failed: {str(e)}'}
     
-    def _match_features(self, features: np.ndarray) -> List[Dict[str, Any]]:
+    def _match_features(self, features: np.ndarray, region: str = 'default') -> List[Dict[str, Any]]:
         """
-        特征匹配
+        Feature matching using PostgreSQL + pgvector
         
         Args:
-            features: 待匹配的特征向量
+            features: Feature vector to be matched
+            region: Region to search in
             
         Returns:
-            匹配结果列表
+            List of matching results
         """
-        matches = []
-        # 从配置文件读取当前的识别阈值
+        # Read the current recognition threshold from the configuration file
         import json
         try:
             with open('config.json', 'r') as f:
                 config_data = json.load(f)
                 threshold = config_data.get('face_recognition', {}).get('recognition_threshold', 0.3)
         except:
-            threshold = 0.3  # 默认值
+            threshold = 0.3  # default value
         
         try:
-            # 从内存缓存获取数据
-            cache_items = self._face_cache.items()
+            # Use database search with region filter
+            results = self.db_manager.find_similar_faces(
+                embedding=features,
+                region=region,
+                threshold=threshold,
+                limit=10
+            )
             
-            for person_id, cached_data in cache_items:
-                cached_embeddings = cached_data['embeddings']
+            matches = []
+            for result in results:
+                # Convert distance to similarity score (0-100%)
+                # pgvector returns cosine distance, convert to similarity
+                similarity = 1.0 - result['distance']
+                match_score = max(0, similarity) * 100
                 
-                # 遍历该人员的所有特征向量
-                for cached_features in cached_embeddings:
-                    # 计算余弦相似度 (范围: -1 到 1, 越接近1越相似)
-                    similarity = self._cosine_similarity(features, cached_features)
-                    
-                    # 计算欧氏距离 (范围: 0到无穷, 越小越相似)
-                    distance = np.linalg.norm(features - cached_features)
-                    
-                    # 将相似度转换为百分比形式的匹配度
-                    # 对于人脸特征，余弦相似度通常在0.3-1.0之间，直接转换为百分比
-                    match_score = max(0, similarity) * 100  # 确保非负并转换为0-100%
-                    
-                    # 使用相似度作为判断标准
-                    if similarity > threshold:
-                        matches.append({
-                            'person_id': person_id,
-                            'name': cached_data['name'],
-                            'match_score': float(match_score),  # 匹配度百分比
-                            'distance': float(distance),        # 欧氏距离
-                            'model': cached_data['model']
-                        })
+                matches.append({
+                    'person_id': result['person_id'],
+                    'name': result['name'],
+                    'match_score': float(match_score),
+                    'distance': float(result['distance']),
+                    'model': f"advanced_{self.model_name}",
+                    'face_encoding_id': result.get('face_encoding_id')
+                })
             
-            # 按匹配度排序
+            # Sort by match score
             matches.sort(key=lambda x: x['match_score'], reverse=True)
             
+            logger.info(f"Found {len(matches)} matches in region '{region}'")
+            return matches
+            
         except Exception as e:
-            logger.error(f"特征匹配失败: {str(e)}")
-        
-        return matches
+            logger.error(f"Feature matching failed: {str(e)}")
+            return []
     
     def _cosine_similarity(self, features1: np.ndarray, features2: np.ndarray) -> float:
-        """计算余弦相似度"""
-        # 归一化
+        """Calculate cosine similarity"""
+        # normalization
         features1_norm = features1 / np.linalg.norm(features1)
         features2_norm = features2 / np.linalg.norm(features2)
         
-        # 计算余弦相似度
+        # Calculate cosine similarity
         similarity = np.dot(features1_norm, features2_norm)
         
         return float(similarity)
     
-    def _load_face_cache(self):
-        """从数据库加载人脸特征缓存"""
-        try:
-            with self.db_manager.get_session() as session:
-                # 查询所有编码和对应的人员信息
-                encodings = session.query(FaceEncoding, Person).join(Person, FaceEncoding.person_id == Person.id).all()
-                
-                for encoding, person in encodings:
-                    features = encoding.get_encoding()
-                    
-                    if person.id not in self._face_cache:
-                        self._face_cache[person.id] = {
-                            'name': person.name,
-                            'embeddings': [],  # 存储 (特征向量, 人脸ID) 元组
-                            'model': 'advanced_buffalo_l'
-                        }
-                    
-                    # 将特征向量和对应的人脸ID一起存储
-                    self._face_cache[person.id]['embeddings'].append((features, encoding.id))
-                
-                logger.info(f"加载了 {len(self._face_cache)} 个人员的人脸特征缓存")
-        
-        except Exception as e:
-            logger.error(f"加载人脸缓存失败: {str(e)}")
-    
     def analyze_face_attributes(self, image: np.ndarray) -> List[Dict[str, Any]]:
         """
-        分析人脸属性（年龄、性别、情绪等）
+        Analyze facial attributes（age、gender、Emotions etc.）
         
         Args:
-            image: 输入图像
+            image: input image
             
         Returns:
-            人脸属性分析结果
+            Face attribute analysis results
         """
         try:
             results = []
             
-            # 检测人脸
+            # Detect faces
             faces = self.detect_faces(image)
             
             for face in faces:
@@ -688,7 +1064,7 @@ class AdvancedFaceRecognitionService:
                     continue
                 
                 try:
-                    # 使用 DeepFace 分析属性
+                    # use DeepFace Analyze properties
                     analysis = DeepFace.analyze(
                         img_path=face_crop,
                         actions=['age', 'gender', 'emotion', 'race'],
@@ -709,28 +1085,28 @@ class AdvancedFaceRecognitionService:
                     results.append(attributes)
                     
                 except Exception as e:
-                    logger.warning(f"属性分析失败: {str(e)}")
+                    logger.warning(f"Attribute analysis failed: {str(e)}")
                     continue
             
             return results
         
         except Exception as e:
-            logger.error(f"人脸属性分析失败: {str(e)}")
+            logger.error(f"Facial attribute analysis failed: {str(e)}")
             return []
     
     def get_statistics(self) -> Dict[str, Any]:
-        """获取系统统计信息"""
+        """Get system statistics"""
         try:
             with self.db_manager.get_session() as session:
                 total_persons = session.query(Person).count()
                 total_encodings = session.query(FaceEncoding).count()
                 
-                # 计算平均每人照片数
+                # Calculate the average number of photos per person
                 avg_photos_per_person = 0.0
                 if total_persons > 0:
                     avg_photos_per_person = round(total_encodings / total_persons, 1)
                 
-                # 获取最近7天的人员统计
+                # Get the latest7Day’s headcount
                 from datetime import timedelta
                 recent_date = datetime.now() - timedelta(days=7)
                 recent_persons = session.query(Person).filter(Person.created_at >= recent_date).count()
@@ -740,7 +1116,6 @@ class AdvancedFaceRecognitionService:
                     'total_encodings': total_encodings,
                     'avg_photos_per_person': avg_photos_per_person,
                     'recent_persons': recent_persons,
-                    'cache_size': len(self._face_cache),
                     'current_model': f"InsightFace_{self.model_name}",
                     'deepface_model': self.current_deepface_model,
                     'supported_models': self.deepface_models,
@@ -750,38 +1125,41 @@ class AdvancedFaceRecognitionService:
                 }
         
         except Exception as e:
-            logger.error(f"获取统计信息失败: {str(e)}")
+            logger.error(f"Failed to obtain statistics: {str(e)}")
             return {}
 
-    def recognize_face_with_threshold(self, image: np.ndarray, threshold: float = 0.25) -> Dict[str, Any]:
+    def recognize_face_with_threshold(self, image: np.ndarray, region: str, threshold: float = 0.25, client_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        使用自定义阈值进行人脸识别
+        Face recognition using custom thresholds and region filtering
+        **Now uses PostgreSQL + pgvector for fast similarity search**
         
         Args:
-            image: 输入图像
-            threshold: 识别阈值
+            image: input image
+            region: Region to search in (A, B, C, etc.)
+            threshold: recognition threshold
+            client_id: Optional client ID for multi-tenant
             
         Returns:
-            识别结果字典
+            Recognition result dictionary
         """
         try:
             start_time = datetime.now()
             
-            # 检测人脸
+            # Detect faces
             faces = self.detect_faces(image)
-            logger.info(f"检测到 {len(faces)} 个人脸")
+            logger.info(f"detected {len(faces)} personal face")
             
             if not faces:
                 return {
                     'success': True,
                     'matches': [],
                     'total_faces': 0,
-                    'message': '未检测到人脸'
+                    'message': 'No face detected'
                 }
 
             matches = []
             
-            # 对每个检测到的人脸进行识别
+            # Recognize each detected face using vector search
             for face in faces:
                 bbox = face['bbox']
                 face_embedding = face.get('embedding')
@@ -789,58 +1167,49 @@ class AdvancedFaceRecognitionService:
                 if face_embedding is None:
                     continue
                 
-                # 在已知人脸中查找匹配
-                best_match = None
-                best_similarity = 0
-                matched_face_encoding_id = None
+                # Use pgvector to find matches in the specified region
+                similar_faces = self.db_manager.find_similar_faces(
+                    embedding=face_embedding,
+                    region=region,
+                    client_id=client_id,
+                    threshold=threshold,
+                    limit=5  # Get top 5 matches
+                )
                 
-                for person_id, cached_data in self._face_cache.items():
-                    for cached_embedding, face_encoding_id in cached_data['embeddings']:
-                        # 计算余弦相似度
-                        similarity = float(np.dot(face_embedding, cached_embedding) / 
-                                         (np.linalg.norm(face_embedding) * np.linalg.norm(cached_embedding)))
-                        
-                        if similarity > best_similarity:
-                            best_similarity = similarity
-                            matched_face_encoding_id = face_encoding_id
-                            best_match = {
-                                'person_id': person_id,
-                                'name': cached_data['name'],
-                                'match_score': similarity * 100,  # 转换为百分比
-                                'distance': 1 - similarity,
-                                'model': f"InsightFace_{self.model_name}",
-                                'bbox': bbox,
-                                'quality': face.get('det_score', 0.9),
-                                'face_encoding_id': face_encoding_id  # 添加匹配的人脸ID
-                            }
-                
-                # 记录调试信息
-                logger.info(f"识别结果 - 最佳相似度: {best_similarity:.3f}, 阈值: {threshold:.3f}")
-                if best_match:
-                    logger.info(f"最佳匹配: {best_match['name']}, 相似度: {best_similarity:.3f}")
-                
-                # 只返回超过阈值的匹配
-                if best_match and best_similarity >= threshold:
-                    logger.info(f"识别成功: {best_match['name']}, 相似度: {best_similarity:.3f} >= 阈值: {threshold:.3f}")
-                    matches.append(best_match)
-                else:
-                    # 添加未识别的人脸信息
-                    if best_match:
-                        logger.info(f"识别失败: 最佳匹配 {best_match['name']} 相似度 {best_similarity:.3f} < 阈值 {threshold:.3f}")
-                    else:
-                        logger.info(f"识别失败: 未找到任何匹配的人脸")
+                if similar_faces:
+                    # Take the best match
+                    best_match = similar_faces[0]
+                    logger.info(f"Recognition successful: {best_match['name']}, Similarity: {best_match['match_score']:.1f}% in region {region}")
+                    
                     matches.append({
-                        'person_id': -1,
-                        'name': '未知人员',
-                        'match_score': (best_similarity if best_match else 0.0) * 100,  # 转换为百分比
-                        'distance': 1 - (best_similarity if best_match else 0.0),
+                        'person_id': best_match['person_id'],
+                        'name': best_match['name'],
+                        'region': best_match['region'],
+                        'match_score': best_match['match_score'],
+                        'distance': best_match['distance'],
                         'model': f"InsightFace_{self.model_name}",
                         'bbox': bbox,
                         'quality': face.get('det_score', 0.9),
-                        'face_encoding_id': matched_face_encoding_id if matched_face_encoding_id else None  # 即使未识别也返回最佳匹配的人脸ID
+                        'face_encoding_id': best_match['face_encoding_id']
+                    })
+                else:
+                    # No match found
+                    logger.info(f"Recognition failed: No matching faces found in region {region}")
+                    matches.append({
+                        'person_id': -1,
+                        'name': 'Unknown',
+                        'region': region,
+                        'match_score': 0.0,
+                        'distance': 2.0,
+                        'model': f"InsightFace_{self.model_name}",
+                        'bbox': bbox,
+                        'quality': face.get('det_score', 0.9),
+                        'face_encoding_id': None
                     })
             
             processing_time = (datetime.now() - start_time).total_seconds()
+            
+            recognized_count = len([m for m in matches if m["person_id"] != -1])
             
             return {
                 'success': True,
@@ -848,11 +1217,12 @@ class AdvancedFaceRecognitionService:
                 'total_faces': len(faces),
                 'processing_time': processing_time,
                 'threshold_used': threshold,
-                'message': f'识别完成，检测到 {len(faces)} 个人脸，识别出 {len([m for m in matches if m["person_id"] != -1])} 个已知人员'
+                'region': region,
+                'message': f'Recognition completed in region {region}, detected {len(faces)} faces, recognized {recognized_count} known persons'
             }
             
         except Exception as e:
-            logger.error(f"人脸识别失败: {str(e)}")
+            logger.error(f"Face recognition failed: {str(e)}")
             return {
                 'success': False,
                 'matches': [],
@@ -862,24 +1232,24 @@ class AdvancedFaceRecognitionService:
     
     def visualize_face_detection(self, image_path: str) -> Dict[str, Any]:
         """
-        生成人脸检测可视化图像（使用增强可视化器）
+        Generate face detection visualization images（Use augmented visualizer）
         
         Args:
-            image_path: 图像文件路径
+            image_path: Image file path
             
         Returns:
-            Dict: 包含可视化结果的字典
+            Dict: Dictionary containing visualization results
         """
         try:
-            # 读取图像
+            # read image
             image = cv2.imread(image_path)
             if image is None:
                 return {
                     'success': False,
-                    'error': '无法读取图像文件'
+                    'error': 'Unable to read image file'
                 }
             
-            # 检测人脸
+            # Detect faces
             faces_data = []
             if self.app:
                 faces = self.app.get(image)
@@ -889,11 +1259,11 @@ class AdvancedFaceRecognitionService:
                         'bbox': bbox.tolist(),
                         'quality': float(face.det_score),
                         'det_score': float(face.det_score),
-                        'name': f'人脸 {i+1}'
+                        'name': f'human face {i+1}'
                     }
                     faces_data.append(face_info)
             
-            # 使用增强可视化器生成图像
+            # Generate images using augmented visualizer
             result = self.visualizer.visualize_face_detection(image, faces_data)
             
             if result['success']:
@@ -902,23 +1272,23 @@ class AdvancedFaceRecognitionService:
                     'image_base64': result['image_base64'],
                     'faces': result['face_details'],
                     'total_faces': result['total_faces'],
-                    'message': f'检测到 {result["total_faces"]} 个人脸'
+                    'message': f'detected {result["total_faces"]} personal face'
                 }
             else:
                 return result
             
         except Exception as e:
-            logger.error(f"人脸检测可视化失败: {str(e)}")
+            logger.error(f"Face detection visualization failed: {str(e)}")
             return {
                 'success': False,
                 'error': str(e)
             }
 
-# 全局服务实例
+# Global service instance
 advanced_face_service = None
 
 def get_advanced_face_service() -> AdvancedFaceRecognitionService:
-    """获取先进人脸识别服务实例"""
+    """Get an example of advanced facial recognition service"""
     global advanced_face_service
     if advanced_face_service is None:
         advanced_face_service = AdvancedFaceRecognitionService()
