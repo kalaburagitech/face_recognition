@@ -554,7 +554,9 @@ class PersonManagement {
                         
                         <h6 class="card-title text-center mb-1 fw-semibold">${person.name}</h6>
                         <p class="card-text text-center text-muted small mb-3">
-                            ID: ${person.id}
+                            ${person.emp_id ? `Emp ID: ${person.emp_id}` : `ID: ${person.id}`}
+                            ${person.emp_rank ? ` | ${person.emp_rank}` : ''}
+                            ${person.region ? ` | ${person.region.toUpperCase()}` : ''}
                         </p>
                         
                         ${person.description ? `<p class="card-text small mb-3 text-center text-secondary">"${person.description}"</p>` : ''}
@@ -668,7 +670,11 @@ class PersonManagement {
                         </div>
                         <div>
                             <h6 class="mb-0 fw-semibold">${person.name}</h6>
-                            <small class="text-muted">ID: ${person.id}</small>
+                            <small class="text-muted">
+                                ${person.emp_id ? `Emp ID: ${person.emp_id}` : `ID: ${person.id}`}
+                                ${person.emp_rank ? ` | ${person.emp_rank}` : ''}
+                                ${person.region ? ` | ${person.region.toUpperCase()}` : ''}
+                            </small>
                         </div>
                     </div>
                 </td>
@@ -878,14 +884,26 @@ class PersonManagement {
                                 <div class="row g-3">
                                     <div class="col-sm-6">
                                         <div class="info-card">
-                                            <div class="info-label">personnelID</div>
-                                            <div class="info-value">${person.id}</div>
+                                            <div class="info-label">Name</div>
+                                            <div class="info-value">${person.name}</div>
                                         </div>
                                     </div>
                                     <div class="col-sm-6">
                                         <div class="info-card">
-                                            <div class="info-label">Name</div>
-                                            <div class="info-value">${person.name}</div>
+                                            <div class="info-label">Employee ID</div>
+                                            <div class="info-value">${person.emp_id || 'N/A'}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <div class="info-card">
+                                            <div class="info-label">Rank</div>
+                                            <div class="info-value">${person.emp_rank || 'N/A'}</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <div class="info-card">
+                                            <div class="info-label">Region</div>
+                                            <div class="info-value">${person.region ? person.region.toUpperCase() : 'N/A'}</div>
                                         </div>
                                     </div>
                                     <div class="col-12">
@@ -949,7 +967,7 @@ class PersonManagement {
         
         try {
             // First try to start with specialized facesAPIGet
-            const response = await fetch(`/api/person/${person.id}/faces`);
+            const response = await fetch(`/api/person/${person.emp_id}/faces`);
             if (response.ok) {
                 const data = await response.json();
                 if (data.success && data.face_encodings && data.face_encodings.length > 0) {
@@ -1138,8 +1156,8 @@ class PersonManagement {
         if (!confirmed) return;
 
         try {
-            // call trueAPIDelete a single photo
-            const response = await fetch(`/api/person/${personId}/faces/${faceId}`, {
+            // call trueAPIDelete a single photo using emp_id
+            const response = await fetch(`/api/person/${person.emp_id}/faces/${faceId}`, {
                 method: 'DELETE'
             });
             
@@ -1411,7 +1429,13 @@ class PersonManagement {
                 formData.append('faces', files[i]);
             }
 
-            const response = await fetch(`/api/person/${personId}/faces`, {
+            // Get person to find emp_id
+            const person = this.allPersons.find(p => p.id === personId);
+            if (!person) {
+                throw new Error('Person not found');
+            }
+            
+            const response = await fetch(`/api/person/${person.emp_id}/faces`, {
                 method: 'POST',
                 body: formData
             });
@@ -1425,7 +1449,7 @@ class PersonManagement {
                 throw new Error(result.message || 'Upload failed');
             }
 
-            const person = this.allPersons.find(p => p.id === personId);
+            // person is already declared above
             this.showMessage(`Successfully put into storage ${result.count || files.length} face photo`, 'success');
             this.addRecentOperation('Face storage', `for ${person ? person.name : 'personnel'} In stock ${result.count || files.length} face photo`);
 
@@ -1585,8 +1609,8 @@ class PersonManagement {
 
         for (const person of selectedPersonsData) {
             try {
-                // call trueAPIDelete people
-                const response = await fetch(`/api/person/${person.id}`, {
+                // call trueAPIDelete people using emp_id
+                const response = await fetch(`/api/person/${person.emp_id}`, {
                     method: 'DELETE'
                 });
                 
@@ -1781,8 +1805,14 @@ class PersonManagement {
         if (!result) return;
 
         try {
-            // call trueAPIDelete people
-            const response = await fetch(`/api/person/${personId}`, {
+            // Get person to find emp_id
+            const person = this.allPersons.find(p => p.id === personId);
+            if (!person) {
+                throw new Error('Person not found');
+            }
+            
+            // call trueAPIDelete people using emp_id
+            const response = await fetch(`/api/person/${person.emp_id}`, {
                 method: 'DELETE'
             });
             
@@ -1911,8 +1941,14 @@ class PersonManagement {
 
             for (const personId of selectedIds) {
                 try {
-                    // call trueAPIDelete people
-                    const response = await fetch(`/api/person/${personId}`, {
+                    // Get person to find emp_id
+                    const person = this.allPersons.find(p => p.id === personId);
+                    if (!person) {
+                        throw new Error('Person not found');
+                    }
+                    
+                    // call trueAPIDelete people using emp_id
+                    const response = await fetch(`/api/person/${person.emp_id}`, {
                         method: 'DELETE'
                     });
                     if (response.ok) {
@@ -2095,8 +2131,14 @@ class PersonManagement {
         }
 
         try {
-            // call trueAPIUpdate personnel information
-            const response = await fetch(`/api/person/${personId}`, {
+            // Get person to find emp_id
+            const person = this.allPersons.find(p => p.id === personId);
+            if (!person) {
+                throw new Error('Person not found');
+            }
+            
+            // call trueAPIUpdate personnel information using emp_id
+            const response = await fetch(`/api/person/${person.emp_id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
@@ -2197,6 +2239,7 @@ class PersonManagement {
                 </div>
             `;
         }
+        // Note: When show is false, displayPersons() will be called to show the actual content
     }
 
     displayError(message) {
@@ -2669,12 +2712,12 @@ class PersonManagement {
 
             // If it is manual mode and a name is specified，Add name parameter
             if (!autoMode && manualName) {
-                formData.append('names', manualName);
+                formData.append('name', manualName);
             }
 
             // If description is specified，Add description parameters
             if (manualDesc) {
-                formData.append('descriptions', manualDesc);
+                formData.append('description', manualDesc);
             }
 
             const response = await fetch('/api/batch_enroll', {

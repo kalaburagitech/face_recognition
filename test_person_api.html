@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Person API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Person API Test</h1>
+    <button onclick="testAPI()">Test /api/persons</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Loading...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/persons');
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <h2 class="success">✓ API Response Successful</h2>
+                    <p><strong>Total Persons:</strong> ${data.total}</p>
+                    <h3>Data:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                    
+                    ${data.persons && data.persons.length > 0 ? `
+                        <h3>First Person Details:</h3>
+                        <ul>
+                            <li><strong>Name:</strong> ${data.persons[0].name}</li>
+                            <li><strong>Employee ID:</strong> ${data.persons[0].emp_id || 'N/A'}</li>
+                            <li><strong>Rank:</strong> ${data.persons[0].emp_rank || 'N/A'}</li>
+                            <li><strong>Region:</strong> ${data.persons[0].region || 'N/A'}</li>
+                            <li><strong>Description:</strong> ${data.persons[0].description || 'N/A'}</li>
+                        </ul>
+                    ` : '<p>No persons in database</p>'}
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h2 class="error">✗ API Error</h2>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+        
+        // Auto-test on load
+        window.onload = testAPI;
+    </script>
+</body>
+</html>

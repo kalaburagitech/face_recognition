@@ -305,6 +305,7 @@ class AdvancedFaceRecognitionService:
                 if existing_person:
                     # A person with the same name already exists，Add new facial features to it
                     person_id = getattr(existing_person, "id", None)
+                    person_emp_id = getattr(existing_person, "emp_id", emp_id)
                     if not isinstance(person_id, int):
                         logger.error(f"existing_person.id nointtype，Unable to store。actual type: {type(person_id)}")
                         return {'success': False, 'error': 'Database PersonnelIDabnormal，Unable to store'}
@@ -313,6 +314,7 @@ class AdvancedFaceRecognitionService:
                     # Create new person record with region, emp_id, and emp_rank
                     person = self.db_manager.create_person(name, region=region, emp_id=emp_id, emp_rank=emp_rank, description=description, client_id=client_id)
                     person_id = person.id
+                    person_emp_id = person.emp_id
                     logger.info(f"Create new person: {name} in region {region} with emp_id {emp_id} and rank {emp_rank} (ID: {person_id})")
                 
                 # Read image binary data
@@ -342,7 +344,7 @@ class AdvancedFaceRecognitionService:
                 
                 return {
                     'success': True,
-                    'person_id': person_id,
+                    'emp_id': person_emp_id,
                     'face_encoding_id': face_encoding.id,
                     'quality_score': face['quality'],
                     'feature_dim': len(features),
@@ -408,6 +410,7 @@ class AdvancedFaceRecognitionService:
                 if existing_person:
                     # A person with the same name already exists，Add new facial features to it
                     person_id = getattr(existing_person, "id", None)
+                    person_emp_id = getattr(existing_person, "emp_id", emp_id)
                     if not isinstance(person_id, int):
                         logger.error(f"existing_person.id nointtype，Unable to store。actual type: {type(person_id)}")
                         return {'success': False, 'error': 'Database PersonnelIDabnormal，Unable to store'}
@@ -416,6 +419,7 @@ class AdvancedFaceRecognitionService:
                     # Create new person record with region, emp_id, and emp_rank
                     person = self.db_manager.create_person(name, region=region, emp_id=emp_id, emp_rank=emp_rank, description=description)
                     person_id = person.id
+                    person_emp_id = person.emp_id
                     logger.info(f"Create new person: {name} in region {region} with emp_id {emp_id} and rank {emp_rank} (ID: {person_id})")
                 
                 # Read image binary data
@@ -445,7 +449,7 @@ class AdvancedFaceRecognitionService:
                 
                 return {
                     'success': True,
-                    'person_id': person_id,
+                    'emp_id': person_emp_id,
                     'face_encoding_id': face_encoding.id,
                     'quality_score': face['quality'],
                     'feature_dim': len(features),
@@ -1011,7 +1015,7 @@ class AdvancedFaceRecognitionService:
                 match_score = max(0, similarity) * 100
                 
                 matches.append({
-                    'person_id': result['person_id'],
+                    'emp_id': result['emp_id'],
                     'name': result['name'],
                     'match_score': float(match_score),
                     'distance': float(result['distance']),
@@ -1128,7 +1132,7 @@ class AdvancedFaceRecognitionService:
             logger.error(f"Failed to obtain statistics: {str(e)}")
             return {}
 
-    def recognize_face_with_threshold(self, image: np.ndarray, region: str, threshold: float = 0.25, client_id: Optional[str] = None) -> Dict[str, Any]:
+    def recognize_face_with_threshold(self, image: np.ndarray, region: str, threshold: float = 0.25, emp_id: Optional[str] = None, client_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Face recognition using custom thresholds and region filtering
         **Now uses PostgreSQL + pgvector for fast similarity search**
@@ -1137,6 +1141,7 @@ class AdvancedFaceRecognitionService:
             image: input image
             region: Region to search in (A, B, C, etc.)
             threshold: recognition threshold
+            emp_id: Optional employee ID for targeted search (only search this person's faces)
             client_id: Optional client ID for multi-tenant
             
         Returns:
@@ -1167,10 +1172,11 @@ class AdvancedFaceRecognitionService:
                 if face_embedding is None:
                     continue
                 
-                # Use pgvector to find matches in the specified region
+                # Use pgvector to find matches in the specified region (and optionally specific emp_id)
                 similar_faces = self.db_manager.find_similar_faces(
                     embedding=face_embedding,
                     region=region,
+                    emp_id=emp_id,
                     client_id=client_id,
                     threshold=threshold,
                     limit=5  # Get top 5 matches
@@ -1179,29 +1185,27 @@ class AdvancedFaceRecognitionService:
                 if similar_faces:
                     # Take the best match
                     best_match = similar_faces[0]
-                    logger.info(f"Recognition successful: {best_match['name']}, Similarity: {best_match['match_score']:.1f}% in region {region}")
+                    search_scope = f"emp_id {emp_id}" if emp_id else f"region {region}"
+                    logger.info(f"Recognition successful: {best_match['name']}, Similarity: {best_match['match_score']:.1f}% in {search_scope}")
                     
                     matches.append({
-                        'person_id': best_match['person_id'],
+                        'emp_id': best_match['emp_id'],
                         'name': best_match['name'],
-                        'region': best_match['region'],
                         'match_score': best_match['match_score'],
                         'distance': best_match['distance'],
-                        'model': f"InsightFace_{self.model_name}",
                         'bbox': bbox,
                         'quality': face.get('det_score', 0.9),
                         'face_encoding_id': best_match['face_encoding_id']
                     })
                 else:
                     # No match found
-                    logger.info(f"Recognition failed: No matching faces found in region {region}")
+                    search_scope = f"emp_id {emp_id}" if emp_id else f"region {region}"
+                    logger.info(f"Recognition failed: No matching faces found in {search_scope}")
                     matches.append({
-                        'person_id': -1,
+                        'emp_id': 'UNKNOWN',
                         'name': 'Unknown',
-                        'region': region,
                         'match_score': 0.0,
                         'distance': 2.0,
-                        'model': f"InsightFace_{self.model_name}",
                         'bbox': bbox,
                         'quality': face.get('det_score', 0.9),
                         'face_encoding_id': None
@@ -1209,7 +1213,7 @@ class AdvancedFaceRecognitionService:
             
             processing_time = (datetime.now() - start_time).total_seconds()
             
-            recognized_count = len([m for m in matches if m["person_id"] != -1])
+            recognized_count = len([m for m in matches if m["emp_id"] != 'UNKNOWN'])
             
             return {
                 'success': True,

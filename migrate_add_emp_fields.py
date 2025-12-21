@@ -1,95 +1,129 @@
+#!/usr/bin/env python3
 """
-Migration script to add emp_id and emp_rank columns to existing persons table
-Run this ONCE before using the updated system
+Migration script to add emp_id, emp_rank, and region fields to existing persons table
 """
-from sqlalchemy import create_engine, text
 import sys
+sys.path.insert(0, '.')
 
-# Database URL - Update if needed
-DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/face_recognition"
+from src.models.database import DatabaseManager
+from sqlalchemy import text
 
-def migrate_database():
-    """Add emp_id and emp_rank columns to persons table"""
+def migrate_add_emp_fields():
+    """Add emp_id, emp_rank, and region columns to persons table if they don't exist"""
+    db = DatabaseManager()
+    
+    print("=" * 60)
+    print("Migration: Add Employee Fields to Persons Table")
+    print("=" * 60)
+    
     try:
-        engine = create_engine(DATABASE_URL)
-        
-        with engine.connect() as conn:
-            print("Adding emp_id column...")
+        with db.get_session() as session:
+            # Check if columns exist
+            result = session.execute(text("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'persons' 
+                AND column_name IN ('emp_id', 'emp_rank', 'region')
+            """))
+            existing_columns = [row[0] for row in result]
+            
+            print(f"\nExisting columns: {existing_columns}")
+            
+            # Add missing columns
+            if 'region' not in existing_columns:
+                print("\n✓ Adding 'region' column...")
+                session.execute(text("""
+                    ALTER TABLE persons 
+                    ADD COLUMN region VARCHAR(50) DEFAULT 'ka' NOT NULL
+                """))
+                session.execute(text("""
+                    CREATE INDEX idx_persons_region ON persons(region)
+                """))
+                print("  ✓ Added 'region' column with default 'ka'")
+            
+            if 'emp_id' not in existing_columns:
+                print("\n✓ Adding 'emp_id' column...")
+                # First add as nullable
+                session.execute(text("""
+                    ALTER TABLE persons 
+                    ADD COLUMN emp_id VARCHAR(100)
+                """))
+                
+                # Generate emp_id for existing records
+                session.execute(text("""
+                    UPDATE persons 
+                    SET emp_id = 'EMP' || LPAD(id::text, 6, '0')
+                    WHERE emp_id IS NULL
+                """))
+                
+                # Make it NOT NULL and UNIQUE
+                session.execute(text("""
+                    ALTER TABLE persons 
+                    ALTER COLUMN emp_id SET NOT NULL
+                """))
+                session.execute(text("""
+                    ALTER TABLE persons 
+                    ADD CONSTRAINT persons_emp_id_key UNIQUE (emp_id)
+                """))
+                session.execute(text("""
+                    CREATE INDEX idx_persons_emp_id ON persons(emp_id)
+                """))
+                print("  ✓ Added 'emp_id' column with auto-generated IDs")
+            
+            if 'emp_rank' not in existing_columns:
+                print("\n✓ Adding 'emp_rank' column...")
+                session.execute(text("""
+                    ALTER TABLE persons 
+                    ADD COLUMN emp_rank VARCHAR(100) DEFAULT 'Staff' NOT NULL
+                """))
+                session.execute(text("""
+                    CREATE INDEX idx_persons_emp_rank ON persons(emp_rank)
+                """))
+                print("  ✓ Added 'emp_rank' column with default 'Staff'")
+            
+            # Add composite indexes if they don't exist
+            print("\n✓ Adding composite indexes...")
             try:
-                conn.execute(text("ALTER TABLE persons ADD COLUMN emp_id VARCHAR(100)"))
-                conn.commit()
-                print("✓ emp_id column added")
+                session.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_person_region_client 
+                    ON persons(region, client_id)
+                """))
+                session.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_person_name_region 
+                    ON persons(name, region)
+                """))
+                print("  ✓ Added composite indexes")
             except Exception as e:
-                if "already exists" in str(e):
-                    print("✓ emp_id column already exists")
-                else:
-                    raise
+                print(f"  ⚠ Indexes might already exist: {e}")
             
-            print("Adding emp_rank column...")
-            try:
-                conn.execute(text("ALTER TABLE persons ADD COLUMN emp_rank VARCHAR(100)"))
-                conn.commit()
-                print("✓ emp_rank column added")
-            except Exception as e:
-                if "already exists" in str(e):
-                    print("✓ emp_rank column already exists")
-                else:
-                    raise
+            session.commit()
             
-            # Update existing records with dummy values
-            print("Updating existing records with placeholder values...")
-            conn.execute(text("UPDATE persons SET emp_id = 'EMP' || id::text WHERE emp_id IS NULL"))
-            conn.execute(text("UPDATE persons SET emp_rank = 'Staff' WHERE emp_rank IS NULL"))
-            conn.commit()
-            print("✓ Existing records updated")
+            print("\n" + "=" * 60)
+            print("✅ Migration completed successfully!")
+            print("=" * 60)
             
-            # Make columns NOT NULL
-            print("Making columns NOT NULL...")
-            conn.execute(text("ALTER TABLE persons ALTER COLUMN emp_id SET NOT NULL"))
-            conn.execute(text("ALTER TABLE persons ALTER COLUMN emp_rank SET NOT NULL"))
-            conn.commit()
-            print("✓ Columns set to NOT NULL")
+            # Show updated schema
+            result = session.execute(text("""
+                SELECT column_name, data_type, is_nullable, column_default
+                FROM information_schema.columns 
+                WHERE table_name = 'persons'
+                ORDER BY ordinal_position
+            """))
             
-            # Add unique constraint to emp_id
-            print("Adding unique constraint to emp_id...")
-            try:
-                conn.execute(text("ALTER TABLE persons ADD CONSTRAINT persons_emp_id_key UNIQUE (emp_id)"))
-                conn.commit()
-                print("✓ Unique constraint added")
-            except Exception as e:
-                if "already exists" in str(e):
-                    print("✓ Unique constraint already exists")
-                else:
-                    raise
+            print("\nUpdated persons table schema:")
+            print("-" * 60)
+            for row in result:
+                print(f"  {row[0]:20} {row[1]:20} NULL={row[2]:5} DEFAULT={row[3]}")
+            print("-" * 60)
             
-            # Add indexes
-            print("Adding indexes...")
-            try:
-                conn.execute(text("CREATE INDEX idx_persons_emp_id ON persons(emp_id)"))
-                conn.commit()
-                print("✓ emp_id index added")
-            except Exception as e:
-                if "already exists" in str(e):
-                    print("✓ emp_id index already exists")
-                else:
-                    raise
-            
-            try:
-                conn.execute(text("CREATE INDEX idx_persons_emp_rank ON persons(emp_rank)"))
-                conn.commit()
-                print("✓ emp_rank index added")
-            except Exception as e:
-                if "already exists" in str(e):
-                    print("✓ emp_rank index already exists")
-                else:
-                    raise
-        
-        print("\n✅ Migration completed successfully!")
-        print("You can now use the updated system with emp_id and emp_rank fields.")
-        
     except Exception as e:
         print(f"\n❌ Migration failed: {e}")
-        sys.exit(1)
+        import traceback
+        traceback.print_exc()
+        return False
+    
+    return True
 
 if __name__ == "__main__":
-    migrate_database()
+    success = migrate_add_emp_fields()
+    sys.exit(0 if success else 1)

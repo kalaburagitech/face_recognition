@@ -8,7 +8,7 @@ from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, LargeBinary, ForeignKey, Index, Text, text
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Date, LargeBinary, ForeignKey, Index, Text, text, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
 from sqlalchemy.pool import QueuePool
@@ -79,6 +79,8 @@ class Attendance(Base, TimestampMixin):
     date = Column(DateTime, nullable=False, index=True)
     status = Column(String(20), default='present', nullable=False)  # present/absent
     marked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    check_in_time = Column(DateTime(timezone=True), nullable=True)  # Check-in timestamp
+    check_out_time = Column(DateTime(timezone=True), nullable=True)  # Check-out timestamp
     
     # Relationship - passive_deletes tells SQLAlchemy to let the database handle CASCADE
     person = relationship('Person', backref='attendance_records', passive_deletes=True)
@@ -96,7 +98,46 @@ class Attendance(Base, TimestampMixin):
             'person_id': self.person_id,
             'date': self.date.isoformat() if self.date else None,
             'status': self.status,
-            'marked_at': self.marked_at.isoformat() if self.marked_at else None
+            'marked_at': self.marked_at.isoformat() if self.marked_at else None,
+            'check_in_time': self.check_in_time.isoformat() if self.check_in_time else None,
+            'check_out_time': self.check_out_time.isoformat() if self.check_out_time else None
+        }
+
+
+class AnalyticsLog(Base, TimestampMixin):
+    """Analytics log table for tracking system events"""
+    __tablename__ = 'analytics_log'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event_type = Column(String(50), nullable=False, index=True)  # 'registration', 'check_in', 'check_out'
+    person_id = Column(Integer, ForeignKey('persons.id', ondelete='CASCADE'), nullable=True, index=True)
+    emp_id = Column(String(100), nullable=True, index=True)
+    name = Column(String(255), nullable=True)
+    region = Column(String(50), nullable=True, index=True)
+    timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, index=True)
+    date = Column(Date, nullable=False, index=True)
+    event_metadata = Column(JSON, nullable=True)  # Additional data as JSON (renamed from 'metadata' to avoid SQLAlchemy conflict)
+    
+    # Relationship
+    person = relationship('Person', backref='analytics_logs', passive_deletes=True)
+    
+    # Composite indexes for common queries
+    __table_args__ = (
+        Index('idx_analytics_log_date_event', 'date', 'event_type'),
+    )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            'id': self.id,
+            'event_type': self.event_type,
+            'person_id': self.person_id,
+            'emp_id': self.emp_id,
+            'name': self.name,
+            'region': self.region,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'date': self.date.isoformat() if self.date else None,
+            'metadata': self.event_metadata  # Return as 'metadata' in dict for API compatibility
         }
 
 
@@ -398,6 +439,7 @@ class DatabaseManager:
     # ==================== Vector Search Method (MAIN FEATURE) ====================
     
     def find_similar_faces(self, embedding: np.ndarray, region: str, 
+                          emp_id: Optional[str] = None,
                           client_id: Optional[str] = None,
                           threshold: float = 0.3,
                           limit: int = 5) -> List[Dict[str, Any]]:
@@ -408,6 +450,7 @@ class DatabaseManager:
         Args:
             embedding: Query face embedding
             region: Region to search in (A, B, C, etc.)
+            emp_id: Optional employee ID for targeted search (only search this person)
             client_id: Optional client filter
             threshold: Similarity threshold (0-1)
             limit: Maximum results to return
@@ -426,8 +469,12 @@ class DatabaseManager:
                 FaceEncoding.embedding.cosine_distance(embedding_list).label('distance')
             ).join(Person, FaceEncoding.person_id == Person.id)
             
-            # Filter by region
+            # Filter by region (always required)
             query = query.filter(Person.region == region)
+            
+            # Optional emp_id filter (targeted search)
+            if emp_id:
+                query = query.filter(Person.emp_id == emp_id)
             
             # Optional client filter
             if client_id:
@@ -446,7 +493,7 @@ class DatabaseManager:
             for face_encoding, person, distance in query.all():
                 similarity = 1.0 - distance  # Convert distance back to similarity
                 results.append({
-                    'person_id': person.id,
+                    'emp_id': person.emp_id,
                     'name': person.name,
                     'region': person.region,
                     'match_score': similarity * 100,  # Percentage
@@ -456,7 +503,8 @@ class DatabaseManager:
                     'confidence': face_encoding.confidence
                 })
             
-            logger.info(f"Found {len(results)} matches in region '{region}' above threshold {threshold}")
+            search_scope = f"emp_id '{emp_id}'" if emp_id else f"region '{region}'"
+            logger.info(f"Found {len(results)} matches in {search_scope} above threshold {threshold}")
             return results
     
     # ==================== Statistics ====================
@@ -627,10 +675,112 @@ class DatabaseManager:
                     'region': person.region,
                     'status': attendance.status if attendance else 'absent',
                     'marked_at': attendance.marked_at.isoformat() if attendance and attendance.marked_at else None,
+                    'check_in_time': attendance.check_in_time.isoformat() if attendance and attendance.check_in_time else None,
+                    'check_out_time': attendance.check_out_time.isoformat() if attendance and attendance.check_out_time else None,
+                    'attendance_id': attendance.id if attendance else None,
                     'date': date.isoformat()
                 })
             
             return results
+    
+    # ==================== Analytics Logging ====================
+    
+    def log_event(self, event_type: str, person_id: Optional[int] = None, emp_id: Optional[str] = None, 
+                  name: Optional[str] = None, region: Optional[str] = None, metadata: Optional[dict] = None) -> AnalyticsLog:
+        """
+        Log an analytics event
+        
+        Args:
+            event_type: Type of event ('registration', 'check_in', 'check_out', etc.)
+            person_id: Person ID (optional)
+            emp_id: Employee ID (optional)
+            name: Person name (optional)
+            region: Region (optional)
+            metadata: Additional data as dictionary (optional)
+        """
+        import pytz
+        ist = pytz.timezone('Asia/Kolkata')
+        now_ist = datetime.now(ist)
+        
+        with self.get_session() as session:
+            log_entry = AnalyticsLog(
+                event_type=event_type,
+                person_id=person_id,
+                emp_id=emp_id,
+                name=name,
+                region=region,
+                timestamp=now_ist,
+                date=now_ist.date(),
+                event_metadata=metadata  # Use event_metadata instead of metadata
+            )
+            session.add(log_entry)
+            session.commit()
+            session.refresh(log_entry)
+            return log_entry
+    
+    def get_analytics_summary(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None, 
+                             region: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get analytics summary for a date range
+        
+        Returns counts of registrations, check-ins, and check-outs
+        """
+        with self.get_session() as session:
+            query = session.query(AnalyticsLog)
+            
+            if start_date:
+                query = query.filter(AnalyticsLog.date >= start_date.date())
+            if end_date:
+                query = query.filter(AnalyticsLog.date <= end_date.date())
+            if region:
+                query = query.filter(AnalyticsLog.region == region)
+            
+            all_logs = query.all()
+            
+            # Count by event type
+            registrations = len([log for log in all_logs if log.event_type == 'registration'])
+            check_ins = len([log for log in all_logs if log.event_type == 'check_in'])
+            check_outs = len([log for log in all_logs if log.event_type == 'check_out'])
+            
+            # Get daily breakdown
+            daily_stats = {}
+            for log in all_logs:
+                date_str = log.date.isoformat()
+                if date_str not in daily_stats:
+                    daily_stats[date_str] = {'registrations': 0, 'check_ins': 0, 'check_outs': 0}
+                
+                if log.event_type == 'registration':
+                    daily_stats[date_str]['registrations'] += 1
+                elif log.event_type == 'check_in':
+                    daily_stats[date_str]['check_ins'] += 1
+                elif log.event_type == 'check_out':
+                    daily_stats[date_str]['check_outs'] += 1
+            
+            return {
+                'total_registrations': registrations,
+                'total_check_ins': check_ins,
+                'total_check_outs': check_outs,
+                'daily_stats': daily_stats,
+                'date_range': {
+                    'start': start_date.isoformat() if start_date else None,
+                    'end': end_date.isoformat() if end_date else None
+                },
+                'region': region
+            }
+    
+    def get_recent_events(self, limit: int = 50, event_type: Optional[str] = None, 
+                         region: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get recent analytics events"""
+        with self.get_session() as session:
+            query = session.query(AnalyticsLog).order_by(AnalyticsLog.timestamp.desc())
+            
+            if event_type:
+                query = query.filter(AnalyticsLog.event_type == event_type)
+            if region:
+                query = query.filter(AnalyticsLog.region == region)
+            
+            logs = query.limit(limit).all()
+            return [log.to_dict() for log in logs]
 
 
 # ==================== Global Singleton ====================

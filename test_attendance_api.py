@@ -6,7 +6,7 @@ import requests
 from datetime import datetime
 
 # Test with an existing person
-person_id = 109  # shashank from the test
+emp_id = "EMP109"  # Example employee ID
 
 print("=" * 60)
 print("Testing Attendance API Endpoint")
@@ -17,7 +17,7 @@ print("\n--- Test 1: First attendance marking ---")
 response = requests.post(
     'http://localhost:8000/api/attendance/mark',
     data={
-        'person_id': person_id,
+        'emp_id': emp_id,
         'status': 'present'
     }
 )
@@ -33,7 +33,7 @@ print("\n--- Test 2: Second attendance marking (should be duplicate) ---")
 response2 = requests.post(
     'http://localhost:8000/api/attendance/mark',
     data={
-        'person_id': person_id,
+        'emp_id': emp_id,
         'status': 'present'
     }
 )

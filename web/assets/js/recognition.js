@@ -109,6 +109,13 @@ class FaceRecognition {
             return;
         }
 
+        // Check if region is selected
+        const regionSelect = document.getElementById('recognitionRegion');
+        if (!regionSelect || !regionSelect.value) {
+            ToastManager.show('Please select a region', 'warning');
+            return;
+        }
+
         const btn = document.getElementById('recognizeBtn');
         const loadingOverlay = document.getElementById('recognitionLoading');
         
@@ -122,6 +129,13 @@ class FaceRecognition {
         try {
             const formData = new FormData();
             formData.append('file', this.currentFile);
+            formData.append('region', regionSelect.value);
+            
+            // Add optional emp_id if provided
+            const empIdInput = document.getElementById('recognitionEmpId');
+            if (empIdInput && empIdInput.value.trim()) {
+                formData.append('emp_id', empIdInput.value.trim());
+            }
 
             // First get the recognition results
             const result = await ApiClient.post('/api/recognize', formData);
@@ -247,13 +261,13 @@ class FaceRecognition {
     createResultCard(match, index) {
         const scoreClass = this.getScoreClass(match.match_score);
         return `
-            <div class="result-card" id="result-card-${match.person_id}">
+            <div class="result-card" id="result-card-${match.emp_id}">
                 <div class="d-flex justify-content-between align-items-start mb-3">
                     <div class="d-flex align-items-center">
                         <div class="badge bg-primary me-2">#${index}</div>
                         <div>
                             <h6 class="mb-1 text-primary fw-bold">${match.name}</h6>
-                            <small class="text-muted">personnelID: ${match.person_id}${match.face_encoding_id ? ` | human faceID: ${match.face_encoding_id}` : ''}</small>
+                            <small class="text-muted">Employee ID: ${match.emp_id}${match.face_encoding_id ? ` | human faceID: ${match.face_encoding_id}` : ''}</small>
                         </div>
                     </div>
                     <span class="match-score ${scoreClass}">
@@ -276,32 +290,10 @@ class FaceRecognition {
                     </div>
                     <div class="col-md-6">
                         <div class="d-flex justify-content-between">
-                            <span class="text-muted">Identify model:</span>
-                            <span class="fw-semibold">${match.model}</span>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="d-flex justify-content-between">
                             <span class="text-muted">detection frame:</span>
                             <span class="fw-semibold">${match.bbox ? `${match.bbox[2]-match.bbox[0]}×${match.bbox[3]-match.bbox[1]}` : 'N/A'}</span>
                         </div>
                     </div>
-                    ${match.age ? `
-                        <div class="col-md-6">
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">Estimated age:</span>
-                                <span class="fw-semibold">${match.age}age</span>
-                            </div>
-                        </div>
-                    ` : ''}
-                    ${match.gender ? `
-                        <div class="col-md-6">
-                            <div class="d-flex justify-content-between">
-                                <span class="text-muted">gender:</span>
-                                <span class="fw-semibold">${match.gender}</span>
-                            </div>
-                        </div>
-                    ` : ''}
                 </div>
                 
                 <div class="mt-3">
@@ -315,8 +307,8 @@ class FaceRecognition {
                     </div>
                 </div>
                 
-                <div class="mt-3" id="attendance-section-${match.person_id}">
-                    <button class="btn btn-success w-100" onclick="faceRecognition.markAttendance(${match.person_id}, '${match.name}')">
+                <div class="mt-3" id="attendance-section-${match.emp_id}">
+                    <button class="btn btn-success w-100" onclick="faceRecognition.markAttendance('${match.emp_id}', '${match.name}')">
                         <i class="bi bi-check-circle me-2"></i>Submit Attendance
                     </button>
                 </div>
@@ -324,8 +316,8 @@ class FaceRecognition {
         `;
     }
 
-    async markAttendance(personId, personName) {
-        const attendanceSection = document.getElementById(`attendance-section-${personId}`);
+    async markAttendance(empId, personName) {
+        const attendanceSection = document.getElementById(`attendance-section-${empId}`);
         if (!attendanceSection) return;
 
         // Show loading state
@@ -338,7 +330,7 @@ class FaceRecognition {
         try {
             // Mark attendance
             const formData = new FormData();
-            formData.append('person_id', personId);
+            formData.append('emp_id', empId);
             formData.append('status', 'present');
 
             const response = await fetch('/api/attendance/mark', {
@@ -384,7 +376,7 @@ class FaceRecognition {
                     <i class="bi bi-exclamation-triangle me-2"></i>
                     Failed to mark attendance: ${error.message}
                 </div>
-                <button class="btn btn-warning w-100 mt-2" onclick="faceRecognition.markAttendance(${personId}, '${personName}')">
+                <button class="btn btn-warning w-100 mt-2" onclick="faceRecognition.markAttendance('${empId}', '${personName}')">
                     <i class="bi bi-arrow-clockwise me-2"></i>Retry
                 </button>
             `;

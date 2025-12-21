@@ -88,10 +88,10 @@ class ThreadSafeFaceService:
         with self._cache_lock:
             return self._service.db_manager.get_all_persons(region=region, client_id=client_id)
     
-    def recognize_face_with_threshold(self, image, region: str, threshold: float = 0.25, client_id: Optional[str] = None) -> Dict[str, Any]:
+    def recognize_face_with_threshold(self, image, region: str, threshold: float = 0.25, emp_id: Optional[str] = None, client_id: Optional[str] = None) -> Dict[str, Any]:
         """Thread-safe face recognition with threshold"""
         with self._cache_lock:
-            return self._service.recognize_face_with_threshold(image, region, threshold, client_id)
+            return self._service.recognize_face_with_threshold(image, region, threshold, emp_id, client_id)
     
     def visualize_face_detection(self, image_path: str) -> Dict[str, Any]:
         """Thread-safe face detection visualization"""

@@ -290,6 +290,14 @@ class PersonEnrollment {
                     LoadingManager.setButtonLoading(btn, false);
                     return;
                 }
+                
+                // For batch enrollment, name is required
+                if (!name) {
+                    ToastManager.show('Please enter the person name for batch enrollment', 'warning');
+                    nameInput.focus();
+                    LoadingManager.setButtonLoading(btn, false);
+                    return;
+                }
 
                 const formData = new FormData();
                 
@@ -298,11 +306,8 @@ class PersonEnrollment {
                     formData.append('files', file);
                 });
 
-                // If the name is filled in，All files will use this name
-                // If no name is filled in，Each file will use its own file name as the name
-                if (name) {
-                    formData.append('names', name);
-                }
+                // Add name (required for batch enrollment)
+                formData.append('name', name);
                 
                 // Add region, emp_id, and emp_rank
                 formData.append('region', region);
@@ -311,7 +316,7 @@ class PersonEnrollment {
 
                 // If you fill in the description，then use this description as the description of the first file
                 if (description) {
-                    formData.append('descriptions', description);
+                    formData.append('description', description);
                 }
 
                 const result = await ApiClient.post('/api/batch_enroll', formData);
@@ -475,11 +480,11 @@ class PersonEnrollment {
         }
         
         const formData = new FormData();
-        formData.append('names', name);
+        formData.append('name', name);
         formData.append('region', region);
         formData.append('emp_id', empId);
         formData.append('emp_rank', empRank);
-        if (description) formData.append('descriptions', description);
+        if (description) formData.append('description', description);
         
         // Convert all blobs to files and append them
         frameBlobs.forEach((blob, index) => {

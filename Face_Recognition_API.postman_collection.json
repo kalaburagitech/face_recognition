@@ -1,0 +1,800 @@
+{
+	"info": {
+		"_postman_id": "face-recognition-api-2025",
+		"name": "Face Recognition System API",
+		"description": "Complete API collection for Face Recognition System with attendance tracking",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://98.89.47.87:8000",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Person Registration",
+			"item": [
+				{
+					"name": "Register Person (Single Image)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "Face image file"
+								},
+								{
+									"key": "name",
+									"value": "John Doe",
+									"type": "text",
+									"description": "Person's name"
+								},
+								{
+									"key": "region",
+									"value": "ka",
+									"type": "text",
+									"description": "Region: ka, ap, or tn"
+								},
+								{
+									"key": "emp_id",
+									"value": "EMP001",
+									"type": "text",
+									"description": "Employee ID (unique)"
+								},
+								{
+									"key": "emp_rank",
+									"value": "Manager",
+									"type": "text",
+									"description": "Employee rank/position"
+								},
+								{
+									"key": "description",
+									"value": "Optional description",
+									"type": "text",
+									"description": "Optional description"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/enroll",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"enroll"
+							]
+						},
+						"description": "Register a new person with face image. Returns visualization of detected face."
+					},
+					"response": []
+				},
+				{
+					"name": "Register Person (Simple - No Visualization)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "name",
+									"value": "Jane Smith",
+									"type": "text"
+								},
+								{
+									"key": "region",
+									"value": "ap",
+									"type": "text"
+								},
+								{
+									"key": "emp_id",
+									"value": "EMP002",
+									"type": "text"
+								},
+								{
+									"key": "emp_rank",
+									"value": "Developer",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/enroll_simple",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"enroll_simple"
+							]
+						},
+						"description": "Faster enrollment without visualization image"
+					},
+					"response": []
+				},
+				{
+					"name": "Batch Register (Video Frames)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "files",
+									"type": "file",
+									"src": [],
+									"description": "Multiple image files"
+								},
+								{
+									"key": "names",
+									"value": "John Doe",
+									"type": "text",
+									"description": "Name (same for all frames)"
+								},
+								{
+									"key": "region",
+									"value": "ka",
+									"type": "text"
+								},
+								{
+									"key": "emp_id",
+									"value": "EMP003",
+									"type": "text"
+								},
+								{
+									"key": "emp_rank",
+									"value": "Supervisor",
+									"type": "text"
+								},
+								{
+									"key": "sort_by_filename",
+									"value": "true",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/batch_enroll",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"batch_enroll"
+							]
+						},
+						"description": "Register multiple images at once (useful for video frames)"
+					},
+					"response": []
+				}
+			],
+			"description": "APIs for registering new persons with face images"
+		},
+		{
+			"name": "2. Face Recognition",
+			"item": [
+				{
+					"name": "Recognize Face (Image Upload)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "Image to recognize"
+								},
+								{
+									"key": "region",
+									"value": "ka",
+									"type": "text",
+									"description": "Region to search in"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/recognize",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"recognize"
+							]
+						},
+						"description": "Recognize faces in uploaded image. Returns match details."
+					},
+					"response": []
+				},
+				{
+					"name": "Recognize Face (With Visualization)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "region",
+									"value": "ka",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/recognize_visual",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"recognize_visual"
+							]
+						},
+						"description": "Returns annotated image with bounding boxes and names"
+					},
+					"response": []
+				},
+				{
+					"name": "Detect Faces Only",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/detect_faces",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"detect_faces"
+							]
+						},
+						"description": "Detect faces without recognition"
+					},
+					"response": []
+				}
+			],
+			"description": "APIs for recognizing faces in images"
+		},
+		{
+			"name": "3. Attendance Management",
+			"item": [
+				{
+					"name": "Mark Attendance (by Employee ID)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "emp_id",
+									"value": "EMP001",
+									"type": "text",
+									"description": "Employee ID"
+								},
+								{
+									"key": "status",
+									"value": "present",
+									"type": "text",
+									"description": "present or absent"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/attendance/mark",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"attendance",
+								"mark"
+							]
+						},
+						"description": "Mark attendance. Prevents duplicates for same day."
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Attendance (by Name)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "name",
+									"value": "John Doe",
+									"type": "text",
+									"description": "Person's name"
+								},
+								{
+									"key": "status",
+									"value": "present",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/attendance/mark",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"attendance",
+								"mark"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Check Attendance Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/attendance/check?emp_id=EMP001",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"attendance",
+								"check"
+							],
+							"query": [
+								{
+									"key": "emp_id",
+									"value": "EMP001"
+								}
+							]
+						},
+						"description": "Check if attendance is already marked"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Attendance Records (Today)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/attendance",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"attendance"
+							]
+						},
+						"description": "Get all attendance records for today"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Attendance Records (Specific Date)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/attendance?date=2025-12-13&region=ka",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"attendance"
+							],
+							"query": [
+								{
+									"key": "date",
+									"value": "2025-12-13"
+								},
+								{
+									"key": "region",
+									"value": "ka"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "APIs for attendance tracking"
+		},
+		{
+			"name": "4. Person Management",
+			"item": [
+				{
+					"name": "Get All Persons",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/persons",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"persons"
+							]
+						},
+						"description": "Get list of all registered persons"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Person Details (by Employee ID)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/person/EMP001",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"person",
+								"EMP001"
+							]
+						},
+						"description": "Get details of specific person by Employee ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Person (by Employee ID)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Updated Name\",\n  \"description\": \"Updated description\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/person/EMP001",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"person",
+								"EMP001"
+							]
+						},
+						"description": "Update person information by Employee ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Person (by Employee ID)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/person/EMP001",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"person",
+								"EMP001"
+							]
+						},
+						"description": "Delete person and all their data (faces, attendance) by Employee ID"
+					},
+					"response": []
+				}
+			],
+			"description": "APIs for managing person records"
+		},
+		{
+			"name": "5. Face Management",
+			"item": [
+				{
+					"name": "Get Person's Faces (by Employee ID)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/person/EMP001/faces",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"person",
+								"EMP001",
+								"faces"
+							]
+						},
+						"description": "Get all face images of a person by Employee ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Face Image",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/face/456/image",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"face",
+								"456",
+								"image"
+							]
+						},
+						"description": "Get actual face image file"
+					},
+					"response": []
+				},
+				{
+					"name": "Add Face to Person (by Employee ID)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "files",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/person/EMP001/faces",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"person",
+								"EMP001",
+								"faces"
+							]
+						},
+						"description": "Add additional face images to existing person by Employee ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Face (by Employee ID)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/person/EMP001/faces/456",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"person",
+								"EMP001",
+								"faces",
+								"456"
+							]
+						},
+						"description": "Delete a specific face of a person by Employee ID"
+					},
+					"response": []
+				}
+			],
+			"description": "APIs for managing face images"
+		},
+		{
+			"name": "6. Advanced Features",
+			"item": [
+				{
+					"name": "Extract Face Embeddings",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/extract_embeddings",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"extract_embeddings"
+							]
+						},
+						"description": "Extract 512-dimensional face feature vectors"
+					},
+					"response": []
+				}
+			],
+			"description": "Advanced face analysis features"
+		},
+		{
+			"name": "7. Configuration",
+			"item": [
+				{
+					"name": "Get Configuration",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/config",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"config"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Recognition Threshold",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "threshold",
+									"value": "0.35",
+									"type": "text",
+									"description": "0.0 to 1.0"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/config/threshold",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"config",
+								"threshold"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Duplicate Threshold",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "threshold",
+									"value": "0.60",
+									"type": "text",
+									"description": "0.8 to 0.99"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/config/duplicate_threshold",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"config",
+								"duplicate_threshold"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "System configuration APIs"
+		},
+		{
+			"name": "8. Statistics & Health",
+			"item": [
+				{
+					"name": "Get Statistics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/statistics",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"statistics"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"health"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "System monitoring APIs"
+		}
+	]
+}

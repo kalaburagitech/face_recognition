@@ -48,17 +48,13 @@ class PersonUpdate(BaseModel):
     description: Optional[str] = Field(None, description="Personnel description", max_length=500)
 
 class FaceMatch(BaseModel):
-    person_id: int
+    emp_id: str
     name: str
     match_score: float = Field(description="match percentage (0-100%)")
     distance: float = Field(description="Euclidean distance，The smaller, the more similar")
-    model: str
     bbox: List[int] = Field(description="face bounding box [x1, y1, x2, y2]")
     quality: float
     face_encoding_id: Optional[int] = Field(None, description="Matching facial featuresID")  # Add new field
-    age: Optional[int] = None
-    gender: Optional[str] = None
-    emotion: Optional[str] = None
 
 class RecognitionResponse(BaseModel):
     success: bool
@@ -69,7 +65,7 @@ class RecognitionResponse(BaseModel):
 
 class EnrollmentResponse(BaseModel):
     success: bool
-    person_id: Optional[int] = None
+    emp_id: Optional[str] = None
     face_encoding_id: Optional[int] = None  # facial featuresID
     person_name: Optional[str] = None
     description: Optional[str] = None
@@ -246,7 +242,7 @@ def create_app() -> FastAPI:
                     
                     return EnrollmentResponse(
                         success=True,
-                        person_id=int(result['person_id']),
+                        emp_id=result['emp_id'],
                         face_encoding_id=int(result.get('face_encoding_id', 0)) if result.get('face_encoding_id') else None,
                         person_name=name,
                         description=description,
@@ -329,9 +325,23 @@ def create_app() -> FastAPI:
                 processing_time = time.time() - start_time
                 
                 if result['success']:
+                    # Log registration event
+                    service.db_manager.log_event(
+                        event_type='registration',
+                        person_id=result.get('person_id'),
+                        emp_id=emp_id,
+                        name=name,
+                        region=region,
+                        metadata={
+                            'face_encoding_id': result.get('face_encoding_id'),
+                            'quality_score': result.get('quality_score'),
+                            'processing_time': processing_time
+                        }
+                    )
+                    
                     return EnrollmentResponse(
                         success=True,
-                        person_id=int(result['person_id']),
+                        emp_id=result['emp_id'],
                         face_encoding_id=int(result.get('face_encoding_id', 0)) if result.get('face_encoding_id') else None,
                         person_name=name,
                         description=description,
@@ -442,11 +452,11 @@ def create_app() -> FastAPI:
     @app.post("/api/batch_enroll")
     async def batch_enroll_persons(
         files: List[UploadFile] = File(..., description="Face image file list"),
-        names: Optional[List[str]] = Form(None, description="Person name list（Optional，If not provided, extract from filename）"),
-        region: Optional[str] = Form(None, description="Region (ka/ap/tn)"),
-        emp_id: Optional[str] = Form(None, description="Employee ID"),
-        emp_rank: Optional[str] = Form(None, description="Employee Rank"),
-        descriptions: Optional[List[str]] = Form(None, description="Person description list（Optional）"),
+        name: str = Form(..., description="Person name (same for all images)"),
+        region: str = Form(..., description="Region (ka/ap/tn)"),
+        emp_id: str = Form(..., description="Employee ID"),
+        emp_rank: str = Form(..., description="Employee Rank"),
+        description: Optional[str] = Form(None, description="Person description (Optional)"),
         sort_by_filename: bool = Form(True, description="Whether to sort processing by file name"),
         service = Depends(get_face_service)
     ):
@@ -480,88 +490,59 @@ def create_app() -> FastAPI:
             success_count = 0
             error_count = 0
             
-            # Process name list - Supports flexible name assignment
-            names_list: List[Optional[str]] = []
-            if names:
-                # If name provided，Use the name provided first，The missing parts will be supplemented later with the file name.
-                names_list = list(names)
-                logger.info(f"Batch storage：receive {len(names)} name，common {len(files)} files")
-            else:
-                # If no name is provided，All use file names
-                names_list = []
-                logger.info(f"Batch storage：No name provided，will use the file name as the name")
-            
-            # Expand description list to match number of files
-            desc_list: List[Optional[str]] = []
-            if descriptions:
-                desc_list = list(descriptions)
-                while len(desc_list) < len(files):
-                    desc_list.append(None)
-            else:
-                desc_list = [None] * len(files)
-            
-            # Detect if there are multiple photos of the same person/frame（Video registration）
-            is_single_person_batch = False
-            target_name = None
-            
-            if names_list and len(names_list) > 0 and names_list[0]:
-                # If name provided，All documents use this name，This may be a video registration
-                target_name = names_list[0].strip()
-                is_single_person_batch = True
-                logger.info(f"Single-person batch registration mode detected，target name: {target_name}")
+            # All files use the same name (batch registration for one person)
+            target_name = name.strip()
+            is_single_person_batch = True
+            logger.info(f"Batch registration for: {target_name} with {len(file_items)} images")
             
             # Prepare session characteristics data for video registration
             session_features = []  # Store all features from the same session，Used to avoid inter-frame repeat detection
             
             # critical fix：before processing any file，First pre-check all files for conflicts with the database
             file_contents = {}  # Store file content，Avoid repeated reads
-            if is_single_person_batch and target_name:
-                logger.info(f"Video registration mode：right {len(file_items)} frame pre-check")
+            logger.info(f"Video registration mode：right {len(file_items)} frame pre-check")
+            
+            # First save all files as temporary files
+            temp_files = []
+            try:
+                for i, item in enumerate(file_items):
+                    file = item['file']
+                    content = await file.read()
+                    file_contents[i] = content  # Store content for later use
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+                    temp_file.write(content)
+                    temp_file.close()
+                    temp_files.append(temp_file.name)
                 
-                # First save all files as temporary files
-                temp_files = []
-                try:
-                    for i, item in enumerate(file_items):
-                        file = item['file']
-                        content = await file.read()
-                        file_contents[i] = content  # Store content for later use
-                        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
-                        temp_file.write(content)
-                        temp_file.close()
-                        temp_files.append(temp_file.name)
-                    
-                    # Perform pre-check
-                    pre_check_result = service.pre_check_duplicate_for_batch(temp_files, target_name)
-                    
-                    if not pre_check_result['success']:
-                        # Precheck failed，Return error immediately，No registration required
-                        logger.warning(f"Video registration pre-check failed: {pre_check_result['error']}")
-                        return {
+                # Perform pre-check
+                pre_check_result = service.pre_check_duplicate_for_batch(temp_files, target_name)
+                
+                if not pre_check_result['success']:
+                    # Precheck failed，Return error immediately，No registration required
+                    logger.warning(f"Video registration pre-check failed: {pre_check_result['error']}")
+                    return {
+                        'success': False,
+                        'total_files': len(files),
+                        'success_count': 0,
+                        'error_count': len(files),
+                        'results': [{
+                            'file_name': file_items[pre_check_result.get('frame_index', 1) - 1]['filename'] if 'frame_index' in pre_check_result else file_items[0]['filename'],
+                            'name': target_name,
                             'success': False,
-                            'total_files': len(files),
-                            'success_count': 0,
-                            'error_count': len(files),
-                            'results': [{
-                                'file_name': file_items[pre_check_result.get('frame_index', 1) - 1]['filename'] if 'frame_index' in pre_check_result else file_items[0]['filename'],
-                                'name': target_name,
-                                'success': False,
-                                'error': pre_check_result['error']
-                            }],
-                            'message': f'Video registration failed: {pre_check_result["error"]}',
-                            'duplicate_detected': True,
-                            'is_video_registration': True
-                        }
-                    
-                    logger.info(f"Video registration pre-check passed，It's safe to register")
-                    
-                finally:
-                    # Clean temporary files
-                    for temp_file_path in temp_files:
-                        if os.path.exists(temp_file_path):
-                            os.unlink(temp_file_path)
-            else:
-                # Not in video registration mode，No pre-check required，But needs to be initializedfile_contents
-                file_contents = {}
+                            'error': pre_check_result['error']
+                        }],
+                        'message': f'Video registration failed: {pre_check_result["error"]}',
+                        'duplicate_detected': True,
+                        'is_video_registration': True
+                    }
+                
+                logger.info(f"Video registration pre-check passed，It's safe to register")
+                
+            finally:
+                # Clean temporary files
+                for temp_file_path in temp_files:
+                    if os.path.exists(temp_file_path):
+                        os.unlink(temp_file_path)
             
             for i, item in enumerate(file_items):
                 file = item['file']
@@ -583,23 +564,9 @@ def create_app() -> FastAPI:
                         error_count += 1
                         continue
 
-                    # Get person name - Flexible handling of name assignments
-                    if is_single_person_batch and target_name:
-                        # Video registration mode：All files use the same name
-                        name = target_name
-                    elif names_list and len(names_list) > 0 and names_list[0]:
-                        # If name provided，All documents use this name
-                        name = names_list[0].strip()
-                    else:
-                        # If no name is provided，Extract names from filename（Remove extension）
-                        name = os.path.splitext(original_filename)[0]
-                        # Clean filename as name
-                        name = name.replace('_', ' ').replace('-', ' ').strip()
-                        if not name or name.startswith("unnamed_file_"):
-                            name = f"person_{i+1}"
-                    
-                    # Get description
-                    description = desc_list[original_index] if original_index < len(desc_list) else None
+                    # All files use the same name (batch registration for one person)
+                    person_name = target_name
+                    person_description = description  # Use the single description for all
 
                     # Check file size
                     if i in file_contents:
@@ -614,7 +581,7 @@ def create_app() -> FastAPI:
                     if file_size > max_size:
                         results.append({
                             'file_name': original_filename,
-                            'name': name,
+                            'name': person_name,
                             'success': False,
                             'error': 'File too large'
                         })
@@ -631,7 +598,7 @@ def create_app() -> FastAPI:
                         if not region or not emp_id or not emp_rank:
                             results.append({
                                 'file_name': original_filename,
-                                'name': name,
+                                'name': person_name,
                                 'success': False,
                                 'error': 'Missing required fields: region, emp_id, or emp_rank'
                             })
@@ -641,9 +608,9 @@ def create_app() -> FastAPI:
                         # Call the service for storage，Pass in the original file name for correct storage
                         # If it is a video registration that has been pre-checked，Use a duplicate-free version
                         if is_single_person_batch and target_name:
-                            result = service.enroll_person_no_duplicate_check(name, temp_file.name, region, emp_id, emp_rank, description, original_filename)
+                            result = service.enroll_person_no_duplicate_check(person_name, temp_file.name, region, emp_id, emp_rank, person_description, original_filename)
                         else:
-                            result = service.enroll_person(name, temp_file.name, region, emp_id, emp_rank, description, original_filename)
+                            result = service.enroll_person(person_name, temp_file.name, region, emp_id, emp_rank, person_description, original_filename)
                         
                         if result['success']:
                             # successfully processed，Add features to session list（If it is single-player batch mode）
@@ -653,8 +620,8 @@ def create_app() -> FastAPI:
                             
                             results.append({
                                 'file_name': original_filename,
-                                'name': name,
-                                'person_id': result.get('person_id'),
+                                'name': person_name,
+                                'emp_id': result.get('emp_id'),
                                 'face_encoding_id': result.get('face_encoding_id'),  # Add facial featuresID
                                 'success': True,
                                 'quality_score': result.get('quality_score', 0)
@@ -680,7 +647,7 @@ def create_app() -> FastAPI:
                                         'error_count': 1,
                                         'results': [{
                                             'file_name': original_filename,
-                                            'name': name,
+                                            'name': person_name,
                                             'success': False,
                                             'error': error_msg
                                         }],
@@ -697,7 +664,7 @@ def create_app() -> FastAPI:
                                         'error_count': 1,
                                         'results': [{
                                             'file_name': original_filename,
-                                            'name': name,
+                                            'name': person_name,
                                             'success': False,
                                             'error': error_msg
                                         }],
@@ -708,7 +675,7 @@ def create_app() -> FastAPI:
                                 # Other errors，Log but continue processing
                                 results.append({
                                     'file_name': original_filename,
-                                    'name': name,
+                                    'name': person_name,
                                     'success': False,
                                     'error': error_msg
                                 })
@@ -722,7 +689,7 @@ def create_app() -> FastAPI:
                 except Exception as file_error:
                     results.append({
                         'file_name': original_filename,
-                        'name': name,
+                        'name': person_name,
                         'success': False,
                         'error': f"Processing file failed: {str(file_error)}"
                     })
@@ -758,12 +725,15 @@ def create_app() -> FastAPI:
     async def recognize_face(
         file: UploadFile = File(..., description="Image file to be recognized"),
         region: str = Form(..., description="Region to search in (ka/ap/tn)"),
+        emp_id: Optional[str] = Form(None, description="Optional: Employee ID for targeted search"),
         service = Depends(get_face_service)
     ):
         """
         🔍 Face recognition interface
         
         Upload images for face recognition，Return matching person information
+        - region: Required - limits search to specific region
+        - emp_id: Optional - if provided, only searches this specific employee's faces
         """
         try:
             # Read recognition thresholds from configuration file
@@ -791,17 +761,16 @@ def create_app() -> FastAPI:
                 if image is None:
                     raise HTTPException(status_code=400, detail="Unable to parse image")
                 
-                # Call service for identification（Use dynamic thresholds and region filtering）
-                result = service.recognize_face_with_threshold(image, region=region, threshold=threshold)
+                # Call service for identification（Use dynamic thresholds and region/emp_id filtering）
+                result = service.recognize_face_with_threshold(image, region=region, emp_id=emp_id, threshold=threshold)
                 
                 if result['success']:
                     matches = [
                         FaceMatch(
-                            person_id=match['person_id'],
+                            emp_id=match['emp_id'],
                             name=match['name'],
                             match_score=match['match_score'],
                             distance=match['distance'],
-                            model=match['model'],
                             bbox=match['bbox'],
                             quality=match['quality'],
                             face_encoding_id=match.get('face_encoding_id')  # Add faceIDField
@@ -841,6 +810,7 @@ def create_app() -> FastAPI:
     async def recognize_face_with_visualization(
         file: UploadFile = File(..., description="Image file to be recognized"),
         region: str = Form(..., description="Region to search in (ka/ap/tn)"),
+        emp_id: Optional[str] = Form(None, description="Optional: Employee ID for targeted search"),
         threshold: Optional[float] = None,
         service = Depends(get_face_service)
     ):
@@ -848,6 +818,8 @@ def create_app() -> FastAPI:
         🔍 Face recognition interface（with visualization）
         
         Upload images for face recognition，Returns an image labeled with detection boxes and matching information
+        - region: Required - limits search to specific region
+        - emp_id: Optional - if provided, only searches this specific employee's faces
         If no threshold parameter is provided，The recognition threshold in the configuration file will be used
         """
         try:
@@ -872,8 +844,8 @@ def create_app() -> FastAPI:
             if image is None:
                 raise HTTPException(status_code=400, detail="Unable to parse image")
 
-            # Call service for identification（Use dynamic thresholds and region filtering）
-            result = service.recognize_face_with_threshold(image, region=region, threshold=threshold)
+            # Call service for identification（Use dynamic thresholds and region/emp_id filtering）
+            result = service.recognize_face_with_threshold(image, region=region, emp_id=emp_id, threshold=threshold)
             
             if result['success']:
                 # make surethresholdNot forNone（has been assigned a value at this time）
@@ -920,62 +892,18 @@ def create_app() -> FastAPI:
         except:
             pass
 
-    @app.post("/api/analyze", response_model=AttributeAnalysisResponse)
-    async def analyze_face_attributes(
-        file: UploadFile = File(..., description="Image file to be analyzed"),
-        service = Depends(get_face_service)
-    ):
-        """
-        🎭 Face attribute analysis interface
-        
-        Analyze the age of a face、gender、mood、Attributes such as race
-        """
-        try:
-            # Verify file type
-            if not file.content_type or not file.content_type.startswith('image/'):
-                raise HTTPException(status_code=400, detail="Only supports image files")
-
-            # read image
-            content = await file.read()
-            nparr = np.frombuffer(content, np.uint8)
-            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            
-            if image is None:
-                raise HTTPException(status_code=400, detail="Unable to parse image")
-
-            # Call service analysis properties
-            attributes = service.analyze_face_attributes(image)
-            
-            faces = [
-                FaceAttribute(
-                    bbox=attr['bbox'],
-                    age=attr.get('age'),
-                    gender=attr.get('gender'),
-                    gender_confidence=attr.get('gender_confidence'),
-                    emotion=attr.get('emotion'),
-                    emotion_scores=attr.get('emotion_scores'),
-                    race=attr.get('race'),
-                    race_scores=attr.get('race_scores')
-                )
-                for attr in attributes
-            ]
-            
-            return AttributeAnalysisResponse(
-                success=True,
-                faces=faces,
-                total_faces=len(faces)
-            )
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Property analysis interface error: {str(e)}")
-            return AttributeAnalysisResponse(
-                success=False,
-                faces=[],
-                total_faces=0,
-                error=f"Server internal error: {str(e)}"
-            )
+    # DISABLED: Analyze API not needed
+    # @app.post("/api/analyze", response_model=AttributeAnalysisResponse)
+    # async def analyze_face_attributes(
+    #     file: UploadFile = File(..., description="Image file to be analyzed"),
+    #     service = Depends(get_face_service)
+    # ):
+    #     """
+    #     🎭 Face attribute analysis interface
+    #     
+    #     Analyze the age of a face、gender、mood、Attributes such as race
+    #     """
+    #     pass
 
     @app.get("/api/statistics")
     async def get_statistics(service = Depends(get_face_service)):
@@ -1110,6 +1038,9 @@ def create_app() -> FastAPI:
                     person_data = {
                         "id": person.id,
                         "name": person.name,
+                        "emp_id": person.emp_id,
+                        "emp_rank": person.emp_rank,
+                        "region": person.region,
                         "description": person.description,
                         "created_at": person.created_at.isoformat() if person.created_at else None,
                         "encodings_count": encoding_count,
@@ -1150,30 +1081,29 @@ def create_app() -> FastAPI:
             logger.error(f"Failed to get personnel list: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to get personnel list")
 
-    @app.get("/api/person/{person_id}")
-    async def get_person(person_id: int, service = Depends(get_face_service)):
+    @app.get("/api/person/{emp_id}")
+    async def get_person(emp_id: str, service = Depends(get_face_service)):
         """
-        👤 Get designated person details
+        👤 Get designated person details by Employee ID
         
         Returns the detailed information and face encoding number of the specified person
         """
         try:
             with service.db_manager.get_session() as session:
                 from ..models import Person, FaceEncoding
-                person = session.query(Person).filter(Person.id == person_id).first()
+                person = session.query(Person).filter(Person.emp_id == emp_id).first()
                 
                 if not person:
                     raise HTTPException(status_code=404, detail="Personnel does not exist")
                 
                 # Get the number of face codes
-                encoding_count = session.query(FaceEncoding).filter(FaceEncoding.person_id == person_id).count()
+                encoding_count = session.query(FaceEncoding).filter(FaceEncoding.person_id == person.id).count()
                 
                 return JSONResponse(content={
                     "success": True,
-                    "id": person.id,
+                    "emp_id": person.emp_id,
                     "name": person.name,
                     "region": person.region,
-                    "emp_id": person.emp_id,
                     "emp_rank": person.emp_rank,
                     "description": person.description,
                     "created_at": person.created_at.isoformat() if person.created_at else None,
@@ -1186,14 +1116,22 @@ def create_app() -> FastAPI:
             logger.error(f"Failed to obtain person details: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to obtain person details")
 
-    @app.get("/api/person/{person_id}/faces")
-    async def get_person_faces(person_id: int, service = Depends(get_face_service)):
+    @app.get("/api/person/{emp_id}/faces")
+    async def get_person_faces(emp_id: str, service = Depends(get_face_service)):
         """
-        👤 Get all face codes of the specified person
+        👤 Get all face codes of the specified person by Employee ID
         
         Returns all facial feature vector information of the specified person
         """
         try:
+            # Get person by emp_id first
+            with service.db_manager.get_session() as session:
+                from ..models import Person
+                person = session.query(Person).filter(Person.emp_id == emp_id).first()
+                if not person:
+                    raise HTTPException(status_code=404, detail="Personnel does not exist")
+                person_id = person.id
+            
             face_encodings = service.db_manager.get_face_encodings_by_person(person_id)
             
             face_list = []
@@ -1203,10 +1141,12 @@ def create_app() -> FastAPI:
             
             return JSONResponse(content={
                 "success": True,
-                "person_id": person_id,
+                "emp_id": emp_id,
                 "face_encodings": face_list,
                 "total_faces": len(face_list)
             })
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Failed to obtain the person's face list: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to obtain the person's face list")
@@ -1252,10 +1192,10 @@ def create_app() -> FastAPI:
             logger.error(f"Failed to obtain face image: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to obtain face image")
 
-    @app.put("/api/person/{person_id}")
-    async def update_person(person_id: int, person_data: PersonUpdate, service = Depends(get_face_service)):
+    @app.put("/api/person/{emp_id}")
+    async def update_person(emp_id: str, person_data: PersonUpdate, service = Depends(get_face_service)):
         """
-        ✏️ Update designated person information
+        ✏️ Update designated person information by Employee ID
         
         Update the basic information of the person（Name、department、Position、Remarks, etc.）
         """
@@ -1263,8 +1203,8 @@ def create_app() -> FastAPI:
             with service.db_manager.get_session() as session:
                 from ..models import Person
                 
-                # Find people
-                person = session.query(Person).filter(Person.id == person_id).first()
+                # Find people by emp_id
+                person = session.query(Person).filter(Person.emp_id == emp_id).first()
                 if not person:
                     raise HTTPException(status_code=404, detail="Specified person not found")
                 
@@ -1282,7 +1222,7 @@ def create_app() -> FastAPI:
                     "success": True,
                     "message": "Personnel information updated successfully",
                     "person": {
-                        "id": person.id,
+                        "emp_id": person.emp_id,
                         "name": person.name,
                         "description": person.description,
                         "created_at": person.created_at.isoformat() if person.created_at else None,
@@ -1295,20 +1235,23 @@ def create_app() -> FastAPI:
             logger.error(f"Failed to update personnel information: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to update personnel information")
 
-    @app.delete("/api/person/{person_id}")
-    async def delete_person(person_id: int, service = Depends(get_face_service)):
+    @app.delete("/api/person/{emp_id}")
+    async def delete_person(emp_id: str, service = Depends(get_face_service)):
         """
-        🗑️ Delete specified person
+        🗑️ Delete specified person by Employee ID
         
         Delete the specified person and all their face codes
         """
         try:
-            # Get person name before deletion
-            person = service.db_manager.get_person_by_id(person_id)
-            if not person:
-                raise HTTPException(status_code=404, detail="Personnel does not exist")
-            
-            person_name = person.name
+            # Get person by emp_id first
+            with service.db_manager.get_session() as session:
+                from ..models import Person
+                person = session.query(Person).filter(Person.emp_id == emp_id).first()
+                if not person:
+                    raise HTTPException(status_code=404, detail="Personnel does not exist")
+                
+                person_id = person.id
+                person_name = person.name
             
             # Use the database manager's delete method which handles everything properly
             success = service.db_manager.delete_person(person_id)
@@ -1462,10 +1405,10 @@ def create_app() -> FastAPI:
             logger.error(f"Failed to delete face encoding: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to delete face encoding")
 
-    @app.delete("/api/person/{person_id}/faces/{face_encoding_id}")
-    async def delete_person_face(person_id: int, face_encoding_id: int, service = Depends(get_face_service)):
+    @app.delete("/api/person/{emp_id}/faces/{face_encoding_id}")
+    async def delete_person_face(emp_id: str, face_encoding_id: int, service = Depends(get_face_service)):
         """
-        🗑️ Delete the specified face of the specified person
+        🗑️ Delete the specified face of the specified person by Employee ID
         
         Delete a face photo of a specified person
         """
@@ -1473,13 +1416,14 @@ def create_app() -> FastAPI:
             with service.db_manager.get_session() as session:
                 from ..models import Person, FaceEncoding
                 
-                # Verify whether the person exists
-                person = session.query(Person).filter(Person.id == person_id).first()
+                # Verify whether the person exists by emp_id
+                person = session.query(Person).filter(Person.emp_id == emp_id).first()
                 if not person:
                     raise HTTPException(status_code=404, detail="Personnel does not exist")
                 
-                # Get person name，Avoid subsequent session issues
+                # Get person name and id，Avoid subsequent session issues
                 person_name = person.name
+                person_id = person.id
                 
                 # Verify whether the face code exists and belongs to that person
                 face_encoding = session.query(FaceEncoding).filter(
@@ -1506,27 +1450,30 @@ def create_app() -> FastAPI:
             logger.error(f"Failed to delete person's face: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to delete person's face")
 
-    @app.post("/api/person/{person_id}/faces")
+    @app.post("/api/person/{emp_id}/faces")
     async def add_person_faces(
-        person_id: int,
+        emp_id: str,
         faces: List[UploadFile] = File(..., description="Face image file list"),
         service = Depends(get_face_service)
     ):
         """
-        📸 Add more face photos for specified people
+        📸 Add more face photos for specified people by Employee ID
         
         Add multiple face photos for existing people
         """
         try:
             person_name = ""  # Initialize person name variable
+            person_id = None  # Initialize person_id for internal use
             
             with service.db_manager.get_session() as session:
                 from ..models import Person
                 
-                # Verify whether the person exists
-                person = session.query(Person).filter(Person.id == person_id).first()
+                # Verify whether the person exists by emp_id
+                person = session.query(Person).filter(Person.emp_id == emp_id).first()
                 if not person:
                     raise HTTPException(status_code=404, detail="Personnel does not exist")
+                
+                person_id = person.id  # Get internal ID for database operations
                 
                 # Save person name，Avoid session issues
                 person_name = person.name
@@ -1599,70 +1546,73 @@ def create_app() -> FastAPI:
                             error_count += 1
                             continue
                         
-                        # Check similarity - Avoid adding similar faces repeatedly
+                        # Check similarity - Verify the face belongs to THIS person
                         try:
-                            # Check for similarity with existing faces of the current person
                             with service.db_manager.get_session() as check_session:
                                 from ..models import FaceEncoding as FaceEncodingModel
+                                
+                                # Get recognition threshold (lower = stricter matching)
+                                recognition_threshold = config.get('face_recognition.recognition_threshold', 0.6)
+                                duplicate_threshold = config.get('face_recognition.duplicate_threshold', 0.85)
+                                
+                                # STEP 1: Verify the new face matches existing faces of THIS person
                                 existing_faces = check_session.query(FaceEncodingModel).filter(
                                     FaceEncodingModel.person_id == person_id
                                 ).all()
                                 
-                                duplicate_threshold = config.get('face_recognition.duplicate_threshold', 0.85)
-                                
-                                for existing_face in existing_faces:
-                                    if existing_face.embedding is not None:
-                                        # Handle encoded data in different formats
-                                        existing_encoding = None
-                                        if isinstance(existing_face.embedding, bytes):
-                                            try:
-                                                existing_encoding = pickle.loads(existing_face.embedding)
-                                            except Exception as e:
-                                                logger.warning(f"Trait deserialization failed: {e}")
+                                if existing_faces:  # Only validate if person already has faces
+                                    max_similarity_to_self = 0.0
+                                    
+                                    for existing_face in existing_faces:
+                                        if existing_face.embedding is not None:
+                                            # Handle encoded data in different formats
+                                            existing_encoding = None
+                                            if isinstance(existing_face.embedding, bytes):
+                                                try:
+                                                    existing_encoding = pickle.loads(existing_face.embedding)
+                                                except Exception as e:
+                                                    logger.warning(f"Trait deserialization failed: {e}")
+                                                    continue
+                                            elif isinstance(existing_face.embedding, np.ndarray):
+                                                existing_encoding = existing_face.embedding
+                                            elif isinstance(existing_face.embedding, (list, tuple)):
+                                                existing_encoding = np.array(existing_face.embedding, dtype=np.float32)
+                                            elif isinstance(existing_face.embedding, str):
+                                                try:
+                                                    existing_encoding = np.frombuffer(
+                                                        base64.b64decode(existing_face.embedding), 
+                                                        dtype=np.float32
+                                                    )
+                                                except Exception as e:
+                                                    logger.warning(f"Base64Decoding failed: {e}")
+                                                    continue
+                                            else:
+                                                logger.warning(f"Unknown encoding format: {type(existing_face.embedding)}")
                                                 continue
-                                        elif isinstance(existing_face.embedding, np.ndarray):
-                                            existing_encoding = existing_face.embedding
-                                        elif isinstance(existing_face.embedding, (list, tuple)):
-                                            existing_encoding = np.array(existing_face.embedding, dtype=np.float32)
-                                        elif isinstance(existing_face.embedding, str):
-                                            try:
-                                                existing_encoding = np.frombuffer(
-                                                    base64.b64decode(existing_face.embedding), 
-                                                    dtype=np.float32
-                                                )
-                                            except Exception as e:
-                                                logger.warning(f"Base64Decoding failed: {e}")
-                                                continue
-                                        else:
-                                            logger.warning(f"Unknown encoding format: {type(existing_face.embedding)}")
-                                            continue
-                                        
-                                        if existing_encoding is None or len(existing_encoding) == 0:
-                                            continue
-                                        
-                                        # Calculate cosine similarity
-                                        try:
-                                            similarity = float(np.dot(encoding, existing_encoding) / 
-                                                             (np.linalg.norm(encoding) * np.linalg.norm(existing_encoding)))
                                             
-                                            if similarity > duplicate_threshold:
-                                                results.append({
-                                                    'file_name': face_file.filename,
-                                                    'success': False,
-                                                    'error': f'The face is too similar to an existing face (Similarity: {similarity*100:.1f}%，threshold: {duplicate_threshold*100:.1f}%)'
-                                                })
-                                                error_count += 1
-                                                raise Exception("Duplicate faces")  # Jump out of current file processing
-                                        except ValueError as ve:
-                                            logger.warning(f"Similarity calculation failed: {ve}")
-                                            continue
-                                        except Exception as similarity_error:
-                                            if "Duplicate faces" in str(similarity_error):
-                                                raise  # Rethrow duplicate face error
-                                            logger.warning(f"Similarity detection failed: {str(similarity_error)}")
-                                            continue
+                                            if existing_encoding is None or len(existing_encoding) == 0:
+                                                continue
+                                            
+                                            # Calculate cosine similarity
+                                            try:
+                                                similarity = float(np.dot(encoding, existing_encoding) / 
+                                                                 (np.linalg.norm(encoding) * np.linalg.norm(existing_encoding)))
+                                                max_similarity_to_self = max(max_similarity_to_self, similarity)
+                                            except Exception as e:
+                                                logger.warning(f"Similarity calculation failed: {e}")
+                                                continue
+                                    
+                                    # If the face doesn't match this person's existing faces, reject it
+                                    if max_similarity_to_self < recognition_threshold:
+                                        results.append({
+                                            'file_name': face_file.filename,
+                                            'success': False,
+                                            'error': f'Face does not match existing faces of {person_name} (Similarity: {max_similarity_to_self*100:.1f}%, required: {recognition_threshold*100:.1f}%)'
+                                        })
+                                        error_count += 1
+                                        raise Exception("Face mismatch")
                                 
-                                # Check similarities to other people’s faces
+                                # STEP 2: Check similarities to other people's faces
                                 other_faces = check_session.query(FaceEncodingModel, Person).join(
                                     Person, FaceEncodingModel.person_id == Person.id
                                 ).filter(
@@ -1722,27 +1672,27 @@ def create_app() -> FastAPI:
                                             continue
                         
                         except Exception as check_error:
-                            if "Duplicate faces" in str(check_error):
-                                # Duplicate face errors，Stop the entire batch immediately
-                                logger.warning(f"Add face to person Duplicate detected，Stop processing: {str(check_error)}")
+                            if "Duplicate faces" in str(check_error) or "Face mismatch" in str(check_error):
+                                # Duplicate face or mismatch errors，Stop the entire batch immediately
+                                logger.warning(f"Add face to person validation failed，Stop processing: {str(check_error)}")
                                 
                                 # Get the last error result
                                 last_error = results[-1] if results else {
                                     'file_name': face_file.filename,
                                     'success': False,
-                                    'error': 'Duplicate faces detected'
+                                    'error': 'Face validation failed'
                                 }
                                 
                                 return JSONResponse(content={
                                     "success": False,
-                                    "person_id": person_id,
+                                    "emp_id": emp_id,
                                     "person_name": person_name,
                                     "total_files": len(faces),
                                     "success_count": success_count,
                                     "error_count": 1,
                                     "count": success_count,
                                     "results": [last_error],
-                                    "message": f"for {person_name} Failed to add face: {last_error.get('error', 'Duplicate faces detected')}. Please try again with a different face image。",
+                                    "message": f"for {person_name} Failed to add face: {last_error.get('error', 'Face validation failed')}. Please try again with a different face image。",
                                     "duplicate_detected": True
                                 })
                             logger.warning(f"Similarity check failed: {str(check_error)}")
@@ -1786,7 +1736,7 @@ def create_app() -> FastAPI:
             
             return JSONResponse(content={
                 "success": True,
-                "person_id": person_id,
+                "emp_id": emp_id,
                 "person_name": person_name,
                 "total_files": len(faces),
                 "success_count": success_count,
@@ -2020,26 +1970,33 @@ def create_app() -> FastAPI:
         name: Optional[str] = Form(None, description="Person name"),
         date: Optional[str] = Form(None, description="Date (YYYY-MM-DD), defaults to today"),
         status: str = Form('present', description="Status: present or absent"),
+        action: str = Form('check_in', description="Action: check_in or check_out"),
         service = Depends(get_face_service)
     ):
         """
-        📋 Mark attendance for a person
+        📋 Mark attendance for a person (Check-in/Check-out)
         
-        Checks if attendance is already marked for today.
+        - First recognition: Check-in
+        - Second recognition: Check-out (only if already checked in)
         Can identify person by person_id, emp_id, or name.
         """
         try:
             from datetime import datetime
+            import pytz
             
-            # Parse date or use today (normalize to midnight UTC)
+            # IST timezone
+            ist = pytz.timezone('Asia/Kolkata')
+            
+            # Parse date or use today (normalize to midnight IST)
             if date:
                 attendance_date = datetime.strptime(date, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0)
+                attendance_date = ist.localize(attendance_date)
             else:
-                # Get today's date at midnight
-                now = datetime.utcnow()
-                attendance_date = datetime(now.year, now.month, now.day, 0, 0, 0, 0)
+                # Get today's date at midnight IST
+                now_ist = datetime.now(ist)
+                attendance_date = ist.localize(datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0, 0))
             
-            logger.info(f"Attendance mark request - person_id={person_id}, emp_id={emp_id}, name={name}, date={attendance_date}")
+            logger.info(f"Attendance {action} request - person_id={person_id}, emp_id={emp_id}, name={name}, date={attendance_date}")
             
             # Find person by person_id, emp_id, or name
             person = None
@@ -2061,61 +2018,150 @@ def create_app() -> FastAPI:
                     content={
                         "success": False,
                         "error": "Person not found",
-                        "already_marked": False
+                        "action_required": None
                     }
                 )
             
-            # Check if attendance already marked for today
+            # Check existing attendance for today
             with service.db_manager.get_session() as session:
                 from ..models.database import Attendance
                 existing_attendance = session.query(Attendance).filter(
                     Attendance.person_id == person.id,
-                    Attendance.date == attendance_date
+                    Attendance.date == attendance_date.replace(tzinfo=None)  # Compare without timezone
                 ).first()
                 
-                logger.info(f"Attendance check result - person_id={person.id}, existing={existing_attendance is not None}")
+                current_time_ist = datetime.now(ist)
                 
                 if existing_attendance:
-                    # Capture data before session closes
-                    attendance_data = {
-                        "id": existing_attendance.id,
-                        "status": existing_attendance.status,
-                        "marked_at": existing_attendance.marked_at.isoformat() if existing_attendance.marked_at else None,
-                        "date": existing_attendance.date.isoformat() if existing_attendance.date else None
-                    }
+                    # Attendance record exists
+                    if existing_attendance.check_in_time and not existing_attendance.check_out_time:
+                        # Already checked in, can check out
+                        if action == 'check_out':
+                            existing_attendance.check_out_time = current_time_ist
+                            session.commit()
+                            
+                            # Log check-out event
+                            service.db_manager.log_event(
+                                event_type='check_out',
+                                person_id=person.id,
+                                emp_id=person.emp_id,
+                                name=person.name,
+                                region=person.region,
+                                metadata={'attendance_id': existing_attendance.id}
+                            )
+                            
+                            attendance_data = {
+                                "id": existing_attendance.id,
+                                "status": existing_attendance.status,
+                                "check_in_time": existing_attendance.check_in_time.isoformat() if existing_attendance.check_in_time else None,
+                                "check_out_time": existing_attendance.check_out_time.isoformat() if existing_attendance.check_out_time else None,
+                                "date": existing_attendance.date.isoformat() if existing_attendance.date else None
+                            }
+                            
+                            logger.info(f"✅ Check-out successful for {person.name} at {current_time_ist}")
+                            return JSONResponse(content={
+                                "success": True,
+                                "action_performed": "check_out",
+                                "message": "Checked out successfully",
+                                "person": {
+                                    "id": person.id,
+                                    "name": person.name,
+                                    "emp_id": person.emp_id,
+                                    "emp_rank": person.emp_rank
+                                },
+                                "attendance": attendance_data
+                            })
+                        else:
+                            # Already checked in, show check-out option
+                            attendance_data = {
+                                "id": existing_attendance.id,
+                                "status": existing_attendance.status,
+                                "check_in_time": existing_attendance.check_in_time.isoformat() if existing_attendance.check_in_time else None,
+                                "check_out_time": None,
+                                "date": existing_attendance.date.isoformat() if existing_attendance.date else None
+                            }
+                            
+                            return JSONResponse(content={
+                                "success": True,
+                                "action_required": "check_out",
+                                "message": "Already checked in. Ready to check out.",
+                                "person": {
+                                    "id": person.id,
+                                    "name": person.name,
+                                    "emp_id": person.emp_id,
+                                    "emp_rank": person.emp_rank
+                                },
+                                "attendance": attendance_data
+                            })
                     
-                    # Attendance already marked - return immediately
-                    logger.warning(f"⚠️  DUPLICATE DETECTED: Attendance already marked for {person.name} (ID={person.id}) on {attendance_date.date()}")
-                    return JSONResponse(content={
-                        "success": True,
-                        "already_marked": True,
-                        "message": "Attendance already marked for today",
-                        "person": {
-                            "id": person.id,
-                            "name": person.name,
-                            "emp_id": person.emp_id,
-                            "emp_rank": person.emp_rank
-                        },
-                        "attendance": attendance_data
-                    })
+                    elif existing_attendance.check_in_time and existing_attendance.check_out_time:
+                        # Already checked in and out
+                        attendance_data = {
+                            "id": existing_attendance.id,
+                            "status": existing_attendance.status,
+                            "check_in_time": existing_attendance.check_in_time.isoformat() if existing_attendance.check_in_time else None,
+                            "check_out_time": existing_attendance.check_out_time.isoformat() if existing_attendance.check_out_time else None,
+                            "date": existing_attendance.date.isoformat() if existing_attendance.date else None
+                        }
+                        
+                        return JSONResponse(content={
+                            "success": True,
+                            "already_completed": True,
+                            "message": "Already checked in and out for today",
+                            "person": {
+                                "id": person.id,
+                                "name": person.name,
+                                "emp_id": person.emp_id,
+                                "emp_rank": person.emp_rank
+                            },
+                            "attendance": attendance_data
+                        })
             
-            # If we reach here, no existing attendance found
-            logger.info(f"No existing attendance found, creating new record for person_id={person.id}")
+            # No existing attendance, create new with check-in
+            logger.info(f"No existing attendance found, creating new check-in record for person_id={person.id}")
             
-            # Mark new attendance
-            attendance = service.db_manager.mark_attendance(person.id, attendance_date, status)
+            with service.db_manager.get_session() as session:
+                from ..models.database import Attendance
+                new_attendance = Attendance(
+                    person_id=person.id,
+                    date=attendance_date.replace(tzinfo=None),
+                    status=status,
+                    marked_at=current_time_ist,
+                    check_in_time=current_time_ist
+                )
+                session.add(new_attendance)
+                session.commit()
+                session.refresh(new_attendance)
+                
+                # Log check-in event
+                service.db_manager.log_event(
+                    event_type='check_in',
+                    person_id=person.id,
+                    emp_id=person.emp_id,
+                    name=person.name,
+                    region=person.region,
+                    metadata={'attendance_id': new_attendance.id}
+                )
+                
+                attendance_data = {
+                    "id": new_attendance.id,
+                    "status": new_attendance.status,
+                    "check_in_time": new_attendance.check_in_time.isoformat() if new_attendance.check_in_time else None,
+                    "check_out_time": None,
+                    "date": new_attendance.date.isoformat() if new_attendance.date else None
+                }
             
             return JSONResponse(content={
                 "success": True,
-                "already_marked": False,
-                "message": "Attendance marked successfully",
+                "action_performed": "check_in",
+                "message": "Checked in successfully",
                 "person": {
                     "id": person.id,
                     "name": person.name,
                     "emp_id": person.emp_id,
                     "emp_rank": person.emp_rank
                 },
-                "attendance": attendance.to_dict()
+                "attendance": attendance_data
             })
         except Exception as e:
             logger.error(f"Failed to mark attendance: {str(e)}")
@@ -2170,16 +2216,22 @@ def create_app() -> FastAPI:
         service = Depends(get_face_service)
     ):
         """
-        🔍 Check if attendance is already marked for a person
+        🔍 Check attendance status for a person (READ-ONLY, does not perform any action)
         """
         try:
             from datetime import datetime
+            import pytz
+            
+            # IST timezone
+            ist = pytz.timezone('Asia/Kolkata')
             
             # Parse date or use today
             if date:
-                attendance_date = datetime.strptime(date, '%Y-%m-%d')
+                attendance_date = datetime.strptime(date, '%Y-%m-%d').replace(hour=0, minute=0, second=0, microsecond=0)
+                attendance_date = ist.localize(attendance_date)
             else:
-                attendance_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+                now_ist = datetime.now(ist)
+                attendance_date = ist.localize(datetime(now_ist.year, now_ist.month, now_ist.day, 0, 0, 0, 0))
             
             # Find person by person_id, emp_id, or name
             person = None
@@ -2198,7 +2250,7 @@ def create_app() -> FastAPI:
                 return JSONResponse(content={
                     "success": False,
                     "error": "Person not found",
-                    "is_marked": False
+                    "action_required": None
                 })
             
             # Check if attendance exists
@@ -2206,37 +2258,65 @@ def create_app() -> FastAPI:
                 from ..models.database import Attendance
                 existing_attendance = session.query(Attendance).filter(
                     Attendance.person_id == person.id,
-                    Attendance.date == attendance_date
+                    Attendance.date == attendance_date.replace(tzinfo=None)
                 ).first()
                 
                 if existing_attendance:
-                    return JSONResponse(content={
-                        "success": True,
-                        "is_marked": True,
-                        "person": {
-                            "id": person.id,
-                            "name": person.name,
-                            "emp_id": person.emp_id,
-                            "emp_rank": person.emp_rank
-                        },
-                        "attendance": {
-                            "id": existing_attendance.id,
-                            "status": existing_attendance.status,
-                            "marked_at": existing_attendance.marked_at.isoformat() if existing_attendance.marked_at else None,
-                            "date": existing_attendance.date.isoformat() if existing_attendance.date else None
-                        }
-                    })
-                else:
-                    return JSONResponse(content={
-                        "success": True,
-                        "is_marked": False,
-                        "person": {
-                            "id": person.id,
-                            "name": person.name,
-                            "emp_id": person.emp_id,
-                            "emp_rank": person.emp_rank
-                        }
-                    })
+                    # Check status
+                    if existing_attendance.check_in_time and existing_attendance.check_out_time:
+                        # Already completed
+                        return JSONResponse(content={
+                            "success": True,
+                            "already_completed": True,
+                            "action_required": None,
+                            "message": "Already checked in and out for today",
+                            "person": {
+                                "id": person.id,
+                                "name": person.name,
+                                "emp_id": person.emp_id,
+                                "emp_rank": person.emp_rank
+                            },
+                            "attendance": {
+                                "id": existing_attendance.id,
+                                "status": existing_attendance.status,
+                                "check_in_time": existing_attendance.check_in_time.isoformat() if existing_attendance.check_in_time else None,
+                                "check_out_time": existing_attendance.check_out_time.isoformat() if existing_attendance.check_out_time else None,
+                                "date": existing_attendance.date.isoformat() if existing_attendance.date else None
+                            }
+                        })
+                    elif existing_attendance.check_in_time:
+                        # Checked in, needs check-out
+                        return JSONResponse(content={
+                            "success": True,
+                            "action_required": "check_out",
+                            "message": "Already checked in. Ready to check out.",
+                            "person": {
+                                "id": person.id,
+                                "name": person.name,
+                                "emp_id": person.emp_id,
+                                "emp_rank": person.emp_rank
+                            },
+                            "attendance": {
+                                "id": existing_attendance.id,
+                                "status": existing_attendance.status,
+                                "check_in_time": existing_attendance.check_in_time.isoformat() if existing_attendance.check_in_time else None,
+                                "check_out_time": None,
+                                "date": existing_attendance.date.isoformat() if existing_attendance.date else None
+                            }
+                        })
+                
+                # Not checked in yet
+                return JSONResponse(content={
+                    "success": True,
+                    "action_required": "check_in",
+                    "message": "Not checked in yet",
+                    "person": {
+                        "id": person.id,
+                        "name": person.name,
+                        "emp_id": person.emp_id,
+                        "emp_rank": person.emp_rank
+                    }
+                })
         except Exception as e:
             logger.error(f"Failed to check attendance: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to check attendance: {str(e)}")
@@ -2274,6 +2354,100 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.error(f"Failed to get attendance: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to get attendance: {str(e)}")
+    
+    @app.delete("/api/attendance/{attendance_id}")
+    async def delete_attendance(
+        attendance_id: int,
+        service = Depends(get_face_service)
+    ):
+        """
+        🗑️ Delete an attendance record
+        
+        This allows the person to check in and check out again.
+        """
+        try:
+            with service.db_manager.get_session() as session:
+                from ..models.database import Attendance
+                
+                attendance = session.query(Attendance).filter(Attendance.id == attendance_id).first()
+                
+                if not attendance:
+                    raise HTTPException(status_code=404, detail="Attendance record not found")
+                
+                # Get person name for logging
+                person_id = attendance.person_id
+                person = service.db_manager.get_person_by_id(person_id)
+                person_name = person.name if person else "Unknown"
+                
+                # Delete the attendance record
+                session.delete(attendance)
+                session.commit()
+                
+                logger.info(f"Deleted attendance record {attendance_id} for {person_name}")
+                
+                return JSONResponse(content={
+                    "success": True,
+                    "message": f"Attendance record deleted for {person_name}"
+                })
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to delete attendance: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to delete attendance: {str(e)}")
+    
+    # ==================== Analytics Endpoints ====================
+    
+    @app.get("/api/analytics/summary")
+    async def get_analytics_summary(
+        start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+        end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+        region: Optional[str] = Query(None, description="Region filter (ka/ap/tn)"),
+        service = Depends(get_face_service)
+    ):
+        """
+        📊 Get analytics summary
+        
+        Returns counts of registrations, check-ins, and check-outs for a date range
+        """
+        try:
+            from datetime import datetime
+            
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d') if end_date else None
+            
+            summary = service.db_manager.get_analytics_summary(start_dt, end_dt, region)
+            
+            return JSONResponse(content={
+                "success": True,
+                **summary
+            })
+        except Exception as e:
+            logger.error(f"Failed to get analytics summary: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to get analytics summary: {str(e)}")
+    
+    @app.get("/api/analytics/recent")
+    async def get_recent_events(
+        limit: int = Query(50, description="Number of events to return"),
+        event_type: Optional[str] = Query(None, description="Filter by event type (registration/check_in/check_out)"),
+        region: Optional[str] = Query(None, description="Region filter (ka/ap/tn)"),
+        service = Depends(get_face_service)
+    ):
+        """
+        📋 Get recent analytics events
+        
+        Returns recent system events with timestamps
+        """
+        try:
+            events = service.db_manager.get_recent_events(limit, event_type, region)
+            
+            return JSONResponse(content={
+                "success": True,
+                "events": events,
+                "count": len(events)
+            })
+        except Exception as e:
+            logger.error(f"Failed to get recent events: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to get recent events: {str(e)}")
 
     return app
 
