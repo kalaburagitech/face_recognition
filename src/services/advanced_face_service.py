@@ -344,6 +344,7 @@ class AdvancedFaceRecognitionService:
                 
                 return {
                     'success': True,
+                    'person_id': person_id,
                     'emp_id': person_emp_id,
                     'face_encoding_id': face_encoding.id,
                     'quality_score': face['quality'],
@@ -1188,6 +1189,22 @@ class AdvancedFaceRecognitionService:
                     search_scope = f"emp_id {emp_id}" if emp_id else f"region {region}"
                     logger.info(f"Recognition successful: {best_match['name']}, Similarity: {best_match['match_score']:.1f}% in {search_scope}")
                     
+                    # Get the first (oldest) face encoding for this person for consistency
+                    first_encoding_id = None
+                    try:
+                        with self.db_manager.get_session() as session:
+                            from ..models.database import Person, FaceEncoding
+                            person = session.query(Person).filter(Person.emp_id == best_match['emp_id']).first()
+                            if person:
+                                first_encoding = session.query(FaceEncoding).filter(
+                                    FaceEncoding.person_id == person.id
+                                ).order_by(FaceEncoding.id.asc()).first()
+                                if first_encoding:
+                                    first_encoding_id = first_encoding.id
+                    except Exception as e:
+                        logger.warning(f"Could not get first encoding: {e}")
+                        first_encoding_id = best_match['face_encoding_id']  # Fallback to matched encoding
+                    
                     matches.append({
                         'emp_id': best_match['emp_id'],
                         'name': best_match['name'],
@@ -1195,7 +1212,7 @@ class AdvancedFaceRecognitionService:
                         'distance': best_match['distance'],
                         'bbox': bbox,
                         'quality': face.get('det_score', 0.9),
-                        'face_encoding_id': best_match['face_encoding_id']
+                        'face_encoding_id': first_encoding_id  # Use first encoding for consistency
                     })
                 else:
                     # No match found

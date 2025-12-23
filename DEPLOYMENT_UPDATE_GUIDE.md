@@ -1,9 +1,11 @@
 # Deployment Update Guide
 
 ## Overview
+
 This guide helps you update your existing deployed system with the latest features including check-in/check-out functionality and analytics logging.
 
 ## Prerequisites
+
 - Existing face recognition system deployed
 - PostgreSQL database access
 - Python environment with dependencies installed
@@ -50,11 +52,13 @@ python3 migrate_add_checkin_checkout.py
 ```
 
 **What it does:**
+
 - Adds `check_in_time` column (TIMESTAMP WITH TIME ZONE)
 - Adds `check_out_time` column (TIMESTAMP WITH TIME ZONE)
 - Migrates existing data: sets `check_in_time = marked_at` for existing records
 
 **Expected Output:**
+
 ```
 ✅ Successfully added check_in_time and check_out_time columns
 ✅ Migrated existing records: check_in_time = marked_at
@@ -71,6 +75,7 @@ python3 migrate_add_analytics_log.py
 ```
 
 **What it does:**
+
 - Creates `analytics_log` table with columns:
   - `id`, `event_type`, `person_id`, `emp_id`, `name`, `region`
   - `timestamp` (IST), `date`, `event_metadata` (JSON)
@@ -78,6 +83,7 @@ python3 migrate_add_analytics_log.py
 - No data migration needed (new table)
 
 **Expected Output:**
+
 ```
 ✅ Successfully created analytics_log table with indexes
 ```
@@ -97,14 +103,14 @@ cur.execute('ALTER TABLE analytics_log RENAME COLUMN metadata TO event_metadata;
 conn.commit()
 print('✅ Column renamed successfully')
 conn.close()
-"
+"chan
 ```
 
 ---
 
 ## Step 4: Verify Database Changes
 
-```bash
+```bashpyth
 # Check attendance table structure
 psql -U postgres -d face_recognition -c "\d attendance"
 
@@ -150,6 +156,7 @@ uvicorn src.api.advanced_fastapi_app:app --host 0.0.0.0 --port 8000
 ## Step 7: Verify New Features
 
 ### Test Check-In/Check-Out
+
 1. Go to **Live Recognition** tab
 2. Start camera and detect a face
 3. Click "Check In" → Should show success with IST timestamp
@@ -157,6 +164,7 @@ uvicorn src.api.advanced_fastapi_app:app --host 0.0.0.0 --port 8000
 5. Click "Check Out" → Should show both check-in and check-out times
 
 ### Test Analytics
+
 1. Go to **Analytics** tab (Person Registration section)
 2. Select date range (defaults to last 7 days)
 3. Click "Load Analytics"
@@ -167,6 +175,7 @@ uvicorn src.api.advanced_fastapi_app:app --host 0.0.0.0 --port 8000
    - Daily breakdown table
 
 ### Test Attendance Records
+
 1. Go to **Analytics** tab → Attendance Records section
 2. Select a date
 3. Click "View Attendance"
@@ -194,10 +203,10 @@ psql -U postgres -d face_recognition -c "DROP TABLE analytics_log;"
 
 ## Migration Files Summary
 
-| File | Purpose | Required? |
-|------|---------|-----------|
-| `migrate_add_checkin_checkout.py` | Add check-in/check-out columns | ✅ Yes |
-| `migrate_add_analytics_log.py` | Create analytics log table | ✅ Yes |
+| File                              | Purpose                        | Required? |
+| --------------------------------- | ------------------------------ | --------- |
+| `migrate_add_checkin_checkout.py` | Add check-in/check-out columns | ✅ Yes    |
+| `migrate_add_analytics_log.py`    | Create analytics log table     | ✅ Yes    |
 
 **Note:** After running migrations successfully, you can delete these files or keep them for reference.
 
@@ -206,24 +215,28 @@ psql -U postgres -d face_recognition -c "DROP TABLE analytics_log;"
 ## New Features Added
 
 ### 1. Check-In/Check-Out System
+
 - First recognition → "Check In" button
-- Second recognition → "Check Out" button  
+- Second recognition → "Check Out" button
 - Third recognition → "Already completed" message
 - All timestamps in IST (Asia/Kolkata)
 
 ### 2. Analytics Dashboard
+
 - Track registrations, check-ins, check-outs
 - Date range filtering
 - Region filtering
 - Daily breakdown statistics
 
 ### 3. Improved Live Recognition
+
 - Camera keeps running after detection
 - Multiple people can be detected simultaneously
 - No auto check-in (user must click button)
 - Detected people remain visible until action taken
 
 ### 4. Attendance Records Enhancement
+
 - Shows check-in and check-out times separately
 - Delete button to remove incorrect records
 - All times displayed in IST
@@ -233,19 +246,25 @@ psql -U postgres -d face_recognition -c "DROP TABLE analytics_log;"
 ## Troubleshooting
 
 ### Issue: Import errors about Date or JSON
+
 **Solution:** Already fixed in code. Ensure you have latest `src/models/database.py`
 
 ### Issue: "metadata" column error
+
 **Solution:** Run the rename command in Step 3, Migration 3
 
 ### Issue: Old UI still showing
+
 **Solution:** Hard refresh browser (Ctrl+Shift+R)
 
 ### Issue: Analytics showing 0 counts
+
 **Solution:** Normal for new installation. Counts will increase as you use the system.
 
 ### Issue: Check-in button not appearing
-**Solution:** 
+
+**Solution:**
+
 1. Hard refresh browser
 2. Check browser console for errors (F12)
 3. Verify API endpoint: `GET /api/attendance/check?emp_id=XXX`
@@ -269,6 +288,7 @@ psql -U postgres -d face_recognition -c "DROP TABLE analytics_log;"
 ## Support
 
 If you encounter issues:
+
 1. Check server logs: `tail -f /path/to/logs/app.log`
 2. Check database: `psql -U postgres -d face_recognition`
 3. Verify all migrations ran successfully
@@ -279,6 +299,7 @@ If you encounter issues:
 ## Summary
 
 **Required Steps:**
+
 1. ✅ Backup database
 2. ✅ Run `migrate_add_checkin_checkout.py`
 3. ✅ Run `migrate_add_analytics_log.py`

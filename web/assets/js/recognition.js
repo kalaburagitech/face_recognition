@@ -18,7 +18,7 @@ class FaceRecognition {
         if (uploadZone && fileInput) {
             // Click to upload
             uploadZone.addEventListener('click', () => fileInput.click());
-            
+
             // File selection
             fileInput.addEventListener('change', (e) => {
                 if (e.target.files.length > 0) {
@@ -48,7 +48,7 @@ class FaceRecognition {
 
     handleFile(file) {
         const validation = FileValidator.validate(file);
-        
+
         if (!validation.valid) {
             validation.errors.forEach(error => {
                 ToastManager.show(error, 'error');
@@ -67,11 +67,11 @@ class FaceRecognition {
         reader.onload = (e) => {
             const img = document.getElementById('previewImg');
             const preview = document.getElementById('imagePreview');
-            
+
             if (img && preview) {
                 img.src = e.target.result;
                 preview.style.display = 'block';
-                
+
                 // Add fade-in animation
                 preview.classList.add('fade-in');
             }
@@ -118,19 +118,19 @@ class FaceRecognition {
 
         const btn = document.getElementById('recognizeBtn');
         const loadingOverlay = document.getElementById('recognitionLoading');
-        
+
         // show loading status
         if (loadingOverlay) {
             loadingOverlay.style.display = 'flex';
         }
-        
+
         LoadingManager.setButtonLoading(btn, true, 'Recognizing...');
 
         try {
             const formData = new FormData();
             formData.append('file', this.currentFile);
             formData.append('region', regionSelect.value);
-            
+
             // Add optional emp_id if provided
             const empIdInput = document.getElementById('recognitionEmpId');
             if (empIdInput && empIdInput.value.trim()) {
@@ -139,13 +139,13 @@ class FaceRecognition {
 
             // First get the recognition results
             const result = await ApiClient.post('/api/recognize', formData);
-            
+
             // Then get the visualization picture
             const visualResponse = await fetch('/api/recognize_visual', {
                 method: 'POST',
                 body: formData
             });
-            
+
             if (visualResponse.ok) {
                 const blob = await visualResponse.blob();
                 const visualUrl = URL.createObjectURL(blob);
@@ -153,7 +153,7 @@ class FaceRecognition {
             } else {
                 this.displayResults(result);
             }
-            
+
             ToastManager.show('Recognition completed', 'success');
             this.showDownloadButton();
 
@@ -181,7 +181,7 @@ class FaceRecognition {
         if (!container) return;
 
         let resultsHtml = '';
-        
+
         // If there is a visual picture，show first
         if (visualUrl) {
             resultsHtml += `
@@ -291,7 +291,7 @@ class FaceRecognition {
                     <div class="col-md-6">
                         <div class="d-flex justify-content-between">
                             <span class="text-muted">detection frame:</span>
-                            <span class="fw-semibold">${match.bbox ? `${match.bbox[2]-match.bbox[0]}×${match.bbox[3]-match.bbox[1]}` : 'N/A'}</span>
+                            <span class="fw-semibold">${match.bbox ? `${match.bbox[2] - match.bbox[0]}×${match.bbox[3] - match.bbox[1]}` : 'N/A'}</span>
                         </div>
                     </div>
                 </div>
@@ -323,15 +323,55 @@ class FaceRecognition {
         // Show loading state
         attendanceSection.innerHTML = `
             <button class="btn btn-secondary w-100" disabled>
-                <span class="spinner-border spinner-border-sm me-2"></span>Checking...
+                <span class="spinner-border spinner-border-sm me-2"></span>Getting location...
             </button>
         `;
 
         try {
+            // Get user's location
+            let latitude = null;
+            let longitude = null;
+            let accuracy = null;
+
+            try {
+                if (navigator.geolocation) {
+                    const position = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {
+                            enableHighAccuracy: true,
+                            timeout: 5000,
+                            maximumAge: 0
+                        });
+                    });
+                    latitude = position.coords.latitude;
+                    longitude = position.coords.longitude;
+                    accuracy = position.coords.accuracy;
+                    console.log(`📍 Location captured: (${latitude}, ${longitude}) accuracy: ${accuracy}m`);
+                }
+            } catch (geoError) {
+                console.warn('Location access denied or unavailable:', geoError);
+                // Continue without location
+            }
+
+            // Show marking state
+            attendanceSection.innerHTML = `
+                <button class="btn btn-secondary w-100" disabled>
+                    <span class="spinner-border spinner-border-sm me-2"></span>Marking attendance...
+                </button>
+            `;
+
             // Mark attendance
             const formData = new FormData();
             formData.append('emp_id', empId);
             formData.append('status', 'present');
+
+            // Add location data if available
+            if (latitude !== null && longitude !== null) {
+                formData.append('latitude', latitude);
+                formData.append('longitude', longitude);
+                if (accuracy !== null) {
+                    formData.append('location_accuracy', accuracy);
+                }
+            }
 
             const response = await fetch('/api/attendance/mark', {
                 method: 'POST',
@@ -339,7 +379,7 @@ class FaceRecognition {
             });
 
             const result = await response.json();
-            
+
             // Debug logging
             console.log('Attendance API Response:', result);
             console.log('already_marked flag:', result.already_marked);
@@ -357,11 +397,13 @@ class FaceRecognition {
                     ToastManager.show(`Attendance already marked for ${personName}`, 'info');
                 } else {
                     // Successfully marked
+                    const locationInfo = latitude && longitude ? `<br><small>📍 Location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}</small>` : '';
                     attendanceSection.innerHTML = `
                         <div class="alert alert-success mb-0">
                             <i class="bi bi-check-circle me-2"></i>
                             <strong>Attendance Marked Successfully</strong><br>
                             <small>Marked at: ${new Date(result.attendance.marked_at).toLocaleString()}</small>
+                            ${locationInfo}
                         </div>
                     `;
                     ToastManager.show(`Attendance marked for ${personName}`, 'success');
@@ -418,7 +460,7 @@ class FaceRecognition {
 
     clearRecognition() {
         this.currentFile = null;
-        
+
         const fileInput = document.getElementById('imageFile');
         const preview = document.getElementById('imagePreview');
         const btn = document.getElementById('recognizeBtn');
@@ -436,7 +478,7 @@ class FaceRecognition {
         if (clearBtn) clearBtn.style.display = 'none';
         if (downloadBtn) downloadBtn.style.display = 'none';
         if (imageInfo) imageInfo.innerHTML = '';
-        
+
         if (results) {
             results.innerHTML = `
                 <div class="empty-state">

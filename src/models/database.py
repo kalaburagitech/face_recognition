@@ -27,8 +27,15 @@ Base = declarative_base()
 
 class TimestampMixin:
     """Timestamp mix-in class"""
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    @staticmethod
+    def _get_ist_now():
+        """Get current time in IST"""
+        import pytz
+        ist = pytz.timezone('Asia/Kolkata')
+        return datetime.now(ist)
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: TimestampMixin._get_ist_now(), nullable=False, index=True)
+    updated_at = Column(DateTime(timezone=True), default=lambda: TimestampMixin._get_ist_now(), onupdate=lambda: TimestampMixin._get_ist_now(), nullable=False)
 
 
 class Person(Base, TimestampMixin):
@@ -78,9 +85,17 @@ class Attendance(Base, TimestampMixin):
     person_id = Column(Integer, ForeignKey('persons.id', ondelete='CASCADE'), nullable=False, index=True)
     date = Column(DateTime, nullable=False, index=True)
     status = Column(String(20), default='present', nullable=False)  # present/absent
-    marked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    marked_at = Column(DateTime(timezone=True), default=lambda: TimestampMixin._get_ist_now(), nullable=False)
     check_in_time = Column(DateTime(timezone=True), nullable=True)  # Check-in timestamp
     check_out_time = Column(DateTime(timezone=True), nullable=True)  # Check-out timestamp
+    
+    # Location tracking
+    check_in_latitude = Column(Float, nullable=True)  # Check-in latitude
+    check_in_longitude = Column(Float, nullable=True)  # Check-in longitude
+    check_in_location_accuracy = Column(Float, nullable=True)  # Check-in location accuracy in meters
+    check_out_latitude = Column(Float, nullable=True)  # Check-out latitude
+    check_out_longitude = Column(Float, nullable=True)  # Check-out longitude
+    check_out_location_accuracy = Column(Float, nullable=True)  # Check-out location accuracy in meters
     
     # Relationship - passive_deletes tells SQLAlchemy to let the database handle CASCADE
     person = relationship('Person', backref='attendance_records', passive_deletes=True)
@@ -100,7 +115,17 @@ class Attendance(Base, TimestampMixin):
             'status': self.status,
             'marked_at': self.marked_at.isoformat() if self.marked_at else None,
             'check_in_time': self.check_in_time.isoformat() if self.check_in_time else None,
-            'check_out_time': self.check_out_time.isoformat() if self.check_out_time else None
+            'check_out_time': self.check_out_time.isoformat() if self.check_out_time else None,
+            'check_in_location': {
+                'latitude': self.check_in_latitude,
+                'longitude': self.check_in_longitude,
+                'accuracy': self.check_in_location_accuracy
+            } if self.check_in_latitude and self.check_in_longitude else None,
+            'check_out_location': {
+                'latitude': self.check_out_latitude,
+                'longitude': self.check_out_longitude,
+                'accuracy': self.check_out_location_accuracy
+            } if self.check_out_latitude and self.check_out_longitude else None
         }
 
 
@@ -114,7 +139,7 @@ class AnalyticsLog(Base, TimestampMixin):
     emp_id = Column(String(100), nullable=True, index=True)
     name = Column(String(255), nullable=True)
     region = Column(String(50), nullable=True, index=True)
-    timestamp = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime(timezone=True), nullable=False, default=lambda: TimestampMixin._get_ist_now(), index=True)
     date = Column(Date, nullable=False, index=True)
     event_metadata = Column(JSON, nullable=True)  # Additional data as JSON (renamed from 'metadata' to avoid SQLAlchemy conflict)
     
@@ -589,8 +614,11 @@ class DatabaseManager:
     
     def mark_attendance(self, person_id: int, date: Optional[datetime] = None, status: str = 'present') -> 'Attendance':
         """Mark attendance for a person"""
+        import pytz
+        ist = pytz.timezone('Asia/Kolkata')
+        
         if date is None:
-            date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            date = datetime.now(ist).replace(hour=0, minute=0, second=0, microsecond=0)
         
         with self.get_session() as session:
             # Check if attendance already exists for this person on this date
@@ -602,7 +630,7 @@ class DatabaseManager:
             if existing:
                 # Update existing attendance
                 existing.status = status
-                existing.marked_at = datetime.utcnow()
+                existing.marked_at = datetime.now(ist)
                 session.flush()
                 session.refresh(existing)
                 session.expunge(existing)
@@ -614,7 +642,7 @@ class DatabaseManager:
                     person_id=person_id,
                     date=date,
                     status=status,
-                    marked_at=datetime.utcnow()
+                    marked_at=datetime.now(ist)
                 )
                 session.add(attendance)
                 session.flush()
@@ -686,7 +714,7 @@ class DatabaseManager:
     # ==================== Analytics Logging ====================
     
     def log_event(self, event_type: str, person_id: Optional[int] = None, emp_id: Optional[str] = None, 
-                  name: Optional[str] = None, region: Optional[str] = None, metadata: Optional[dict] = None) -> AnalyticsLog:
+                  name: Optional[str] = None, region: Optional[str] = None, metadata: Optional[dict] = None) -> Dict[str, Any]:
         """
         Log an analytics event
         
@@ -698,25 +726,33 @@ class DatabaseManager:
             region: Region (optional)
             metadata: Additional data as dictionary (optional)
         """
-        import pytz
-        ist = pytz.timezone('Asia/Kolkata')
-        now_ist = datetime.now(ist)
-        
-        with self.get_session() as session:
-            log_entry = AnalyticsLog(
-                event_type=event_type,
-                person_id=person_id,
-                emp_id=emp_id,
-                name=name,
-                region=region,
-                timestamp=now_ist,
-                date=now_ist.date(),
-                event_metadata=metadata  # Use event_metadata instead of metadata
-            )
-            session.add(log_entry)
-            session.commit()
-            session.refresh(log_entry)
-            return log_entry
+        try:
+            import pytz
+            ist = pytz.timezone('Asia/Kolkata')
+            now_ist = datetime.now(ist)
+            
+            with self.get_session() as session:
+                log_entry = AnalyticsLog(
+                    event_type=event_type,
+                    person_id=person_id,
+                    emp_id=emp_id,
+                    name=name,
+                    region=region,
+                    timestamp=now_ist,
+                    date=now_ist.date(),
+                    event_metadata=metadata  # Use event_metadata instead of metadata
+                )
+                session.add(log_entry)
+                session.flush()
+                log_id = log_entry.id
+                session.commit()
+                
+            logger.info(f"✅ Analytics event logged: {event_type} for {name} (ID: {log_id})")
+            # Return a simple dict instead of the object
+            return {'id': log_id, 'event_type': event_type}
+        except Exception as e:
+            logger.error(f"❌ Failed to log analytics event: {e}")
+            raise
     
     def get_analytics_summary(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None, 
                              region: Optional[str] = None) -> Dict[str, Any]:

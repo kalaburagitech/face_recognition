@@ -4135,10 +4135,43 @@
         // Attendance functions
         async function markAttendance(empId, personName) {
             try {
+                // Get user's location
+                let latitude = null;
+                let longitude = null;
+                let accuracy = null;
+
+                try {
+                    if (navigator.geolocation) {
+                        const position = await new Promise((resolve, reject) => {
+                            navigator.geolocation.getCurrentPosition(resolve, reject, {
+                                enableHighAccuracy: false,
+                                timeout: 15000,
+                                maximumAge: 30000
+                            });
+                        });
+                        latitude = position.coords.latitude;
+                        longitude = position.coords.longitude;
+                        accuracy = position.coords.accuracy;
+                        console.log(`📍 Check-in location captured: (${latitude}, ${longitude}) accuracy: ${accuracy}m`);
+                    }
+                } catch (geoError) {
+                    console.warn('Location access denied or unavailable:', geoError);
+                    // Continue without location
+                }
+
                 // Perform check-in
                 const formData = new FormData();
                 formData.append('emp_id', empId);
                 formData.append('action', 'check_in');
+                
+                // Add location data if available
+                if (latitude !== null && longitude !== null) {
+                    formData.append('latitude', latitude);
+                    formData.append('longitude', longitude);
+                    if (accuracy !== null) {
+                        formData.append('location_accuracy', accuracy);
+                    }
+                }
 
                 const response = await fetch('/api/attendance/mark', {
                     method: 'POST',
@@ -4156,11 +4189,13 @@
 
                 if (result.success && result.action_performed === 'check_in') {
                     // Successfully checked in
+                    const locationInfo = latitude && longitude ? `<br><small>📍 Location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}</small>` : '';
                     buttonsDiv.innerHTML = `
                         <div class="alert alert-success mb-0 w-100 py-2">
                             <i class="bi bi-check-circle-fill me-2"></i>
                             <strong>Checked In Successfully</strong><br>
                             <small>Time: ${new Date(result.attendance.check_in_time).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}</small>
+                            ${locationInfo}
                         </div>
                     `;
                     if (window.ToastManager) {
@@ -4185,9 +4220,42 @@
 
         async function performCheckOut(empId, personName) {
             try {
+                // Get user's location
+                let latitude = null;
+                let longitude = null;
+                let accuracy = null;
+
+                try {
+                    if (navigator.geolocation) {
+                        const position = await new Promise((resolve, reject) => {
+                            navigator.geolocation.getCurrentPosition(resolve, reject, {
+                                enableHighAccuracy: false,
+                                timeout: 15000,
+                                maximumAge: 30000
+                            });
+                        });
+                        latitude = position.coords.latitude;
+                        longitude = position.coords.longitude;
+                        accuracy = position.coords.accuracy;
+                        console.log(`📍 Check-out location captured: (${latitude}, ${longitude}) accuracy: ${accuracy}m`);
+                    }
+                } catch (geoError) {
+                    console.warn('Location access denied or unavailable:', geoError);
+                    // Continue without location
+                }
+
                 const formData = new FormData();
                 formData.append('emp_id', empId);
                 formData.append('action', 'check_out');
+                
+                // Add location data if available
+                if (latitude !== null && longitude !== null) {
+                    formData.append('latitude', latitude);
+                    formData.append('longitude', longitude);
+                    if (accuracy !== null) {
+                        formData.append('location_accuracy', accuracy);
+                    }
+                }
 
                 const response = await fetch('/api/attendance/mark', {
                     method: 'POST',
@@ -4202,12 +4270,14 @@
                     if (resultCard) {
                         const buttonsDiv = resultCard.querySelector('.d-flex.gap-2');
                         if (buttonsDiv) {
+                            const locationInfo = latitude && longitude ? `<br><small>📍 Location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}</small>` : '';
                             buttonsDiv.innerHTML = `
                                 <div class="alert alert-success mb-0 w-100 py-2">
                                     <i class="bi bi-check-circle-fill me-2"></i>
                                     <strong>Checked Out Successfully</strong><br>
                                     <small>Check-in: ${new Date(result.attendance.check_in_time).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}</small><br>
                                     <small>Check-out: ${new Date(result.attendance.check_out_time).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}</small>
+                                    ${locationInfo}
                                 </div>
                             `;
                             if (window.ToastManager) {

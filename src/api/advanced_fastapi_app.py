@@ -227,6 +227,21 @@ def create_app() -> FastAPI:
                 processing_time = time.time() - start_time
                 
                 if result['success']:
+                    # Log registration event
+                    try:
+                        person_id = result.get('person_id')
+                        service.db_manager.log_event(
+                            event_type='registration',
+                            person_id=person_id,
+                            emp_id=emp_id,
+                            name=name,
+                            region=region,
+                            metadata={'face_encoding_id': result.get('face_encoding_id')}
+                        )
+                        logger.info(f"✅ Logged registration event for {name}")
+                    except Exception as log_error:
+                        logger.error(f"Failed to log registration event: {log_error}")
+                    
                     # Generate face detection visualization images
                     visualized_image = None
                     face_details = None
@@ -272,7 +287,7 @@ def create_app() -> FastAPI:
                 error=f"Server internal error: {str(e)}"
             )
 
-    @app.post("/api/enroll_simple", response_model=EnrollmentResponse)
+    @app.post("/api/enroll_simple", response_model=EnrollmentResponse, include_in_schema=False)
     async def enroll_person_simple(
         file: UploadFile = File(..., description="Face image file"),
         name: str = Form(..., description="Personnel name"),
@@ -700,6 +715,27 @@ def create_app() -> FastAPI:
             if is_single_person_batch:
                 final_message = f"Video registration completed：successfully processed {success_count} frame，fail {error_count} frame"
             
+            # Log registration event for successful batch enrollment
+            if success_count > 0:
+                try:
+                    service.db_manager.log_event(
+                        event_type='registration',
+                        person_id=None,  # Batch enrollment may have multiple person IDs
+                        emp_id=emp_id,
+                        name=target_name,
+                        region=region,
+                        metadata={
+                            'batch_enrollment': True,
+                            'total_files': len(files),
+                            'success_count': success_count,
+                            'error_count': error_count,
+                            'is_video_registration': is_single_person_batch
+                        }
+                    )
+                    logger.info(f"✅ Logged batch registration event for {target_name}")
+                except Exception as log_error:
+                    logger.error(f"Failed to log batch registration event: {log_error}")
+            
             return {
                 'success': True,
                 'total_files': len(files),
@@ -868,7 +904,7 @@ def create_app() -> FastAPI:
                         return FileResponse(
                             temp_file.name, 
                             media_type="image/jpeg",
-                            filename=f"recognition_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+                            filename=f"recognition_result_{datetime.now(pytz.timezone('Asia/Kolkata')).strftime('%Y%m%d_%H%M%S')}.jpg"
                         )
                     finally:
                         # Clean temporary files（delayed deletion）
@@ -1024,11 +1060,11 @@ def create_app() -> FastAPI:
                     from ..models import FaceEncoding
                     encodings = session.query(FaceEncoding).filter(
                         FaceEncoding.person_id == person.id
-                    ).all()
+                    ).order_by(FaceEncoding.id.asc()).all()
                     
                     encoding_count = len(encodings)
                     
-                    # Get the first face code as avatar
+                    # Get the first (oldest) face encoding as profile picture for consistency
                     first_encoding = encodings[0] if encodings else None
                     
                     face_image_url = None
@@ -1179,7 +1215,7 @@ def create_app() -> FastAPI:
                     }
                 )
             
-            # forGETask，Return image data
+            # forGETask，Return image data directly
             return Response(
                 content=image_data,
                 media_type="image/jpeg",
@@ -1191,7 +1227,40 @@ def create_app() -> FastAPI:
         except Exception as e:
             logger.error(f"Failed to obtain face image: {str(e)}")
             raise HTTPException(status_code=500, detail="Failed to obtain face image")
-
+    
+    @app.get("/api/face/{face_encoding_id}/image/info")
+    async def get_face_image_info(face_encoding_id: int, request: Request, service = Depends(get_face_service)):
+        """
+        🖼️ Get face image info (JSON with URL)
+        
+        Returns JSON with image URL for API testing
+        """
+        try:
+            # Use the database manager method directly
+            encoding = service.db_manager.get_face_encoding_by_id(face_encoding_id)
+            if not encoding:
+                raise HTTPException(status_code=404, detail="The specified face code was not found")
+            
+            image_data = encoding.get_image_data()
+            if not image_data:
+                raise HTTPException(status_code=404, detail="This face code has no associated image data")
+            
+            # Get the base URL from the request
+            base_url = str(request.base_url).rstrip('/')
+            image_url = f"{base_url}/api/face/{face_encoding_id}/image"
+            
+            return JSONResponse(content={
+                "success": True,
+                "face_encoding_id": face_encoding_id,
+                "image_url": image_url
+            })
+                
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to obtain face image info: {str(e)}")
+            raise HTTPException(status_code=500, detail="Failed to obtain face image info")
+    
     @app.put("/api/person/{emp_id}")
     async def update_person(emp_id: str, person_data: PersonUpdate, service = Depends(get_face_service)):
         """
@@ -1214,7 +1283,9 @@ def create_app() -> FastAPI:
                     if hasattr(person, field):
                         setattr(person, field, value)
                 
-                person.updated_at = datetime.utcnow()
+                import pytz
+                ist = pytz.timezone('Asia/Kolkata')
+                person.updated_at = datetime.now(ist)
                 session.commit()
                 
                 # Return updated personnel information
@@ -1848,26 +1919,30 @@ def create_app() -> FastAPI:
             logger.error(f"Face detection failed: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Face detection failed: {str(e)}")
 
-    @app.get("/health")
-    @app.head("/health")
+    @app.get("/health", include_in_schema=False)
+    @app.head("/health", include_in_schema=False)
     async def health_check_docker():
         """Docker Health check interface"""
         try:
-            return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+            import pytz
+            ist = pytz.timezone('Asia/Kolkata')
+            return {"status": "healthy", "timestamp": datetime.now(ist).isoformat()}
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"Service unhealthy: {str(e)}")
 
-    @app.get("/api/health")
-    @app.head("/api/health")
+    @app.get("/api/health", include_in_schema=False)
+    @app.head("/api/health", include_in_schema=False)
     async def health_check():
         """
         ❤️ Health check interface
         
         Check system operating status
         """
+        import pytz
+        ist = pytz.timezone('Asia/Kolkata')
         return {
             "status": "healthy",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(ist).isoformat(),
             "service": "Advanced facial recognition system",
             "version": "2.0.0",
             "features": [
@@ -1878,7 +1953,7 @@ def create_app() -> FastAPI:
             ]
         }
 
-    @app.get("/api/sync/status")
+    @app.get("/api/sync/status", include_in_schema=False)
     async def sync_status():
         """
         🔄 Get moreWorkerSync status
@@ -1907,7 +1982,7 @@ def create_app() -> FastAPI:
             logger.error(f"Failed to get sync status: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to get sync status: {str(e)}")
 
-    @app.post("/api/sync/refresh")
+    @app.post("/api/sync/refresh", include_in_schema=False)
     async def force_sync_refresh():
         """
         🔄 Force refresh cache sync
@@ -1944,11 +2019,14 @@ def create_app() -> FastAPI:
             # Get database statistics instead of cache
             db_stats = face_service.db_manager.get_statistics()
             
+            import pytz
+            ist = pytz.timezone('Asia/Kolkata')
+            
             cache_data = {
                 "success": True,
                 "cache_type": "PostgreSQL + pgvector",
                 "service_type": type(face_service).__name__,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(ist).isoformat(),
                 "total_persons": db_stats.get('total_persons', 0),
                 "total_encodings": db_stats.get('total_encodings', 0),
                 "avg_photos_per_person": db_stats.get('avg_photos_per_person', 0),
@@ -1971,6 +2049,9 @@ def create_app() -> FastAPI:
         date: Optional[str] = Form(None, description="Date (YYYY-MM-DD), defaults to today"),
         status: str = Form('present', description="Status: present or absent"),
         action: str = Form('check_in', description="Action: check_in or check_out"),
+        latitude: Optional[float] = Form(None, description="Location latitude"),
+        longitude: Optional[float] = Form(None, description="Location longitude"),
+        location_accuracy: Optional[float] = Form(None, description="Location accuracy in meters"),
         service = Depends(get_face_service)
     ):
         """
@@ -1979,6 +2060,7 @@ def create_app() -> FastAPI:
         - First recognition: Check-in
         - Second recognition: Check-out (only if already checked in)
         Can identify person by person_id, emp_id, or name.
+        Optionally captures location coordinates for check-in/check-out.
         """
         try:
             from datetime import datetime
@@ -2023,6 +2105,9 @@ def create_app() -> FastAPI:
                 )
             
             # Check existing attendance for today
+            current_time_ist = datetime.now(ist)
+            attendance_id_for_log = None
+            
             with service.db_manager.get_session() as session:
                 from ..models.database import Attendance
                 existing_attendance = session.query(Attendance).filter(
@@ -2030,35 +2115,57 @@ def create_app() -> FastAPI:
                     Attendance.date == attendance_date.replace(tzinfo=None)  # Compare without timezone
                 ).first()
                 
-                current_time_ist = datetime.now(ist)
-                
                 if existing_attendance:
                     # Attendance record exists
                     if existing_attendance.check_in_time and not existing_attendance.check_out_time:
                         # Already checked in, can check out
                         if action == 'check_out':
                             existing_attendance.check_out_time = current_time_ist
+                            # Save check-out location
+                            if latitude is not None and longitude is not None:
+                                existing_attendance.check_out_latitude = latitude
+                                existing_attendance.check_out_longitude = longitude
+                                existing_attendance.check_out_location_accuracy = location_accuracy
+                                logger.info(f"📍 Check-out location saved: ({latitude}, {longitude})")
                             session.commit()
-                            
-                            # Log check-out event
-                            service.db_manager.log_event(
-                                event_type='check_out',
-                                person_id=person.id,
-                                emp_id=person.emp_id,
-                                name=person.name,
-                                region=person.region,
-                                metadata={'attendance_id': existing_attendance.id}
-                            )
+                            attendance_id_for_log = existing_attendance.id
                             
                             attendance_data = {
                                 "id": existing_attendance.id,
                                 "status": existing_attendance.status,
                                 "check_in_time": existing_attendance.check_in_time.isoformat() if existing_attendance.check_in_time else None,
                                 "check_out_time": existing_attendance.check_out_time.isoformat() if existing_attendance.check_out_time else None,
-                                "date": existing_attendance.date.isoformat() if existing_attendance.date else None
+                                "date": existing_attendance.date.isoformat() if existing_attendance.date else None,
+                                "check_out_location": {
+                                    "latitude": existing_attendance.check_out_latitude,
+                                    "longitude": existing_attendance.check_out_longitude,
+                                    "accuracy": existing_attendance.check_out_location_accuracy
+                                } if existing_attendance.check_out_latitude else None
                             }
                             
                             logger.info(f"✅ Check-out successful for {person.name} at {current_time_ist}")
+                            
+                            # Log check-out event OUTSIDE the session context
+                            try:
+                                service.db_manager.log_event(
+                                    event_type='check_out',
+                                    person_id=person.id,
+                                    emp_id=person.emp_id,
+                                    name=person.name,
+                                    region=person.region,
+                                    metadata={
+                                        'attendance_id': attendance_id_for_log,
+                                        'location': {
+                                            'latitude': latitude,
+                                            'longitude': longitude,
+                                            'accuracy': location_accuracy
+                                        } if latitude and longitude else None
+                                    }
+                                )
+                                logger.info(f"✅ Logged check-out event for {person.name}")
+                            except Exception as log_error:
+                                logger.error(f"Failed to log check-out event: {log_error}")
+                            
                             return JSONResponse(content={
                                 "success": True,
                                 "action_performed": "check_out",
@@ -2127,29 +2234,51 @@ def create_app() -> FastAPI:
                     date=attendance_date.replace(tzinfo=None),
                     status=status,
                     marked_at=current_time_ist,
-                    check_in_time=current_time_ist
+                    check_in_time=current_time_ist,
+                    check_in_latitude=latitude,
+                    check_in_longitude=longitude,
+                    check_in_location_accuracy=location_accuracy
                 )
+                if latitude is not None and longitude is not None:
+                    logger.info(f"📍 Check-in location saved: ({latitude}, {longitude})")
                 session.add(new_attendance)
                 session.commit()
                 session.refresh(new_attendance)
-                
-                # Log check-in event
-                service.db_manager.log_event(
-                    event_type='check_in',
-                    person_id=person.id,
-                    emp_id=person.emp_id,
-                    name=person.name,
-                    region=person.region,
-                    metadata={'attendance_id': new_attendance.id}
-                )
+                attendance_id_for_log = new_attendance.id
                 
                 attendance_data = {
                     "id": new_attendance.id,
                     "status": new_attendance.status,
                     "check_in_time": new_attendance.check_in_time.isoformat() if new_attendance.check_in_time else None,
                     "check_out_time": None,
-                    "date": new_attendance.date.isoformat() if new_attendance.date else None
+                    "date": new_attendance.date.isoformat() if new_attendance.date else None,
+                    "check_in_location": {
+                        "latitude": new_attendance.check_in_latitude,
+                        "longitude": new_attendance.check_in_longitude,
+                        "accuracy": new_attendance.check_in_location_accuracy
+                    } if new_attendance.check_in_latitude else None
                 }
+            
+            # Log check-in event OUTSIDE the session context
+            try:
+                service.db_manager.log_event(
+                    event_type='check_in',
+                    person_id=person.id,
+                    emp_id=person.emp_id,
+                    name=person.name,
+                    region=person.region,
+                    metadata={
+                        'attendance_id': attendance_id_for_log,
+                        'location': {
+                            'latitude': latitude,
+                            'longitude': longitude,
+                            'accuracy': location_accuracy
+                        } if latitude and longitude else None
+                    }
+                )
+                logger.info(f"✅ Logged check-in event for {person.name}")
+            except Exception as log_error:
+                logger.error(f"Failed to log check-in event: {log_error}")
             
             return JSONResponse(content={
                 "success": True,
@@ -2177,8 +2306,10 @@ def create_app() -> FastAPI:
         """
         try:
             from datetime import datetime
+            import pytz
             
-            today = datetime.utcnow()
+            ist = pytz.timezone('Asia/Kolkata')
+            today = datetime.now(ist)
             attendance_date = datetime(today.year, today.month, today.day, 0, 0, 0, 0)
             
             person = service.db_manager.get_person_by_id(person_id)
@@ -2337,7 +2468,9 @@ def create_app() -> FastAPI:
             if date:
                 attendance_date = datetime.strptime(date, '%Y-%m-%d')
             else:
-                attendance_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+                import pytz
+                ist = pytz.timezone('Asia/Kolkata')
+                attendance_date = datetime.now(ist).replace(hour=0, minute=0, second=0, microsecond=0)
             
             # Get all persons with attendance status
             records = service.db_manager.get_all_persons_with_attendance(attendance_date, region)
